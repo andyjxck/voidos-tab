@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.VoidOS" parent="android:Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@color/void_bg</item>
+        <item name="android:colorBackground">@color/void_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+        <item name="android:windowShowWallpaper">false</item>
+        <item name="android:windowDisablePreview">false</item>
+    </style>
+    <color name="void_bg">#FF080A12</color>
+    <color name="void_teal">#FF46D8E0</color>
+    <string name="app_name">VoidOS</string>
+    <string name="admin_label">VoidOS device control</string>
+    <string name="admin_desc">Lets VoidOS run this tablet as its home screen, hide extras and keep updates away.</string>
+</resources>
