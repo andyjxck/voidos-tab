@@ -35,6 +35,18 @@ class Store(private val ctx: Context) {
     var lon by mutableStateOf(p.getFloat("lon", -1.9457f)); private set
     var wallpaperDone by mutableStateOf(p.getBoolean("wallpaperDone", false)); private set
 
+    // v2
+    /** "auto" follows the tablet, "land" or "port" pins it. */
+    var rotation by mutableStateOf(p.getString("rotation", "auto")!!); private set
+    var voidLock by mutableStateOf(p.getBoolean("voidLock", true)); private set
+    var lockNeedsPin by mutableStateOf(p.getBoolean("lockNeedsPin", false)); private set
+    var lockNotices by mutableStateOf(p.getBoolean("lockNotices", true)); private set
+    var timerSound by mutableStateOf(p.getBoolean("timerSound", true)); private set
+    var railLabels by mutableStateOf(p.getBoolean("railLabels", true)); private set
+    var tempF by mutableStateOf(p.getBoolean("tempF", false)); private set
+    var favs by mutableStateOf(p.getString("favs", "")!!.split(',').filter { it.isNotBlank() }); private set
+    var hubName by mutableStateOf(p.getString("hubName", "Kitchen")!!); private set
+
     private var pinHash: String = p.getString("pinHash", "")!!
 
     fun set(key: String, v: Boolean) {
@@ -49,7 +61,22 @@ class Store(private val ctx: Context) {
             "hideLenovo" -> hideLenovo = v
             "use24h" -> use24h = v
             "wallpaperDone" -> wallpaperDone = v
+            "voidLock" -> voidLock = v
+            "lockNeedsPin" -> lockNeedsPin = v
+            "lockNotices" -> lockNotices = v
+            "timerSound" -> timerSound = v
+            "railLabels" -> railLabels = v
+            "tempF" -> tempF = v
         }
+    }
+
+    fun setRotation(r: String) { rotation = r; p.edit().putString("rotation", r).apply() }
+    fun setHubName(n: String) { hubName = n; p.edit().putString("hubName", n).apply() }
+
+    /** Favourite apps, shown first in the drawer and on the face. Order kept. */
+    fun toggleFav(pkg: String) {
+        favs = if (pkg in favs) favs - pkg else (favs + pkg).take(8)
+        p.edit().putString("favs", favs.joinToString(",")).apply()
     }
 
     fun setAmbient(min: Int) { ambientMinutes = min; p.edit().putInt("ambientMinutes", min).apply() }
@@ -108,5 +135,50 @@ class Store(private val ctx: Context) {
             tmp.writeText(a.toString())
             tmp.renameTo(notesFile)
         }
+    }
+
+    // ------------------------------------------------------------ shopping list
+    private val listFile = File(ctx.filesDir, "shopping.json")
+    var shopping by mutableStateOf(loadList()); private set
+
+    private fun loadList(): List<ShopItem> = runCatching {
+        val a = JSONArray(listFile.readText())
+        List(a.length()) { val o = a.getJSONObject(it); ShopItem(o.getLong("id"), o.getString("t"), o.optBoolean("d"), o.optString("aisle", "")) }
+    }.getOrDefault(emptyList())
+
+    fun addItem(text: String) {
+        val t = text.trim().replaceFirstChar { it.uppercase() }
+        if (t.isEmpty() || shopping.any { !it.done && it.text.equals(t, true) }) return
+        shopping = listOf(ShopItem(System.nanoTime(), t, false, aisleFor(t))) + shopping
+        writeList()
+    }
+    fun toggleItem(id: Long) { shopping = shopping.map { if (it.id == id) it.copy(done = !it.done) else it }; writeList() }
+    fun removeItem(id: Long) { shopping = shopping.filter { it.id != id }; writeList() }
+    fun clearDone() { shopping = shopping.filter { !it.done }; writeList() }
+
+    private fun writeList() {
+        val a = JSONArray()
+        shopping.forEach { a.put(JSONObject().put("id", it.id).put("t", it.text).put("d", it.done).put("aisle", it.aisle)) }
+        runCatching { val tmp = File(listFile.path + ".tmp"); tmp.writeText(a.toString()); tmp.renameTo(listFile) }
+    }
+}
+
+data class ShopItem(val id: Long, val text: String, val done: Boolean, val aisle: String)
+
+/** Rough supermarket sections so the list groups itself. */
+fun aisleFor(t: String): String {
+    val s = t.lowercase()
+    fun has(vararg w: String) = w.any { s.contains(it) }
+    return when {
+        has("milk", "cheese", "butter", "yog", "cream", "egg") -> "Dairy & eggs"
+        has("bread", "roll", "wrap", "bagel", "crumpet", "croissant") -> "Bakery"
+        has("apple", "banana", "onion", "potato", "carrot", "tomato", "lettuce", "pepper", "garlic", "fruit", "veg", "lemon", "lime", "cucumber", "spring onion", "mushroom") -> "Fruit & veg"
+        has("chicken", "beef", "pork", "mince", "bacon", "sausage", "ham", "duck", "fish", "salmon", "tuna", "prawn") -> "Meat & fish"
+        has("pasta", "rice", "noodle", "flour", "sugar", "oil", "sauce", "tin", "beans", "cereal", "oats", "spice", "salt", "stock", "hoisin", "soy") -> "Cupboard"
+        has("frozen", "ice", "chips", "pizza") -> "Frozen"
+        has("tea", "coffee", "juice", "water", "cola", "squash", "beer", "wine") -> "Drinks"
+        has("cat", "litter", "dog", "pet") -> "Pets"
+        has("soap", "shampoo", "toilet", "kitchen roll", "bin bag", "washing", "bleach", "sponge", "foil", "cling") -> "Household"
+        else -> "Other"
     }
 }

@@ -37,6 +37,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         visitingAndroid = false
+        applyRotation()
+        KTimers.check(this)
         Idle.touch()
         applyBars()
         enforceLockTask()
@@ -101,6 +103,15 @@ class MainActivity : ComponentActivity() {
         leaveLockTask()
         runCatching {
             startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+    }
+
+    /** Follow the tablet, or pin landscape / portrait (System > Display). */
+    fun applyRotation() {
+        requestedOrientation = when (store.rotation) {
+            "land" -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            "port" -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+            else -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_USER
         }
     }
 

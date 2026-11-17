@@ -29,6 +29,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.size
+import android.content.Intent
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -174,71 +178,56 @@ fun MediaScreen() {
     val noiseOn by Noise.on
     var swell by remember { mutableStateOf(Noise.swell) }
     var prog by remember { mutableFloatStateOf(0f) }
-
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { Player.scan(ctx) }
     LaunchedEffect(playing) { while (isActive && playing) { prog = Player.progress(); delay(500) } }
 
-    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            // now playing
+    Split(Modifier.fillMaxSize()) {
+        Column(Modifier.main(1.4f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            NowPlayingPanel(Modifier.fillMaxWidth().weight(1.2f))
+            // the tablet's own music + volume
             VPanel(Modifier.fillMaxWidth().weight(1f), accent = V.Pink) {
-                Label("On this tablet")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Label("On this tablet")
+                        Gap(h = 6.dp)
+                        val cur = tracks.getOrNull(idx)
+                        VText(cur?.title?.uppercase() ?: if (tracks.isEmpty()) "NO MUSIC FILES FOUND" else "PICK A TRACK", size = 18.sp, color = V.White, maxLines = 1)
+                        VText(cur?.artist ?: if (tracks.isEmpty()) "Copy music into the Music folder over USB." else "", size = 12.sp, color = V.Muted, font = FontFamily.Default, maxLines = 1)
+                    }
+                    IconTap(G.PREV, V.Text, 50.dp) { Player.prev(ctx) }
+                    Gap(w = 6.dp)
+                    IconTap(if (playing) G.PAUSE else G.PLAY, V.Pink, 60.dp) { Player.toggle(ctx) }
+                    Gap(w = 6.dp)
+                    IconTap(G.NEXT, V.Text, 50.dp) { Player.next(ctx) }
+                }
                 Gap(h = 10.dp)
-                val cur = tracks.getOrNull(idx)
-                VText(cur?.title?.uppercase() ?: if (tracks.isEmpty()) "NO MUSIC FILES FOUND" else "PICK A TRACK", size = 22.sp, color = V.White, maxLines = 1)
-                VText(cur?.artist ?: if (tracks.isEmpty()) "Copy music into the tablet's Music folder over USB, then come back." else "", size = 13.sp, color = V.Muted, font = FontFamily.Default, maxLines = 2)
-                Gap(h = 14.dp)
-                Canvas(Modifier.fillMaxWidth().height(28.dp)) {
+                Canvas(Modifier.fillMaxWidth().height(22.dp)) {
                     val bars = 64
                     for (i in 0 until bars) {
                         val x = size.width * (i + 0.5f) / bars
                         val hgt = size.height * (0.25f + 0.75f * ((i * 7919 % 13) / 13f))
-                        val on = i.toFloat() / bars <= prog
-                        drawLine(if (on) V.Pink else V.Line, Offset(x, (size.height - hgt) / 2), Offset(x, (size.height + hgt) / 2), 5f, StrokeCap.Round)
+                        drawLine(if (i.toFloat() / bars <= prog) V.Pink else V.Line, Offset(x, (size.height - hgt) / 2), Offset(x, (size.height + hgt) / 2), 5f, StrokeCap.Round)
                     }
-                }
-                Gap(h = 14.dp)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    IconTap(G.PREV, V.Text, 60.dp) { Player.prev(ctx) }
-                    IconTap(if (playing) G.PAUSE else G.PLAY, V.Pink, 72.dp) { Player.toggle(ctx) }
-                    IconTap(G.NEXT, V.Text, 60.dp) { Player.next(ctx) }
                 }
                 Box(Modifier.weight(1f))
-                Label("Volume")
-                VSlider(vol, Modifier.fillMaxWidth(), accent = V.Pink) {
-                    vol = it
-                    am.setStreamVolume(AudioManager.STREAM_MUSIC, (it * maxVol).toInt(), 0)
-                }
-            }
-            Row(Modifier.fillMaxWidth().height(170.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                VPanel(Modifier.weight(1f).fillMaxHeight()) {
-                    Label("Another app playing")
-                    Gap(h = 6.dp)
-                    VText("Sends play, pause and skip to Spotify, YouTube Music or whatever is playing.", size = 12.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 16.sp)
-                    Box(Modifier.weight(1f))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        IconTap(G.PREV, V.Text, 48.dp) { mediaKey(ctx, KeyEvent.KEYCODE_MEDIA_PREVIOUS) }
-                        IconTap(G.PLAY, V.Text, 48.dp) { mediaKey(ctx, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) }
-                        IconTap(G.NEXT, V.Text, 48.dp) { mediaKey(ctx, KeyEvent.KEYCODE_MEDIA_NEXT) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Glyph(G.VOLUME, V.Muted, Modifier.size(22.dp))
+                    Gap(w = 10.dp)
+                    VSlider(vol, Modifier.weight(1f), accent = V.Pink) {
+                        vol = it
+                        am.setStreamVolume(AudioManager.STREAM_MUSIC, (it * maxVol).toInt(), 0)
                     }
-                }
-                VPanel(Modifier.weight(1f).fillMaxHeight(), accent = if (noiseOn) V.Teal else null) {
-                    Label("Void noise")
-                    Gap(h = 6.dp)
-                    VText("Brown noise made on the tablet. No files, no internet.", size = 12.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 16.sp)
-                    Box(Modifier.weight(1f))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        VButton(if (noiseOn) "Stop" else "Play", accent = V.Teal, filled = noiseOn) { if (noiseOn) Noise.stop() else Noise.start() }
-                        Gap(w = 16.dp)
-                        VText("SWELL", size = 11.sp, color = V.Muted)
-                        Gap(w = 8.dp)
-                        VToggle(swell) { swell = it; Noise.swell = it }
-                    }
+                    Gap(w = 16.dp)
+                    VButton(if (noiseOn) "Noise off" else "Brown noise", accent = V.Teal, filled = noiseOn) { if (noiseOn) Noise.stop() else Noise.start() }
+                    Gap(w = 10.dp)
+                    VText("SWELL", size = 10.sp, color = V.Muted)
+                    Gap(w = 6.dp)
+                    VToggle(swell) { swell = it; Noise.swell = it }
                 }
             }
         }
-        VPanel(Modifier.width(340.dp).fillMaxHeight(), padding = 12.dp) {
+        VPanel(Modifier.side(330.dp, 0.8f), padding = 12.dp) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 6.dp)) {
                 Label("${tracks.size} tracks", modifier = Modifier.weight(1f))
                 VButton("Rescan", accent = V.Muted) { scope.launch { Player.scan(ctx) } }
@@ -265,3 +254,71 @@ fun MediaScreen() {
     }
 }
 
+/**
+ * Whatever is playing in any app: YouTube, Spotify, BBC Sounds, the browser.
+ * Needs notification access once; until then the buttons send plain media keys.
+ */
+@Composable
+private fun NowPlayingPanel(modifier: Modifier) {
+    val ctx = LocalContext.current
+    val p by com.andysocial.voidos.Now.playing
+    val connected by com.andysocial.voidos.VoidListener.connected
+    val now = rememberNow(500)
+    val access = remember(now / 5000) { com.andysocial.voidos.VoidListener.enabled(ctx) }
+    VPanel(modifier, accent = V.Purple) {
+        Label(if (p != null) "Playing in ${p!!.appName}" else "Playing anywhere")
+        Gap(h = 10.dp)
+        Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.fillMaxHeight().aspectRatio(1f, matchHeightConstraintsFirst = true).clip(Oct).background(V.Panel2).border(1.dp, V.Line, Oct),
+                contentAlignment = Alignment.Center) {
+                val art = p?.art
+                if (art != null) androidx.compose.foundation.Image(art.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                else Glyph(G.MEDIA, V.Tick, Modifier.size(56.dp))
+            }
+            Gap(w = 18.dp)
+            Column(Modifier.weight(1f)) {
+                val np = p
+                if (np == null || np.title.isBlank()) {
+                    VText("NOTHING PLAYING", size = 20.sp, color = V.White)
+                    Gap(h = 4.dp)
+                    VText(
+                        if (access || connected) "Start something in YouTube, Spotify or any app and it shows here."
+                        else "Turn on notification access so VoidOS can see and control what's playing in other apps.",
+                        size = 13.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 18.sp,
+                    )
+                    if (!access && !connected) {
+                        Gap(h = 10.dp)
+                        VButton("Turn on access", accent = V.Purple) {
+                            runCatching { ctx.startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                        }
+                    }
+                } else {
+                    VText(np.title, size = 22.sp, color = V.White, font = FontFamily.Default, maxLines = 2, lineHeight = 26.sp)
+                    VText(np.artist, size = 14.sp, color = V.Muted, font = FontFamily.Default, maxLines = 1)
+                    Gap(h = 12.dp)
+                    val pos = com.andysocial.voidos.Now.position(np)
+                    if (np.durationMs > 0) {
+                        VSlider((pos.toFloat() / np.durationMs).coerceIn(0f, 1f), Modifier.fillMaxWidth(), accent = V.Purple) {
+                            com.andysocial.voidos.Now.seekTo((it * np.durationMs).toLong())
+                        }
+                        Row {
+                            VText(fmtDur(pos), size = 11.sp, color = V.Muted, modifier = Modifier.weight(1f))
+                            VText(fmtDur(np.durationMs), size = 11.sp, color = V.Muted)
+                        }
+                    }
+                }
+            }
+        }
+        Gap(h = 10.dp)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            val live = p != null
+            IconTap(G.PREV, V.Text, 52.dp) { if (live) com.andysocial.voidos.Now.prev() else mediaKey(ctx, KeyEvent.KEYCODE_MEDIA_PREVIOUS) }
+            SmallKey("-10S") { com.andysocial.voidos.Now.skip(-10_000) }
+            IconTap(if (p?.playing == true) G.PAUSE else G.PLAY, V.Purple, 64.dp) { if (live) com.andysocial.voidos.Now.playPause() else mediaKey(ctx, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) }
+            SmallKey("+10S") { com.andysocial.voidos.Now.skip(10_000) }
+            IconTap(G.NEXT, V.Text, 52.dp) { if (live) com.andysocial.voidos.Now.next() else mediaKey(ctx, KeyEvent.KEYCODE_MEDIA_NEXT) }
+            Box(Modifier.weight(1f))
+            if (live) VButton("Open app", accent = V.Purple) { com.andysocial.voidos.Now.open(ctx) }
+        }
+    }
+}

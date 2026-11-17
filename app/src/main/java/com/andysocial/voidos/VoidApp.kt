@@ -18,6 +18,20 @@ class VoidApp : Application() {
         val last = prefs.getLong("bootId", -1)
         booted = last != -1L && kotlin.math.abs(last - bootId) <= 1
         prefs.edit().putLong("bootId", bootId).apply()
+        KTimers.load(this)
+        // the VoidOS lock screen comes up every time the screen goes off
+        val f = android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_OFF)
+        registerReceiver(object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: android.content.Context, i: android.content.Intent) {
+                if (!store.voidLock || !store.setupDone) return
+                com.andysocial.voidos.ui.LockState.locked.value = true
+                // bring the hub to the front so the lock screen is what wakes up
+                runCatching {
+                    startActivity(android.content.Intent(c, MainActivity::class.java)
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+                }
+            }
+        }, f)
     }
 
     companion object {

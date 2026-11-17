@@ -33,6 +33,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -57,46 +59,72 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
 private enum class Tab(val label: String, val g: G) {
-    WIFI("Wi-Fi", G.WIFI), DISPLAY("Screen + sound", G.SUN), BT("Bluetooth", G.BT), VOID("VoidOS", G.LOCK), ABOUT("About", G.SYSTEM)
+    WIFI("Wi-Fi", G.WIFI), BT("Bluetooth", G.BT), DISPLAY("Screen + sound", G.SUN), HUB("Hub + lock", G.FACE),
+    QUIET("Do not disturb", G.MOON), TIME("Date + time", G.TIMER), BATTERY("Battery", G.BATTERY), NET("Network", G.GLOBE),
+    STORAGE("Storage + apps", G.APPS), ANDROID("Android settings", G.SYSTEM), ROOT("Boot + root", G.POWER),
+    VOID("VoidOS rules", G.LOCK), ABOUT("About", G.INFO)
 }
 
 @Composable
 fun SystemScreen(store: Store, act: MainActivity) {
-    var tab by remember { mutableStateOf(Tab.WIFI) }
-    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Column(Modifier.width(220.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Tab.entries.forEach { t ->
-                val sel = t == tab
-                Row(
-                    Modifier.fillMaxWidth().clip(OctS).background(if (sel) V.Teal.copy(alpha = 0.12f) else V.Panel)
-                        .border(1.dp, if (sel) V.Teal else V.Line, OctS).clickable { tab = t }.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Glyph(t.g, if (sel) V.Teal else V.Muted, Modifier.size(22.dp))
-                    Gap(w = 12.dp)
-                    VText(t.label.uppercase(), size = 12.sp, color = if (sel) V.Teal else V.Text, spacing = 1.sp)
-                }
-            }
-            Box(Modifier.weight(1f))
-            val owner = Policy.isOwner(act)
-            VText(if (owner) "DEVICE OWNER" else "NOT DEVICE OWNER", size = 10.sp, color = if (owner) V.Green else V.Yellow, spacing = 1.sp)
-        }
-        VPanel(Modifier.weight(1f).fillMaxHeight()) {
+    var tab by rememberSaveable { mutableStateOf(Tab.WIFI) }
+    val owner = Policy.isOwner(act)
+    val pane: @Composable (Modifier) -> Unit = { m ->
+        VPanel(m) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 when (tab) {
                     Tab.WIFI -> WifiPane(act)
-                    Tab.DISPLAY -> DisplayPane(act)
                     Tab.BT -> BtPane()
+                    Tab.DISPLAY -> DisplayPane(store, act)
+                    Tab.HUB -> HubPane(store, act)
+                    Tab.QUIET -> QuietPane(act)
+                    Tab.TIME -> TimePane(store, act)
+                    Tab.BATTERY -> BatteryPane()
+                    Tab.NET -> NetworkPane()
+                    Tab.STORAGE -> StoragePane(store)
+                    Tab.ANDROID -> AndroidPane(act)
+                    Tab.ROOT -> RootPane()
                     Tab.VOID -> VoidPane(store, act)
                     Tab.ABOUT -> AboutPane(act)
                 }
             }
         }
     }
+    if (LocalPortrait.current) {
+        Column(Modifier.fillMaxSize()) {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Tab.entries.forEach { t -> Chip(t.label, t == tab, V.Teal, glyph = t.g) { tab = t } }
+            }
+            Gap(h = 12.dp)
+            pane(Modifier.weight(1f).fillMaxWidth())
+        }
+    } else {
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.width(230.dp).fillMaxHeight()) {
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Tab.entries.forEach { t ->
+                        val sel = t == tab
+                        Row(
+                            Modifier.fillMaxWidth().clip(OctS).background(if (sel) V.Teal.copy(alpha = 0.12f) else V.Panel)
+                                .border(1.dp, if (sel) V.Teal else V.Line, OctS).clickable { tab = t }.padding(horizontal = 14.dp, vertical = 11.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Glyph(t.g, if (sel) V.Teal else V.Muted, Modifier.size(22.dp))
+                            Gap(w = 12.dp)
+                            VText(t.label.uppercase(), size = 11.sp, color = if (sel) V.Teal else V.Text, spacing = 1.sp, maxLines = 1)
+                        }
+                    }
+                }
+                Gap(h = 8.dp)
+                VText(if (owner) "DEVICE OWNER" else "NOT DEVICE OWNER", size = 10.sp, color = if (owner) V.Green else V.Yellow, spacing = 1.sp)
+            }
+            pane(Modifier.weight(1f).fillMaxHeight())
+        }
+    }
 }
 
 @Composable
-private fun Head(title: String, sub: String? = null) {
+internal fun Head(title: String, sub: String? = null) {
     VText(title.uppercase(), size = 20.sp, color = V.White, spacing = 2.sp)
     if (sub != null) { Gap(h = 4.dp); VText(sub, size = 12.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 17.sp) }
     Gap(h = 14.dp)
@@ -221,7 +249,7 @@ private fun connect(wm: WifiManager, r: ScanResult, pass: String): String {
 // ------------------------------------------------------------ screen + sound
 
 @Composable
-private fun DisplayPane(act: MainActivity) {
+private fun DisplayPane(store: Store, act: MainActivity) {
     val ctx = LocalContext.current
     val owner = Policy.isOwner(act)
     val cr = ctx.contentResolver
@@ -253,6 +281,13 @@ private fun DisplayPane(act: MainActivity) {
             VButton(l, accent = if (timeout == ms) V.Sun else V.Muted, filled = timeout == ms, enabled = owner) {
                 if (sys(Settings.System.SCREEN_OFF_TIMEOUT, ms.toString())) timeout = ms
             }
+        }
+    }
+    Gap(h = 18.dp)
+    SettingRow("Rotation", "Follow the tablet, or pin it. Every VoidOS screen has a layout for both.") {}
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf("auto" to "AUTO", "land" to "LANDSCAPE", "port" to "PORTRAIT").forEach { (k, l) ->
+            VButton(l, accent = if (store.rotation == k) V.Sun else V.Muted, filled = store.rotation == k) { store.setRotation(k); act.applyRotation() }
         }
     }
     Gap(h = 24.dp)

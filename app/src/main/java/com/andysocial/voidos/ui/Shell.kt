@@ -32,6 +32,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -73,6 +76,7 @@ object Idle {
 
 enum class Module(val label: String, val glyph: G, val accent: Color) {
     FACE("Face", G.FACE, V.Cyan),
+    KITCHEN("Kitchen", G.KITCHEN, V.Orange),
     WEATHER("Sky", G.WEATHER, V.Sun),
     NOTES("Notes", G.NOTES, V.Yellow),
     MEDIA("Sound", G.MEDIA, V.Pink),
@@ -85,11 +89,19 @@ enum class Module(val label: String, val glyph: G, val accent: Color) {
 @Composable
 fun VoidRoot(store: Store, act: MainActivity) {
     var booting by remember { mutableStateOf(!VoidApp.booted) }
-    Box(Modifier.fillMaxSize().background(V.Bg)) {
-        when {
-            booting -> BootAnim { VoidApp.booted = true; booting = false }
-            !store.setupDone -> Setup(store, act)
-            else -> Shell(store, act)
+    val locked by LockState.locked
+    BoxWithConstraints(Modifier.fillMaxSize().background(V.Bg)) {
+        val portrait = maxHeight > maxWidth
+        CompositionLocalProvider(LocalPortrait provides portrait) {
+            when {
+                booting -> BootAnim { VoidApp.booted = true; booting = false }
+                !store.setupDone -> Setup(store, act)
+                else -> {
+                    Shell(store, act)
+                    if (locked && store.voidLock) LockScreen(store) { LockState.locked.value = false; Idle.touch() }
+                }
+            }
+            if (!booting) TimerAlert()
         }
     }
 }
@@ -100,6 +112,7 @@ fun Shell(store: Store, act: MainActivity) {
     var escape by remember { mutableStateOf(false) }
     val ambient by Idle.ambient
     val home by Idle.homePressed
+    val portrait = LocalPortrait.current
 
     LaunchedEffect(home) { if (home > 0) { module = Module.FACE; escape = false } }
 
@@ -116,9 +129,8 @@ fun Shell(store: Store, act: MainActivity) {
 
     BackHandler(enabled = true) { if (escape) escape = false else module = Module.FACE }
 
-    Row(Modifier.fillMaxSize()) {
-        Rail(module, onSelect = { module = it }, onEscape = { escape = true })
-        Column(Modifier.weight(1f).fillMaxHeight().padding(start = 8.dp, end = 24.dp, top = 14.dp, bottom = 18.dp)) {
+    val content: @Composable (Modifier) -> Unit = { m ->
+        Column(m) {
             StatusStrip(store, module)
             Gap(h = 10.dp)
             AnimatedContent(
@@ -126,9 +138,10 @@ fun Shell(store: Store, act: MainActivity) {
                 transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
                 label = "module",
                 modifier = Modifier.weight(1f).fillMaxWidth(),
-            ) { m ->
-                when (m) {
+            ) { mod ->
+                when (mod) {
                     Module.FACE -> FaceScreen(store, onOpen = { module = it })
+                    Module.KITCHEN -> KitchenScreen(store)
                     Module.WEATHER -> WeatherScreen(store)
                     Module.NOTES -> NotesScreen(store)
                     Module.MEDIA -> MediaScreen()
@@ -141,55 +154,92 @@ fun Shell(store: Store, act: MainActivity) {
         }
     }
 
+    if (portrait) {
+        Column(Modifier.fillMaxSize()) {
+            content(Modifier.weight(1f).fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 10.dp))
+            BottomRail(store, module, onSelect = { module = it }, onEscape = { escape = true })
+        }
+    } else {
+        Row(Modifier.fillMaxSize()) {
+            Rail(store, module, onSelect = { module = it }, onEscape = { escape = true })
+            content(Modifier.weight(1f).fillMaxHeight().padding(start = 8.dp, end = 24.dp, top = 14.dp, bottom = 18.dp))
+        }
+    }
+
     if (ambient) AmbientClock(store)
     if (escape) EscapeOverlay(store, act, onClose = { escape = false })
 }
 
-/** Left rail. Holding the VoidOS mark for three seconds opens the escape PIN. */
+/** The VoidOS mark with the hidden three-second hold that opens the escape PIN. */
 @Composable
-fun Rail(current: Module, onSelect: (Module) -> Unit, onEscape: () -> Unit) {
+private fun EscapeMark(size: androidx.compose.ui.unit.Dp, onEscape: () -> Unit) {
+    var holding by remember { mutableStateOf(false) }
+    val now = rememberNow(if (holding) 50 else 60_000)
+    var since by remember { mutableStateOf(0L) }
+    Box(
+        Modifier.size(size).pointerInput(Unit) {
+            awaitEachGesture {
+                awaitFirstDown(requireUnconsumed = false)
+                val start = System.currentTimeMillis()
+                since = start; holding = true
+                val up = withTimeoutOrNull(3_000) { waitForUpOrCancellation() }
+                holding = false
+                if (up == null && System.currentTimeMillis() - start >= 2_900) onEscape()
+            }
+        },
+        contentAlignment = Alignment.Center,
+    ) {
+        // the ring builds while you hold, so you can tell the hold is working
+        val p = if (holding) ((now - since) / 3000f).coerceIn(0f, 1f) else 1f
+        VoidMark(Modifier.size(size * 0.72f), progress = p, core = 1f)
+    }
+}
+
+/** Landscape: the left rail. */
+@Composable
+fun Rail(store: Store, current: Module, onSelect: (Module) -> Unit, onEscape: () -> Unit) {
     Column(
-        Modifier.width(104.dp).fillMaxHeight().background(V.Deep).padding(vertical = 14.dp),
+        Modifier.width(100.dp).fillMaxHeight().background(V.Deep).padding(vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // the mark + hidden 3-second hold
-        Box(
-            Modifier.size(64.dp).pointerInput(Unit) {
-                awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
-                    val start = System.currentTimeMillis()
-                    val up = withTimeoutOrNull(3_000) { waitForUpOrCancellation() }
-                    if (up == null && System.currentTimeMillis() - start >= 2_900) onEscape()
-                }
-            },
-            contentAlignment = Alignment.Center,
-        ) {
-            Canvas(Modifier.size(46.dp)) {
-                val c = Offset(size.width / 2, size.height / 2)
-                drawOct(c, size.width / 2, V.Line, width = 2.5f)
-                drawArc(V.Coral, -60f, 300f, false, Offset(size.width * 0.26f, size.height * 0.26f), Size(size.width * 0.48f, size.height * 0.48f), style = Stroke(5f, cap = StrokeCap.Round))
-                drawCircle(V.White, 3.5f, c)
-            }
-        }
-        Gap(h = 14.dp)
+        EscapeMark(60.dp, onEscape)
+        Gap(h = 6.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.SpaceEvenly, horizontalAlignment = Alignment.CenterHorizontally) {
-            Module.entries.forEach { m ->
-                val sel = m == current
-                Column(
-                    Modifier
-                        .width(84.dp)
-                        .clip(OctS)
-                        .background(if (sel) m.accent.copy(alpha = 0.14f) else Color.Transparent)
-                        .border(1.dp, if (sel) m.accent else Color.Transparent, OctS)
-                        .clickable { onSelect(m) }
-                        .padding(vertical = 7.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Glyph(m.glyph, if (sel) m.accent else V.Muted, Modifier.size(26.dp))
-                    Gap(h = 4.dp)
-                    VText(m.label.uppercase(), size = 9.sp, color = if (sel) m.accent else V.Muted, spacing = 1.sp)
-                }
-            }
+            Module.entries.forEach { m -> RailItem(m, m == current, store.railLabels, Modifier.width(82.dp)) { onSelect(m) } }
+        }
+    }
+}
+
+/** Portrait: the same rail laid along the bottom edge. */
+@Composable
+fun BottomRail(store: Store, current: Module, onSelect: (Module) -> Unit, onEscape: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().background(V.Deep).padding(horizontal = 6.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        EscapeMark(52.dp, onEscape)
+        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.SpaceEvenly) {
+            Module.entries.forEach { m -> RailItem(m, m == current, store.railLabels, Modifier.weight(1f)) { onSelect(m) } }
+        }
+    }
+}
+
+@Composable
+private fun RailItem(m: Module, sel: Boolean, labels: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier
+            .padding(horizontal = 2.dp)
+            .clip(OctS)
+            .background(if (sel) m.accent.copy(alpha = 0.14f) else Color.Transparent)
+            .border(1.dp, if (sel) m.accent else Color.Transparent, OctS)
+            .clickable(onClick = onClick)
+            .padding(vertical = if (labels) 6.dp else 11.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Glyph(m.glyph, if (sel) m.accent else V.Muted, Modifier.size(25.dp))
+        if (labels) {
+            Gap(h = 4.dp)
+            VText(m.label.uppercase(), size = 8.sp, color = if (sel) m.accent else V.Muted, spacing = 0.8.sp, maxLines = 1)
         }
     }
 }
@@ -285,12 +335,12 @@ fun AmbientClock(store: Store) {
     val dy = ((minute * 53) % 90 - 45).toInt()
     val fmt = if (store.use24h) "HH:mm" else "h:mm"
     Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-        Column(Modifier.padding(start = (120 + dx).dp, top = (90 + dy).dp).align(Alignment.TopStart), horizontalAlignment = Alignment.CenterHorizontally) {
-            VText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), size = 120.sp, color = V.Text.copy(alpha = 0.55f), font = Kenney)
+        Column(Modifier.offset((dx * 0.6f).dp, (dy * 0.8f).dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            VText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), size = if (LocalPortrait.current) 96.sp else 120.sp, color = V.Text.copy(alpha = 0.55f), font = Kenney)
             Gap(h = 6.dp)
             VText(SimpleDateFormat("EEE d MMM", Locale.UK).format(Date(now)).uppercase(), size = 18.sp, color = V.Muted.copy(alpha = 0.6f), spacing = 3.sp)
             Gap(h = 18.dp)
-            Canvas(Modifier.size(300.dp, 6.dp)) {
+            Canvas(Modifier.size(260.dp, 6.dp)) {
                 val sec = (now / 1000 % 60).toInt()
                 for (i in 0 until 60) {
                     val x = size.width * i / 60f
