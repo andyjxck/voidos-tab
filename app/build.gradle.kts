@@ -12,8 +12,8 @@ android {
         applicationId = "com.andysocial.voidos"
         minSdk = 29
         targetSdk = 29
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
         // Only the languages we ship, keeps the APK small for a 2 GB tablet
         resourceConfigurations += listOf("en")
     }
@@ -33,6 +33,15 @@ android {
     buildTypes {
         debug {
             signingConfig = signingConfigs.getByName("debug")
+        }
+        // The build to install on the tablet: not debuggable, signed with the
+        // same fixed key so it installs over a debug build (and the other way
+        // round) without losing device owner. No R8 shrinking: VoidOS is
+        // small, and shrinking would need keep rules that are only checkable
+        // on the tablet (device admin receiver, notification listener).
+        release {
+            signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = false
         }
     }
 

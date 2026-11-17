@@ -2,93 +2,130 @@ package com.andysocial.voidos.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlin.math.cos
-import kotlin.math.sin
 
 /**
- * The VoidOS mark.
+ * The VoidOS logo: "void" written as a square root. The root sign is the V,
+ * "oid" sits under its bar, the bar is broken into the six lap colours with
+ * the i's dot as the teal pill, and the bar drops into the d's stem.
  *
- * An octagon frame built from seven thick sides in the six lap-ring colours
- * (coral, purple, teal, green, yellow, orange, back to coral). The eighth side,
- * top right, is left open: that gap is the "void". Inside sits a dark octagon
- * with a small white core, the same white dot as the watch hands' hub.
+ * Two forms:
+ *  - the wordmark, the whole word, for the start animation and welcome screens
+ *  - the mark, the root sign and the o under its line, for small square
+ *    places: the rail, the lock screen, the launcher icon
  *
- * The same geometry is drawn by tools/bootanim.py for the boot animation and
- * by the launcher icon, so keep them in step.
+ * The shapes come from [LogoData], which tools/logo_build.py generates from
+ * the approved drawing. tools/voidmark.py draws the same shapes for the
+ * Android boot animation and the power-on logo, so they all match.
  */
 object Mark {
-    /** Sides are drawn in this order, clockwise from the right-hand vertical. */
-    val order = listOf(7, 0, 1, 2, 3, 4, 5)
-    val colours get() = listOf(V.Coral, V.Purple, V.Teal, V.Green, V.Yellow, V.Orange, V.Coral)
-    const val THICK = 0.17f   // ring thickness as a fraction of the radius
-    const val INNER = 0.60f   // dark inner octagon
-    const val CORE = 0.17f    // white core
+    private class Piece(val colour: Int, val inMark: Boolean, val isDot: Boolean, val path: Path)
 
-    fun vertex(c: Offset, r: Float, i: Int): Offset {
-        val a = Math.toRadians(22.5 + 45.0 * (i % 8))
-        return Offset(c.x + r * cos(a).toFloat(), c.y + r * sin(a).toFloat())
+    private val pieces: List<Piece> by lazy {
+        LogoData.shapes.map { (c, flags, d) ->
+            val p = PathParser().parsePathString(d).toPath().apply { fillType = PathFillType.EvenOdd }
+            Piece(c, flags and 1 != 0, flags and 2 != 0, p)
+        }
+    }
+
+    const val WORD_ASPECT = LogoData.WORD_W / LogoData.WORD_H
+
+    fun colour(i: Int): Color = if (i < 0) V.White else V.Lap[i]
+
+    /**
+     * Draws the pieces with drawing unit (0,0) at [o], [s] px per unit.
+     * [revealX] wipes in from the left (drawing units), [dot] scales the i's dot.
+     */
+    internal fun DrawScope.drawPieces(o: Offset, s: Float, onlyMark: Boolean, revealX: Float, dot: Float, alpha: Float, mono: Color?, dotDx: Float = 0f) {
+        if (revealX <= 0f) return
+        translate(o.x, o.y) {
+            clipRect(left = -1f, top = -size.height, right = revealX * s, bottom = size.height * 2) {
+                scale(s, s, pivot = Offset.Zero) {
+                    for (p in pieces) {
+                        if (onlyMark && !p.inMark) continue
+                        val col = (mono ?: colour(p.colour)).let { it.copy(alpha = it.alpha * alpha) }
+                        if (p.isDot) {
+                            if (dot <= 0f) continue
+                            translate(dotDx, 0f) {
+                                scale(dot, dot, pivot = Offset(LogoData.DOT_CX, LogoData.DOT_CY)) { drawPath(p.path, col) }
+                            }
+                        } else {
+                            drawPath(p.path, col)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
-private fun lerp(a: Offset, b: Offset, t: Float) = Offset(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)
+/**
+ * The wordmark centred on [c], [width] px wide. [reveal] 0..1 wipes it in
+ * from the left, [dot] scales the i's dot, [glow] 0..1 haloes the dot, and
+ * [shuttle] -1..1 slides the dot into the purple bar (-1) or the green bar (1),
+ * as in the loading animation.
+ */
+fun DrawScope.drawVoidWord(c: Offset, width: Float, reveal: Float = 1f, dot: Float = 1f, glow: Float = 0f, alpha: Float = 1f, mono: Color? = null, shuttle: Float = 0f) {
+    val s = width / LogoData.WORD_W
+    val o = Offset(c.x - width / 2, c.y - LogoData.WORD_H * s / 2)
+    val dotDx = if (shuttle < 0f) shuttle * LogoData.DOT_REACH_L else shuttle * LogoData.DOT_REACH_R
+    if (glow > 0f && dot > 0f) {
+        val dc = Offset(o.x + (LogoData.DOT_CX + dotDx) * s, o.y + LogoData.DOT_CY * s)
+        for (i in 4 downTo 1) drawCircle(V.Teal.copy(alpha = 0.06f * glow * alpha), s * 11f * (0.6f + i * 0.45f) * dot, dc)
+    }
+    with(Mark) { drawPieces(o, s, false, LogoData.WORD_W * reveal.coerceIn(0f, 1f), dot, alpha, mono, dotDx) }
+}
 
 /**
- * Draws the mark. [progress] 0..1 builds the ring side by side, [core] 0..1
- * grows the white core, [glow] 0..1 adds a soft halo behind the core.
+ * The mark (the root sign and the o) fitted in a 2[r] square centred on [c].
+ * [progress] 0..1 wipes it in from the left.
  */
-fun DrawScope.drawVoidMark(c: Offset, r: Float, progress: Float = 1f, core: Float = 1f, glow: Float = 0f, mono: Color? = null) {
-    val ri = r * (1f - Mark.THICK)
-    val n = Mark.order.size
-    Mark.order.forEachIndexed { k, side ->
-        val t = (progress * n - k).coerceIn(0f, 1f)
-        if (t <= 0f) return@forEachIndexed
-        val o0 = Mark.vertex(c, r, side); val o1 = Mark.vertex(c, r, side + 1)
-        val i0 = Mark.vertex(c, ri, side); val i1 = Mark.vertex(c, ri, side + 1)
-        val p = Path().apply {
-            moveTo(o0.x, o0.y)
-            val oe = lerp(o0, o1, t); lineTo(oe.x, oe.y)
-            val ie = lerp(i0, i1, t); lineTo(ie.x, ie.y)
-            lineTo(i0.x, i0.y); close()
-        }
-        drawPath(p, mono ?: Mark.colours[k])
-    }
-    // inner dark octagon
-    drawPath(octPath(c, r * Mark.INNER), V.Panel)
-    drawPath(octPath(c, r * Mark.INNER), V.Line, style = androidx.compose.ui.graphics.drawscope.Stroke(r * 0.025f))
-    if (glow > 0f) {
-        for (i in 4 downTo 1) drawCircle(V.Teal.copy(alpha = 0.06f * glow), r * Mark.CORE * (1f + i * 0.55f), c)
-    }
-    if (core > 0f) drawPath(octPath(c, r * Mark.CORE * core), mono ?: V.White)
+fun DrawScope.drawVoidMark(c: Offset, r: Float, progress: Float = 1f, alpha: Float = 1f, mono: Color? = null) {
+    val mw = LogoData.MARK_X1 - LogoData.MARK_X0
+    val mh = LogoData.MARK_Y1 - LogoData.MARK_Y0
+    val s = 2 * r * 0.96f / maxOf(mw, mh)
+    val o = Offset(c.x - (LogoData.MARK_X0 + mw / 2) * s, c.y - (LogoData.MARK_Y0 + mh / 2) * s)
+    with(Mark) { drawPieces(o, s, true, LogoData.MARK_X0 + mw * progress.coerceIn(0f, 1f), 1f, alpha, mono) }
 }
 
 /** The mark on its own, sized by the modifier. */
 @Composable
-fun VoidMark(modifier: Modifier, progress: Float = 1f, core: Float = 1f, glow: Float = 0f, mono: Color? = null) {
-    Canvas(modifier) { drawVoidMark(Offset(size.width / 2, size.height / 2), minOf(size.width, size.height) / 2, progress, core, glow, mono) }
+fun VoidMark(modifier: Modifier, progress: Float = 1f, mono: Color? = null) {
+    Canvas(modifier) { drawVoidMark(Offset(size.width / 2, size.height / 2), minOf(size.width, size.height) / 2, progress, 1f, mono) }
 }
 
-/** Mark above the VOIDOS wordmark, for welcome screens. */
+/** The wordmark on its own, [width] wide. */
 @Composable
-fun VoidLockup(markSize: Int = 120, wordSize: TextUnit = 40.sp, sub: String? = "TAB EDITION", progress: Float = 1f, core: Float = 1f) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        VoidMark(Modifier.size(markSize.dp), progress, core)
-        Gap(h = (markSize / 6).dp)
-        VText("VOIDOS", size = wordSize, color = V.White, spacing = (wordSize.value / 4).sp)
-        if (sub != null) {
-            Gap(h = 4.dp)
-            VText(sub, size = (wordSize.value * 0.3f).sp, color = V.Teal, spacing = (wordSize.value / 8).sp)
-        }
+fun VoidWord(width: Int, reveal: Float = 1f, dot: Float = 1f) {
+    Canvas(Modifier.width(width.dp).aspectRatio(Mark.WORD_ASPECT)) {
+        drawVoidWord(Offset(size.width / 2, size.height / 2), size.width, reveal, dot)
     }
 }
 
+/** The wordmark over TAB EDITION, for welcome screens. */
+@Composable
+fun VoidLockup(wordWidth: Int = 260, sub: String? = "TAB EDITION", subSize: TextUnit = 12.sp) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        VoidWord(wordWidth)
+        if (sub != null) {
+            Gap(h = (wordWidth / 12).dp)
+            VText(sub, size = subSize, color = V.Teal, spacing = (subSize.value / 2).sp)
+        }
+    }
+}

@@ -2,7 +2,8 @@
 
 VoidOS for the Lenovo Tab M10 HD 2nd Gen (TB-X306F, Helio P22T, Android 10).
 The sister of [VoidOS for PineTime](https://github.com/andyjxck/VoidOS): same
-octagon, same six lap colours, same Kenney Future type.
+octagon, same six lap colours, same Kenney Future type. The logo is "void"
+written as a square root: the root sign is the V, "oid" sits under its bar.
 
 It isn't a ROM. It's a Kotlin + Compose app that takes over the tablet as its
 **device owner**: it becomes the home screen, replaces the whole UI, and uses
@@ -23,8 +24,9 @@ bars and pin itself in lock mode. No root needed.
 | Apps | Android app drawer: only the apps you've allowed, with search, recents, and a Manage view. Icons in three styles: VoidOS glyphs, letters, or the apps' own |
 | System | Wi-Fi, Bluetooth, screen + sound, hub + lock, do not disturb, date + time, battery, network, storage + apps, Android settings, boot + root, VoidOS rules, About |
 
-Also: the VoidOS logo (`docs/logo`, drawn in `ui/Logo.kt`), an in-app start
-animation once per power-on, the VoidOS lock screen (every time the screen
+Also: the VoidOS logo (`docs/logo`, drawn in `ui/Logo.kt`; the square root
+and its o on their own are the launcher icon, with a themed monochrome
+version), an in-app start animation once per power-on, the VoidOS lock screen (every time the screen
 goes off; optional PIN), a drifting ambient desk clock, desk mode (screen
 stays on while charging), and every screen works in portrait as well as
 landscape (System > Screen + sound > Rotation).
@@ -57,13 +59,14 @@ Device owner can only be set when no account (Google or other) has been added
 to the tablet. If one has, factory reset and skip every account during setup.
 
 ```
-adb install -t voidos-tab-debug.apk
+adb install -t root/voidos-tab-1.2.0.apk
 adb shell dpm set-device-owner com.andysocial.voidos/.VoidAdmin
 adb shell am start -n com.andysocial.voidos/.MainActivity
 ```
 
-Update later with `adb install -r -t voidos-tab-debug.apk` (same signing key on
-every build, so updates keep device owner).
+Update later with `adb install -r -t <apk>` (same signing key on every build,
+debug or release, so updates keep device owner). `root/` has the current
+release APK with everything else for flashing day.
 
 ## Build and test
 
@@ -71,7 +74,8 @@ Every push to `main` builds on GitHub Actions and puts the APK on the `latest`
 release. Locally (JDK 17 and the Android SDK, platform 35):
 
 ```
-./gradlew assembleDebug        # app/build/outputs/apk/debug/voidos-tab-debug.apk
+./gradlew assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleRelease      # app/build/outputs/apk/release/app-release.apk (the one to install)
 ./gradlew testDebugUnitTest    # unit tests + every screen in landscape and portrait
 ./gradlew lintDebug
 ```
@@ -83,11 +87,16 @@ lock screen, and audit the layout for cut-off, overlapping or off-screen
 text. Pictures of each screen land in `docs/screens/` with the audit in
 `docs/screens/audit.txt`.
 
-`tools/` rebuilds the generated art: `logo.py` (docs/logo),
-`bootanim.py` (root/bootanimation.zip), `magisk_module.py` (both Magisk
+`tools/` rebuilds the generated art: `logo_build.py` (the logo everywhere:
+docs/logo, the launcher icons, `ui/LogoData.kt` and the geometry the other
+tools draw from; needs shapely), `bootanim.py` (root/bootanimation.zip), `magisk_module.py` (both Magisk
 modules) and `mtk_logo.py` (the power-on logo, from a dump of the tablet's
 logo partition). `python3 tools/test_mtk_logo.py` and
-`python3 tools/test_magisk_module.py` test the last two.
+`python3 tools/test_magisk_module.py` test the last two, and
+`make_release.py` gathers the flashing-day kit in `root/`. The logo drafts
+(`tools/logo_concepts.py`, `logo_root_v*.py`, `docs/logo/concepts/`) and the
+loading animation (`tools/logo_loading_anim.py`, `docs/logo/anim/`) are kept
+for reference.
 
 `app/voidos-debug.keystore` is committed on purpose so every build has the same
 signature. Don't use it for a store release.

@@ -6,7 +6,7 @@ moment the tablet powers on, before Android's boot animation. It lives in the
 app, Magisk module or boot animation can reach.
 
 This tool reads a dump of YOUR tablet's logo partition, swaps the full-screen
-boot pictures for the VoidOS mark and writes a new image of the same layout:
+boot pictures for the VoidOS logo and writes a new image of the same layout:
 same number of pictures, same pixel format, same byte size per picture, every
 picture it does not replace copied byte for byte, and never bigger than the
 partition. Then it checks its own output by unpacking it again.
@@ -18,6 +18,7 @@ manual steps in root/README.md ("Boot logo").
     python3 tools/mtk_logo.py unpack logo.stock.bin logo.d        # PNG of every full-screen picture
     python3 tools/mtk_logo.py build  logo.stock.bin logo-voidos.bin [--rotate 180] [--all-fullscreen]
     python3 tools/mtk_logo.py verify logo.stock.bin logo-voidos.bin
+    python3 tools/mtk_logo.py preview bootlogo.png                # just the VoidOS picture
 
 Format (MediaTek, the same since the MT65xx days):
 
@@ -245,8 +246,8 @@ def decode(raw: bytes, bpp: int, size, swap_rb: bool = False):
 # ------------------------------------------------------------------ art
 
 def render_art(size, rotate: int = 0):
-    """The VoidOS boot logo: the mark, VOIDOS and TAB EDITION on the void, laid
-    out like the last frame of the boot animation so the two follow on."""
+    """The VoidOS boot logo: the "void" wordmark over TAB EDITION on the void,
+    laid out like the boot animation's frames so the two follow on."""
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import voidmark as vm
     from PIL import Image, ImageDraw
@@ -257,13 +258,7 @@ def render_art(size, rotate: int = 0):
     W, H = w * ss, h * ss
     img = Image.new("RGB", (W, H), vm.BG)
     d = ImageDraw.Draw(img)
-    unit = min(W, H)
-    c = (W / 2, H / 2 - unit * 0.08)
-    r = unit * 0.16
-    vm.draw_mark(d, c, r)
-    wy = c[1] + r * 1.48 + unit * 0.12
-    vm.spaced_text(d, W / 2, wy, "VOIDOS", vm.font(vm.FONT_KENNEY, unit * 0.075), vm.WHITE, 0.25)
-    vm.spaced_text(d, W / 2, wy + unit * 0.05, "TAB EDITION", vm.font(vm.FONT_KENNEY, unit * 0.024), vm.TEAL, 0.5)
+    vm.draw_lockup(d, W, H)
     img = img.resize((w, h), Image.LANCZOS)
     if rotate:
         # rotate the drawing so it reads upright on a panel that LK draws rotated
@@ -370,8 +365,14 @@ def main(argv=None):
     s.add_argument("--preview", help="also save the VoidOS picture as PNG here")
     s = sub.add_parser("verify"); s.add_argument("logo"); s.add_argument("new")
     s.add_argument("--max-size", type=int)
+    s = sub.add_parser("preview", help="only draw the VoidOS picture as PNG (no logo dump needed)")
+    s.add_argument("png"); s.add_argument("--rotate", type=int, default=0, choices=(0, 90, 180, 270))
     a = ap.parse_args(argv)
     size = tuple(int(v) for v in a.size.lower().split("x"))
+    if a.cmd == "preview":
+        render_art(size, a.rotate).save(a.png)
+        print(f"wrote {a.png}")
+        return 0
     try:
         stock = Path(a.logo).read_bytes()
         if a.cmd == "info":

@@ -20,7 +20,8 @@ SET_TIME_ZONE and WRITE_SECURE_SETTINGS, so the time zone setting works, and it
 stays on the tablet as part of the system rather than as a downloaded app.
 Remove the module in Magisk and VoidOS goes back to being an ordinary app.
 
-Run tools/bootanim.py and build the APK (./gradlew assembleDebug) first.
+Run tools/bootanim.py and build the APK (./gradlew assembleRelease, or
+assembleDebug) first; the system module takes the release APK when there is one.
 
     python3 tools/magisk_module.py            # both
     python3 tools/magisk_module.py boot       # just the boot animation
@@ -42,7 +43,7 @@ name=VoidOS boot animation
 version={VERSION}
 versionCode={VERSION_CODE}
 author=andyjxck
-description=VoidOS Tab Edition boot animation (octagon mark, lap colours). Systemless: remove the module to restore the stock animation.
+description=VoidOS Tab Edition boot animation (the square-root "void" wordmark, lap colours). Systemless: remove the module to restore the stock animation.
 """
 
 # The standard Magisk module installer stub (Magisk 20.4+ does the real work).
@@ -110,7 +111,9 @@ def build(out: Path):
 SYS_VERSION = "1.0"
 SYS_VERSION_CODE = 1
 PACKAGE = "com.andysocial.voidos"
-APK = vm.ROOT / "app/build/outputs/apk/debug/app-debug.apk"
+APK_RELEASE = vm.ROOT / "app/build/outputs/apk/release/app-release.apk"
+APK_DEBUG = vm.ROOT / "app/build/outputs/apk/debug/app-debug.apk"
+APK = APK_RELEASE if APK_RELEASE.exists() else APK_DEBUG
 
 # Permissions the platform ("android" package) marks privileged, as of Android
 # 10 and 11 (AOSP core/res/AndroidManifest.xml, android10-release and
@@ -197,7 +200,7 @@ def allowlist(perms):
 
 def build_system(out: Path, apk: Path = APK):
     if not apk.exists():
-        sys.exit(f"{apk} is missing: run ./gradlew assembleDebug first")
+        sys.exit(f"{apk} is missing: run ./gradlew assembleRelease first")
     pkg, perms = requested_permissions(apk)
     if pkg != PACKAGE:
         sys.exit(f"{apk} is {pkg}, not {PACKAGE}")

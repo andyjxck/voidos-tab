@@ -1,5 +1,23 @@
 # ROOT: the parts of VoidOS that need root or flashing
 
+## Flashing-day kit (everything is in this folder)
+
+| File | What it is | Used in |
+| --- | --- | --- |
+| `voidos-tab-1.2.0.apk` | The VoidOS app, release build (same fixed key as every build, so it installs over any earlier one and keeps device owner) | main README, Install; after unlocking (section 1) |
+| `voidos-boot-magisk.zip` | Magisk module: the Android boot animation | section 3 |
+| `bootanimation.zip` | The boot animation on its own, for a hand copy or your own firmware | section 3 |
+| `voidos-system-magisk.zip` | Magisk module: VoidOS as a system app (optional) | section 4 |
+| `logo-tool/` | The power-on logo tool, runs on its own with Python 3 + Pillow | section 5 |
+| `SHA256SUMS.txt` | Checksums of all of the above (`sha256sum -c SHA256SUMS.txt`) | before you start |
+| `preview/` | What the boot animation and the power-on logo should look like | sections 3 and 5 |
+
+The logo on all of them is the square-root "void" wordmark: the root sign is
+the V, "oid" sits under its bar in the six lap colours, and the i's dot is the
+teal pill. While Android boots, the dot slides between the purple and green
+bars. Rebuild everything with `tools/make_release.py` (its header lists the
+steps).
+
 ## What you see, from power button to home screen
 
 | Stage | Drawn by | Made VoidOS by | Status |
@@ -142,8 +160,10 @@ adb shell su -c 'setprop service.bootanim.exit 1; setprop ctl.stop bootanim'
 ### Rebuilding the animation
 
 `bootanimation.zip` is 800 x 1280 (the TB-X306F panel in its natural
-portrait orientation), 30 fps: `part0` plays the 2.4 s intro once, `part1`
-loops until Android finishes booting. The files are stored without
+portrait orientation), 30 fps: `part0` plays the 2.4 s intro once (the
+wordmark wipes in, the i's dot pops, TAB EDITION fades in), `part1` loops
+until Android finishes booting (the dot slides into the green bar and back,
+then the purple one, like liquid glass). The files are stored without
 compression, which Android requires. For another screen:
 ```
 adb shell wm size                                  # e.g. Physical size: 1200x1920
@@ -181,8 +201,9 @@ from storage, reboot. Boot + root then shows "VoidOS is a system app: Yes".
 Remove the module and reboot to make VoidOS an ordinary app again.
 
 After a VoidOS update (`adb install -r -t ...`) rebuild the module too
-(`./gradlew assembleDebug && python3 tools/magisk_module.py system`) so the
-system copy isn't older than the installed one.
+(`./gradlew assembleRelease && python3 tools/magisk_module.py system`) so the
+system copy isn't older than the installed one. The module takes the release
+APK when there is one, else the debug one.
 
 ## 5. Boot logo (the power-on splash)
 
@@ -190,7 +211,7 @@ The still logo LK shows before the boot animation lives in the MediaTek
 `logo` partition: a 512-byte header, a table of offsets and a few dozen
 zlib-packed pictures (boot logo, kernel logo, off-mode charging and battery
 pictures). `tools/mtk_logo.py` reads a dump of **your** partition and swaps
-only the full-screen boot pictures for the VoidOS mark, keeping the number,
+only the full-screen boot pictures for the VoidOS logo, keeping the number,
 order, pixel format and size of every picture and copying the rest byte for
 byte. It checks its own output before it writes it, and refuses anything that
 doesn't look like a MediaTek logo partition.
@@ -201,7 +222,10 @@ another tablet (162 pictures, 26 MiB): unpacked and repacked byte-identical,
 VoidOS picture written and read back pixel-identical. **Not** tested on a
 TB-X306F dump, because there isn't one in this repo.
 
-Needs root (section 2) and Python 3 with Pillow on the computer.
+Needs root (section 2) and Python 3 with Pillow on the computer. The
+commands below use `tools/mtk_logo.py` in the repo; `root/logo-tool/mtk_logo.py`
+is the same tool packed to run on its own. To see the picture it will put in
+without a dump: `python3 tools/mtk_logo.py preview bootlogo.png`.
 
 1. **Find and dump the partition** (two copies, kept off the tablet):
    ```

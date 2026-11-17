@@ -10,7 +10,6 @@
         <item name="android:windowDisablePreview">false</item>
     </style>
     <color name="void_bg">#FF080A12</color>
-    <color name="void_teal">#FF46D8E0</color>
     <string name="app_name">VoidOS</string>
     <string name="admin_label">VoidOS device control</string>
     <string name="admin_desc">Lets VoidOS run this tablet as its home screen, hide extras and keep updates away.</string>

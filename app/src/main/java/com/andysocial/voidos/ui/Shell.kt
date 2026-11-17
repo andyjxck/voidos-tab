@@ -192,9 +192,9 @@ private fun EscapeMark(size: androidx.compose.ui.unit.Dp, onEscape: () -> Unit) 
         },
         contentAlignment = Alignment.Center,
     ) {
-        // the ring builds while you hold, so you can tell the hold is working
+        // the mark wipes in while you hold, so you can tell the hold is working
         val p = if (holding) ((now - since) / 3000f).coerceIn(0f, 1f) else 1f
-        VoidMark(Modifier.size(size * 0.72f), progress = p, core = 1f)
+        VoidMark(Modifier.size(size * 0.72f), progress = p)
     }
 }
 
