@@ -1,24 +1,48 @@
 # ROOT: the parts of VoidOS that need root or flashing
 
-Almost all of VoidOS runs as a normal app with **device owner** (see the main
-README). Only these need more:
+## What you see, from power button to home screen
 
-| Feature | Needs | What's here |
-| --- | --- | --- |
-| Boot animation (the one Android plays before VoidOS starts) | Root (Magisk) **or** a flashed system image | `bootanimation.zip`, `voidos-boot-magisk.zip` |
-| Boot logo (the still "Lenovo" splash the bootloader shows first) | Unlocked bootloader + flashing the `logo` partition | Not provided (see below) |
-| Setting the time zone from System > Date + time on Android 10 | VoidOS installed as a system app (root/flash) | Nothing to flash; it falls back to Android's own setting |
+| Stage | Drawn by | Made VoidOS by | Status |
+| --- | --- | --- | --- |
+| 1. Power-on logo (the still "Lenovo" splash) | MediaTek bootloader (LK), from the `logo` partition | `tools/mtk_logo.py` builds a VoidOS `logo.bin` from a dump of **your** partition; you flash it (section 5) | Tool built and tested; flashing is yours |
+| 1b. "Orange state" warning (only once the bootloader is unlocked, if your firmware shows one) | LK itself, not the logo partition | Nothing here: it would mean patching LK (section 7) | Not done, on purpose |
+| 2. Boot animation | Android's `bootanimation` service | `voidos-boot-magisk.zip` (section 3) | Ready |
+| 3. Lock screen | VoidOS (Android's keyguard switched off) | No root needed: device owner + "VoidOS lock screen" | Ready |
+| 4. Home screen | VoidOS (device owner, persistent Home) | No root needed | Ready |
+| VoidOS as part of the system | Android package manager | `voidos-system-magisk.zip` (section 4, optional) | Built and checked; not yet run on the tablet |
 
-No root needed for the rest:
+VoidOS > System > Boot + root shows stages 2 to 4 live on the tablet ("What
+the tablet shows"), plus the firmware, bootloader, Magisk and module status.
+It can't see the logo partition, so it never claims stage 1.
 
-* **Lock screen.** VoidOS switches Android's own lock screen off as device owner
-  (System > VoidOS rules > "No lock screen") and, with System > Hub + lock >
-  "VoidOS lock screen" on, shows its own lock screen every time the screen
-  goes off. This only works while Android itself
-  has no PIN, pattern or password set; turn VoidOS's "PIN to unlock" on instead.
-* **Start animation.** VoidOS plays its own start animation once per power-on,
-  straight after Android's boot animation. `bootanimation.zip` is the same
-  animation, so with it installed the two run into each other.
+### The lock screen: why it's VoidOS's, not Android's
+
+Android's lock screen (the keyguard) is part of SystemUI, which Lenovo signs.
+Replacing it outright means rebuilding SystemUI, i.e. building whole firmware.
+VoidOS gets the same result without that: as device owner it switches the
+keyguard off (System > VoidOS rules > "No lock screen") and shows its own lock
+screen at power-on and every time the screen goes off, in front of whatever
+app was open. So Android's lock screen never appears. Two limits:
+
+* It only works while Android itself has **no** PIN, pattern or password. If
+  one is set, Android's keyguard stays in force and Boot + root says so. Use
+  VoidOS's own "PIN to unlock" instead.
+* VoidOS's PIN keeps people out of the hub, not out of the data: anyone with
+  USB debugging access or a recovery can still get in. That's the trade for
+  not having Android's encrypted keyguard in front.
+
+### Why it's still Android underneath
+
+Everything you see can be VoidOS, but Android stays underneath as the engine
+(drivers, Wi-Fi, Bluetooth, apps). A non-Android OS isn't realistic on this
+tablet today: the only Linux port found for the TB-X306F is an early bring-up
+where internal storage, touch, battery and Wi-Fi don't work yet. Treble GSIs
+(generic Android builds) and unofficial LineageOS builds do exist for it, but
+they are still Android with a different coat, and VoidOS runs the same on them
+as on stock. Stock firmware plus Magisk is the least risky way to get every
+stage above.
+
+---
 
 **These steps are for the Lenovo Tab M10 HD 2nd Gen (TB-X306F, MediaTek Helio
 P22T, Android 10), the tablet this repo is built for. On any other tablet the
@@ -38,7 +62,12 @@ unlock and flash steps are different: look up your own model first.**
   MediaTek USB drivers are installed. macOS and Linux need no drivers.
 * Keep Lenovo Rescue and Smart Assistant (RSA) handy: its **Rescue** button
   re-flashes stock firmware if anything goes wrong (it re-locks the bootloader
-  and wipes the tablet).
+  and wipes the tablet). Download the firmware in RSA **before** you change
+  anything, while the tablet still works, so a rescue never depends on it.
+* Recovery has limits. RSA and fastboot fix anything above the bootloader.
+  A broken bootloader or preloader (only ever at risk from section 7, which
+  this repo does not do) can need MediaTek's BROM mode and SP Flash Tool or
+  mtkclient with a matching scatter file, and may not be recoverable at home.
 
 ## 1. Unlock the bootloader (wipes the tablet)
 
@@ -124,12 +153,119 @@ python3 tools/magisk_module.py
 (needs Python 3 and Pillow: `pip install pillow`). Previews of three frames
 are in `root/preview/`.
 
-## Boot logo: not included
+## 4. VoidOS as a system app (optional)
 
-The still logo the bootloader shows before the animation lives in the
-MediaTek `logo` partition, in a packed format specific to the firmware. It
-can only be changed by dumping that partition from your tablet, repacking it
-with a MediaTek logo tool, and flashing it back with fastboot or SP Flash
-Tool, and a bad image there can leave the tablet without a boot screen. This
-repo doesn't ship a logo image for it. `docs/logo/` has the VoidOS mark as
-PNG and SVG if you want to make one.
+`voidos-system-magisk.zip` puts VoidOS into `/system/priv-app/VoidOS`
+(systemlessly, like the boot module), with the allowlist that grants it
+`SET_TIME_ZONE` and `WRITE_SECURE_SETTINGS`. What you get: System > Date + time
+can set the time zone on Android 10, and VoidOS is part of the system rather
+than a downloaded app. Your settings, device owner and data stay, because the
+APK is signed with the same key as the one already installed.
+
+Risk: Android 9 and newer refuse to boot if a privileged app asks for a
+privileged permission no allowlist grants. `tools/test_magisk_module.py`
+checks the built module against the real Android 10 and 11 permission lists
+(`tools/testdata/`), and the module refuses to install below Android 10. If
+the tablet still sticks on the boot animation after installing it:
+
+1. Wait two minutes (first boot after it re-optimises VoidOS).
+2. `adb wait-for-device shell su -c 'magisk --remove-modules'` (removes all
+   modules and reboots), or boot into Magisk's safe mode, then delete the
+   module in Magisk.
+3. Last resort: flash the stock `boot.img` from RSA with fastboot; that
+   unroots and so drops every module.
+
+Install the same way as the boot module: `adb push
+root/voidos-system-magisk.zip /sdcard/Download/`, Magisk > Modules > Install
+from storage, reboot. Boot + root then shows "VoidOS is a system app: Yes".
+Remove the module and reboot to make VoidOS an ordinary app again.
+
+After a VoidOS update (`adb install -r -t ...`) rebuild the module too
+(`./gradlew assembleDebug && python3 tools/magisk_module.py system`) so the
+system copy isn't older than the installed one.
+
+## 5. Boot logo (the power-on splash)
+
+The still logo LK shows before the boot animation lives in the MediaTek
+`logo` partition: a 512-byte header, a table of offsets and a few dozen
+zlib-packed pictures (boot logo, kernel logo, off-mode charging and battery
+pictures). `tools/mtk_logo.py` reads a dump of **your** partition and swaps
+only the full-screen boot pictures for the VoidOS mark, keeping the number,
+order, pixel format and size of every picture and copying the rest byte for
+byte. It checks its own output before it writes it, and refuses anything that
+doesn't look like a MediaTek logo partition.
+
+Tested here on synthetic partitions in every layout the tool handles
+(`python3 tools/test_mtk_logo.py`) and on a real MediaTek logo dump from
+another tablet (162 pictures, 26 MiB): unpacked and repacked byte-identical,
+VoidOS picture written and read back pixel-identical. **Not** tested on a
+TB-X306F dump, because there isn't one in this repo.
+
+Needs root (section 2) and Python 3 with Pillow on the computer.
+
+1. **Find and dump the partition** (two copies, kept off the tablet):
+   ```
+   adb shell su -c 'ls -l /dev/block/by-name/ | grep -i logo'
+   adb shell su -c 'blockdev --getsize64 /dev/block/by-name/logo'
+   adb shell su -c 'dd if=/dev/block/by-name/logo of=/sdcard/logo.stock.bin'
+   adb shell su -c 'sha256sum /dev/block/by-name/logo /sdcard/logo.stock.bin'
+   adb pull /sdcard/logo.stock.bin
+   ```
+   If the first line shows no `logo`, stop: the partition is named or placed
+   differently on your firmware. The two hashes must match, and the file must
+   be exactly the size `blockdev` printed. Keep `logo.stock.bin` safe: it is
+   your way back.
+2. **Look inside it**:
+   ```
+   python3 tools/mtk_logo.py info logo.stock.bin
+   python3 tools/mtk_logo.py unpack logo.stock.bin logo.d
+   ```
+   Open `logo.d/000.png`. It should be the Lenovo splash, upright. If it's
+   upside down or sideways, note the angle (180, 90, 270). If its colours look
+   swapped (blue for red), add `--swap-rb` below. `info` lists which pictures
+   are full screen and which ones `build` will replace (the first and, when
+   full screen, the last).
+3. **Build and check the VoidOS logo**:
+   ```
+   python3 tools/mtk_logo.py build logo.stock.bin logo-voidos.bin --preview logo-voidos.png [--rotate 180]
+   python3 tools/mtk_logo.py unpack logo-voidos.bin logo-voidos.d
+   ```
+   `logo-voidos.d/000.png` should look like `root/preview/bootlogo_800x1280.png`,
+   turned the same way as the Lenovo picture was. `--all-fullscreen` also
+   replaces the charging background pictures.
+4. **Flash it and read it back**:
+   ```
+   adb push logo-voidos.bin /sdcard/
+   adb shell su -c 'dd if=/sdcard/logo-voidos.bin of=/dev/block/by-name/logo && sync'
+   adb shell su -c 'sha256sum /dev/block/by-name/logo'
+   ```
+   The hash must be the "sha256 new" line `build` printed. Then reboot.
+   (With the bootloader unlocked, `fastboot flash logo logo-voidos.bin` should
+   do the same; not tried on this tablet.)
+5. **Undo**: the same `dd` with `logo.stock.bin`, or
+   `fastboot flash logo logo.stock.bin`, or RSA Rescue (stock firmware, wipes
+   the tablet).
+
+If the splash comes out black, garbled or the wrong colours, that's the logo
+only: Android still boots and you can flash the stock dump back from it. That
+comes from how other MediaTek devices behave; it isn't verified on this
+tablet's bootloader.
+
+## 6. Order to do it in
+
+1. Back up and download the RSA firmware (Before you start).
+2. Unlock (section 1, wipes), set VoidOS up again as device owner (main README).
+3. Root (section 2).
+4. Boot animation module (section 3). Reboot, check Boot + root.
+5. Boot logo (section 5).
+6. Optional: system app module (section 4).
+
+## 7. What this repo deliberately doesn't do
+
+* **Patch the bootloader (LK) to remove the unlocked-bootloader warning.** That
+  text is drawn by LK, not stored in the logo partition. People have patched it
+  on other Lenovo MediaTek tablets, but nothing confirms the patch for the
+  TB-X306F, and a bad LK can leave the tablet unable to reach fastboot at all.
+* **Replace SystemUI's keyguard or build a whole ROM.** VoidOS's own lock screen
+  with the keyguard off gets the same result at no risk (see the top).
+* **Port a non-Android OS.** See "Why it's still Android underneath".

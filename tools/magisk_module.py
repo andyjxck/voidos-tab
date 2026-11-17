@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-Builds root/voidos-boot-magisk.zip: a Magisk module that puts the VoidOS boot
+Builds the two VoidOS Magisk modules:
+
+root/voidos-boot-magisk.zip (low risk): a Magisk module that puts the VoidOS boot
 animation in place without touching the system partition (Magisk overlays it
 at boot; remove the module in the Magisk app to get the stock animation back).
 
@@ -9,10 +11,22 @@ It puts the same bootanimation.zip at every place Android 10 looks for one
 can't overlay), plus /system/etc/voidos_boot.txt, which System > Boot + root
 in VoidOS reads to show the module is installed.
 
-Run tools/bootanim.py first.
+root/voidos-system-magisk.zip (optional, more risk): installs VoidOS as a
+privileged system app (/system/priv-app/VoidOS), systemlessly, with the
+privileged-permission allowlist Android 9+ insists on (a privileged permission
+missing from it stops the tablet booting, so the list is generated from the APK
+and checked by tools/test_magisk_module.py). As a system app VoidOS gets
+SET_TIME_ZONE and WRITE_SECURE_SETTINGS, so the time zone setting works, and it
+stays on the tablet as part of the system rather than as a downloaded app.
+Remove the module in Magisk and VoidOS goes back to being an ordinary app.
 
-    python3 tools/magisk_module.py
+Run tools/bootanim.py and build the APK (./gradlew assembleDebug) first.
+
+    python3 tools/magisk_module.py            # both
+    python3 tools/magisk_module.py boot       # just the boot animation
+    python3 tools/magisk_module.py system     # just the system app
 """
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -91,5 +105,125 @@ def build(out: Path):
     print(f"{out}: {out.stat().st_size / 1e6:.1f} MB")
 
 
+# ---------------------------------------------------------------- system app
+
+SYS_VERSION = "1.0"
+SYS_VERSION_CODE = 1
+PACKAGE = "com.andysocial.voidos"
+APK = vm.ROOT / "app/build/outputs/apk/debug/app-debug.apk"
+
+# Permissions the platform ("android" package) marks privileged, as of Android
+# 10 and 11 (AOSP core/res/AndroidManifest.xml, android10-release and
+# android11-release): the full lists are in tools/testdata. VoidOS asks for the
+# ones below; WRITE_SETTINGS is 'preinstalled', not privileged, and is listed
+# anyway because a grant for a non-privileged permission is simply ignored.
+PRIVILEGED_LISTS = [vm.ROOT / "tools/testdata/android10-privileged.txt",
+                    vm.ROOT / "tools/testdata/android11-privileged.txt"]
+ALWAYS_ALLOW = ["android.permission.WRITE_SETTINGS"]
+
+SYS_PROP = f"""id=voidos_system
+name=VoidOS system app
+version={SYS_VERSION}
+versionCode={SYS_VERSION_CODE}
+author=andyjxck
+description=Installs VoidOS Tab Edition as a privileged system app (time zone control, part of the system). Systemless: remove the module and VoidOS is an ordinary app again.
+"""
+
+SYS_CUSTOMIZE = """# Runs inside Magisk's installer.
+ui_print "- VoidOS system app"
+API=$(getprop ro.build.version.sdk)
+MODEL=$(getprop ro.product.model)
+ui_print "- Device: $MODEL, Android API $API"
+if [ "$API" -lt 29 ]; then
+  abort "! VoidOS needs Android 10 (API 29) or newer"
+fi
+case "$MODEL" in
+  *X306F*) ;;
+  *) ui_print "! Not a TB-X306F: VoidOS was built for that tablet. Continuing anyway." ;;
+esac
+ui_print "- privapp enforcement: $(getprop ro.control_privapp_permissions)"
+# keep only the native library folder for this tablet's ABI
+ABI=$(getprop ro.product.cpu.abi)
+case "$ABI" in
+  arm64*) rm -rf $MODPATH/system/priv-app/VoidOS/lib/arm ;;
+  *) rm -rf $MODPATH/system/priv-app/VoidOS/lib/arm64 ;;
+esac
+ui_print "- Reboot. If VoidOS is already installed with the same key it stays,"
+ui_print "  now as an updated system app. Remove this module in Magisk to undo."
+set_perm_recursive $MODPATH/system 0 0 0755 0644
+"""
+
+
+def requested_permissions(apk: Path):
+    import os
+    sdks = [os.environ.get("ANDROID_HOME"), os.environ.get("ANDROID_SDK_ROOT")]
+    lp = vm.ROOT / "local.properties"
+    if lp.exists():
+        sdks += [l.split("=", 1)[1].strip() for l in lp.read_text().splitlines() if l.startswith("sdk.dir=")]
+    sdks.append(str(vm.ROOT.parent / "tools/android-sdk"))
+    cands = [b / "aapt2" for s in sdks if s for b in sorted(Path(s).glob("build-tools/*"), reverse=True)]
+    aapt2 = next((c for c in cands if c.exists()), None)
+    if aapt2 is None:
+        sys.exit("aapt2 not found: set ANDROID_HOME or sdk.dir in local.properties")
+    out = subprocess.run([str(aapt2), "dump", "permissions", str(apk)], check=True, capture_output=True, text=True).stdout
+    pkg = next(l.split(":", 1)[1].strip() for l in out.splitlines() if l.startswith("package:"))
+    perms = [l.split("'")[1] for l in out.splitlines() if l.startswith("uses-permission:")]
+    return pkg, perms
+
+
+def privileged_set():
+    s = set()
+    for p in PRIVILEGED_LISTS:
+        s |= {l.strip() for l in p.read_text().splitlines() if l.strip()}
+    return s
+
+
+def allowlist(perms):
+    priv = privileged_set()
+    need = sorted({p for p in perms if p in priv} | set(ALWAYS_ALLOW))
+    lines = "\n".join(f'        <permission name="{p}"/>' for p in need)
+    xml = f"""<?xml version="1.0" encoding="utf-8"?>
+<!-- VoidOS Tab Edition: privileged permissions for /system/priv-app/VoidOS.
+     Android 9+ will not boot if a privileged app asks for a privileged
+     permission that no allowlist on its partition grants. -->
+<permissions>
+    <privapp-permissions package="{PACKAGE}">
+{lines}
+    </privapp-permissions>
+</permissions>
+"""
+    return xml, need
+
+
+def build_system(out: Path, apk: Path = APK):
+    if not apk.exists():
+        sys.exit(f"{apk} is missing: run ./gradlew assembleDebug first")
+    pkg, perms = requested_permissions(apk)
+    if pkg != PACKAGE:
+        sys.exit(f"{apk} is {pkg}, not {PACKAGE}")
+    xml, need = allowlist(perms)
+    with zipfile.ZipFile(apk) as a:
+        libs = {n: a.read(n) for n in a.namelist() if n.startswith("lib/") and n.endswith(".so")}
+    with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as z:
+        z.writestr("META-INF/com/google/android/update-binary", UPDATE_BINARY)
+        z.writestr("META-INF/com/google/android/updater-script", "#MAGISK\n")
+        z.writestr("module.prop", SYS_PROP)
+        z.writestr("customize.sh", SYS_CUSTOMIZE)
+        z.writestr("system/etc/voidos_system.txt", SYS_VERSION + "\n")
+        z.writestr(f"system/etc/permissions/privapp-permissions-{PACKAGE}.xml", xml)
+        z.writestr("system/priv-app/VoidOS/VoidOS.apk", apk.read_bytes())
+        # a system app's native code is not unpacked from its APK: ship it beside it
+        for name, data in libs.items():
+            _, abi, so = name.split("/", 2)
+            folder = {"arm64-v8a": "arm64", "armeabi-v7a": "arm"}.get(abi)
+            if folder:
+                z.writestr(f"system/priv-app/VoidOS/lib/{folder}/{so}", data)
+    print(f"{out}: {out.stat().st_size / 1e6:.1f} MB, allowlist {need}, native libs {sorted(libs)}")
+
+
 if __name__ == "__main__":
-    build(vm.ROOT / "root/voidos-boot-magisk.zip")
+    which = sys.argv[1] if len(sys.argv) > 1 else "all"
+    if which in ("all", "boot"):
+        build(vm.ROOT / "root/voidos-boot-magisk.zip")
+    if which in ("all", "system"):
+        build_system(vm.ROOT / "root/voidos-system-magisk.zip")

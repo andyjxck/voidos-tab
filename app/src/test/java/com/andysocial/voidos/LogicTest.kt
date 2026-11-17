@@ -8,6 +8,7 @@ import com.andysocial.voidos.ui.fmtNum
 import com.andysocial.voidos.ui.glyphForPackage
 import com.andysocial.voidos.ui.initialsFor
 import com.andysocial.voidos.ui.G
+import com.andysocial.voidos.ui.BootChain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -148,5 +149,27 @@ class LogicTest {
         assertEquals("BS", initialsFor("BBC Sounds"))
         assertEquals("?", initialsFor("  "))
         assertEquals(accentFor("com.whatsapp"), accentFor("com.whatsapp"))
+    }
+
+    @Test fun bootChainSaysWhoDrawsEachStage() {
+        fun v(name: String, st: List<BootChain.Stage>) = st.first { it.name == name }
+        // everything VoidOS: module in, device owner, Android lock off, VoidOS lock on
+        val all = BootChain.stages("1.0", androidLockSecure = false, androidLockOff = true, voidLock = true, owner = true)
+        assertEquals(listOf("Power-on logo", "Boot animation", "Lock screen", "Home screen"), all.map { it.name })
+        assertEquals("VoidOS", v("Boot animation", all).value)
+        assertEquals("VoidOS", v("Lock screen", all).value)
+        assertTrue(v("Lock screen", all).ok && v("Home screen", all).ok && v("Boot animation", all).ok)
+        assertFalse(v("Power-on logo", all).ok) // the app can't see the logo partition, so it never claims it
+        // an Android PIN keeps Android's keyguard in force whatever VoidOS does
+        val pin = BootChain.stages("1.0", androidLockSecure = true, androidLockOff = true, voidLock = true, owner = true)
+        assertEquals("Android: remove the Android PIN", v("Lock screen", pin).value)
+        assertFalse(v("Lock screen", pin).ok)
+        // no module, not owner
+        val stock = BootChain.stages(null, androidLockSecure = false, androidLockOff = false, voidLock = true, owner = false)
+        assertEquals("Android (no module)", v("Boot animation", stock).value)
+        assertEquals("VoidOS, Android's behind it", v("Lock screen", stock).value)
+        assertFalse(v("Home screen", stock).ok)
+        assertEquals("None", v("Lock screen", BootChain.stages(null, false, true, false, true)).value)
+        assertEquals("Android", v("Lock screen", BootChain.stages(null, false, false, false, true)).value)
     }
 }

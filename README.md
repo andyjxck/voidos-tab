@@ -29,8 +29,11 @@ goes off; optional PIN), a drifting ambient desk clock, desk mode (screen
 stays on while charging), and every screen works in portrait as well as
 landscape (System > Screen + sound > Rotation).
 
-**Root/flash only:** the real Android boot animation. Everything for it, and
-the steps, is in [`root/README.md`](root/README.md).
+**Root/flash only:** the power-on logo (a VoidOS `logo.bin` built from your
+tablet's own logo partition), the Android boot animation, and VoidOS as a
+system app. With those, every stage from power button to home screen is
+VoidOS: logo, boot animation, lock screen, home screen. Everything for it,
+and the steps, is in [`root/README.md`](root/README.md).
 
 ## Escape hatch (you can't get locked out)
 
@@ -81,7 +84,10 @@ text. Pictures of each screen land in `docs/screens/` with the audit in
 `docs/screens/audit.txt`.
 
 `tools/` rebuilds the generated art: `logo.py` (docs/logo),
-`bootanim.py` (root/bootanimation.zip) and `magisk_module.py`.
+`bootanim.py` (root/bootanimation.zip), `magisk_module.py` (both Magisk
+modules) and `mtk_logo.py` (the power-on logo, from a dump of the tablet's
+logo partition). `python3 tools/test_mtk_logo.py` and
+`python3 tools/test_magisk_module.py` test the last two.
 
 `app/voidos-debug.keystore` is committed on purpose so every build has the same
 signature. Don't use it for a store release.

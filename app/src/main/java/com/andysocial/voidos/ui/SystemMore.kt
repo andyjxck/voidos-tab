@@ -366,21 +366,65 @@ object RootInfo {
     }.getOrDefault("")
 
     fun hasSu() = listOf("/system/bin/su", "/system/xbin/su", "/sbin/su", "/debug_ramdisk/su").any { File(it).exists() }
-    /** The VoidOS Magisk module drops this marker into /system/etc. */
-    fun moduleVersion(): String? = runCatching { File("/system/etc/voidos_boot.txt").readText().trim() }.getOrNull()
+    private fun marker(name: String): String? = runCatching { File("/system/etc/$name").readText().trim() }.getOrNull()
+    /** The VoidOS boot-animation Magisk module drops this marker into /system/etc. */
+    fun moduleVersion(): String? = marker("voidos_boot.txt")
+    /** The VoidOS system-app Magisk module (VoidOS in /system/priv-app). */
+    fun systemModuleVersion(): String? = marker("voidos_system.txt")
     fun bootAnimSize(): Long = listOf("/system/media/bootanimation.zip", "/product/media/bootanimation.zip", "/oem/media/bootanimation.zip")
         .map { File(it) }.firstOrNull { it.exists() }?.length() ?: -1
+
+    /** Installed as part of the system (priv-app), directly or as an update of the system copy. */
+    fun isSystemApp(c: Context): Boolean = (c.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+    fun canSetTimeZone(c: Context): Boolean =
+        c.checkSelfPermission(android.Manifest.permission.SET_TIME_ZONE) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    /** True when Android's own lock (a PIN, pattern or password set in Android Settings) is in force. */
+    fun androidLockSecure(c: Context): Boolean =
+        runCatching { c.getSystemService(android.app.KeyguardManager::class.java).isKeyguardSecure }.getOrDefault(false)
+}
+
+/** What the tablet shows at each stage, and who draws it. Pure, so it can be unit-tested. */
+object BootChain {
+    data class Stage(val name: String, val value: String, val ok: Boolean)
+
+    fun stages(bootModule: String?, androidLockSecure: Boolean, androidLockOff: Boolean, voidLock: Boolean, owner: Boolean): List<Stage> = listOf(
+        Stage("Power-on logo", "Logo partition: flash a VoidOS logo", false),
+        Stage("Boot animation", if (bootModule != null) "VoidOS" else "Android (no module)", bootModule != null),
+        Stage("Lock screen", when {
+            androidLockSecure -> "Android: remove the Android PIN"
+            voidLock && androidLockOff -> "VoidOS"
+            voidLock -> "VoidOS, Android's behind it"
+            androidLockOff -> "None"
+            else -> "Android"
+        }, voidLock && androidLockOff && !androidLockSecure),
+        Stage("Home screen", if (owner) "VoidOS (device owner)" else "VoidOS if set as Home", owner),
+    )
 }
 
 @Composable
-fun RootPane() {
+fun RootPane(store: Store? = null) {
+    val ctx = LocalContext.current
     val bl = RootInfo.prop("ro.boot.verifiedbootstate")
     val locked = RootInfo.prop("ro.boot.flash.locked")
     val mod = RootInfo.moduleVersion()
+    val sysMod = RootInfo.systemModuleVersion()
     val su = RootInfo.hasSu()
-    Head("Boot + root", "Everything else in VoidOS works without root. The boot animation (the one before VoidOS starts) needs root: root/README.md in the voidos-tab repo has the steps. Unlocking the bootloader wipes the tablet.")
+    val owner = com.andysocial.voidos.Policy.isOwner(ctx)
+    Head("Boot + root", "VoidOS draws the lock and home screens itself. The boot animation and VoidOS as a system app need root (Magisk modules); the power-on logo needs the logo partition flashed. root/README.md in the voidos-tab repo has every step. Unlocking the bootloader wipes the tablet.")
+    Label("What the tablet shows")
+    Gap(h = 6.dp)
+    BootChain.stages(
+        bootModule = mod,
+        androidLockSecure = RootInfo.androidLockSecure(ctx),
+        androidLockOff = owner && (store?.noLockScreen ?: true),
+        voidLock = store?.voidLock ?: true,
+        owner = owner,
+    ).forEach { InfoRow(it.name, it.value, if (it.ok) V.Green else V.Yellow) }
+    Gap(h = 12.dp)
+    Label("Firmware and root")
+    Gap(h = 6.dp)
     InfoRow("Firmware build", Build.DISPLAY)
-    InfoRow("Incremental", Build.VERSION.INCREMENTAL)
+    InfoRow("Android", "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
     InfoRow("Security patch", Build.VERSION.SECURITY_PATCH)
     InfoRow("Bootloader", when { locked == "0" || bl == "orange" -> "Unlocked"; locked == "1" -> "Locked"; else -> "Unknown" },
         if (locked == "0" || bl == "orange") V.Green else V.Yellow)
@@ -388,8 +432,13 @@ fun RootPane() {
     InfoRow("VoidOS boot module", mod ?: "Not installed", if (mod != null) V.Green else V.Muted)
     val bs = RootInfo.bootAnimSize()
     InfoRow("Boot animation file", if (bs > 0) "%.1f MB".format(bs / 1e6) else "Not visible")
+    InfoRow("VoidOS system module", sysMod ?: "Not installed", if (sysMod != null) V.Green else V.Muted)
+    val sys = RootInfo.isSystemApp(ctx)
+    InfoRow("VoidOS is a system app", if (sys) "Yes" else "No", if (sys) V.Green else V.Muted)
+    InfoRow("Time zone control", if (RootInfo.canSetTimeZone(ctx)) "Yes" else if (Build.VERSION.SDK_INT >= 30 && owner) "Via device owner" else "No")
     Gap(h = 12.dp)
     Label("Read the firmware build from the Mac")
     Gap(h = 6.dp)
     VText("./adb shell getprop ro.build.display.id", size = 12.sp, color = V.Teal, font = FontFamily.Monospace)
 }
+

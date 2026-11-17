@@ -83,7 +83,7 @@ fun SystemScreen(store: Store, act: MainActivity) {
                     Tab.NET -> NetworkPane()
                     Tab.STORAGE -> StoragePane(store)
                     Tab.ANDROID -> AndroidPane(act)
-                    Tab.ROOT -> RootPane()
+                    Tab.ROOT -> RootPane(store)
                     Tab.VOID -> VoidPane(store, act)
                     Tab.ABOUT -> AboutPane(act)
                 }
