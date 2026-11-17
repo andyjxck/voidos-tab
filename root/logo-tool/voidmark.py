@@ -151,12 +151,20 @@ WORD_UP = 0.06       # wordmark centre above the screen centre
 SUB_GAP = 0.085      # wordmark bottom to the TAB EDITION baseline
 
 
+# The root sign's long thin tail puts the wordmark's visual weight right of its
+# box: measured on the 800x1280 boot frame, the ink's centre of mass sits 0.073
+# of the word's width right of the box centre (440 px vs 400 px), which is the
+# "slightly right" seen on the tablet. Shift the word left by 0.05 of its width
+# (28 px at 800 wide) so it reads as centred while the tail stays clear of the edge.
+OPTICAL_X = 0.05
+
+
 def lockup_geometry(W, H):
     unit = min(W, H)
     ww = unit * WORD_W
     wW, wH = word_size()
     wh = ww * wH / wW
-    c = (W / 2, H / 2 - unit * WORD_UP)
+    c = (W / 2 - ww * OPTICAL_X, H / 2 - unit * WORD_UP)
     sub_y = c[1] + wh / 2 + unit * SUB_GAP
     return unit, c, ww, wh, sub_y
 

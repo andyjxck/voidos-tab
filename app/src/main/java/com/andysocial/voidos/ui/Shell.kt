@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.CompositionLocalProvider
@@ -83,10 +84,8 @@ enum class Module(val label: String, val glyph: G, val accent: Color) {
     WEATHER("Sky", G.WEATHER, V.Sun),
     NOTES("Notes", G.NOTES, V.Yellow),
     MEDIA("Sound", G.MEDIA, V.Pink),
-    FOCUS("Focus", G.FOCUS, V.Coral),
-    HOUSE("House", G.HOUSE, V.Green),
     APPS("Apps", G.APPS, V.Purple),
-    SYSTEM("System", G.SYSTEM, V.Teal),
+    SYSTEM("Settings", G.SYSTEM, V.Teal),
 }
 
 @Composable
@@ -148,8 +147,6 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
                     Module.WEATHER -> WeatherScreen(store)
                     Module.NOTES -> NotesScreen(store)
                     Module.MEDIA -> MediaScreen()
-                    Module.FOCUS -> FocusScreen()
-                    Module.HOUSE -> HouseScreen()
                     Module.APPS -> AppsScreen(store)
                     Module.SYSTEM -> SystemScreen(store, act)
                 }
@@ -198,71 +195,102 @@ private fun EscapeMark(size: androidx.compose.ui.unit.Dp, onEscape: () -> Unit) 
     }
 }
 
+/**
+ * The rail, in the logo's language: the six-colour bar runs down its edge,
+ * the selected screen gets the logo's teal-style pill in its own colour, and
+ * nothing is boxed in.
+ */
+@Composable
+private fun LapEdge(modifier: Modifier, vertical: Boolean) {
+    Canvas(modifier) {
+        val n = V.Lap.size
+        val gap = 6.dp.toPx()
+        val len = (if (vertical) size.height else size.width)
+        val seg = (len - gap * (n - 1)) / n
+        V.Lap.forEachIndexed { i, c ->
+            val a = i * (seg + gap)
+            if (vertical) drawLine(c.copy(alpha = 0.55f), Offset(size.width / 2, a), Offset(size.width / 2, a + seg), size.width, StrokeCap.Round)
+            else drawLine(c.copy(alpha = 0.55f), Offset(a, size.height / 2), Offset(a + seg, size.height / 2), size.height, StrokeCap.Round)
+        }
+    }
+}
+
 /** Landscape: the left rail. */
 @Composable
 fun Rail(store: Store, current: Module, onSelect: (Module) -> Unit, onEscape: () -> Unit) {
-    Column(
-        Modifier.width(100.dp).fillMaxHeight().background(V.Deep).padding(vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        EscapeMark(60.dp, onEscape)
-        Gap(h = 6.dp)
-        BoxWithConstraints(Modifier.weight(1f)) {
-            // on a short screen (bigger display size) the labels go, so no item is squashed
-            val labels = store.railLabels && maxHeight / Module.entries.size >= 52.dp
-            Column(Modifier.fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly, horizontalAlignment = Alignment.CenterHorizontally) {
-                Module.entries.forEach { m -> RailItem(m, m == current, labels, Modifier.width(82.dp)) { onSelect(m) } }
+    Row(Modifier.width(96.dp).fillMaxHeight().background(V.Deep)) {
+        Column(
+            Modifier.weight(1f).fillMaxHeight().padding(vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            EscapeMark(60.dp, onEscape)
+            BoxWithConstraints(Modifier.weight(1f)) {
+                // on a short screen (bigger display size) the labels go, so no item is squashed
+                val labels = store.railLabels && maxHeight / Module.entries.size >= 54.dp
+                Column(Modifier.fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly, horizontalAlignment = Alignment.CenterHorizontally) {
+                    Module.entries.forEach { m -> RailItem(m, m == current, labels, Modifier.fillMaxWidth(), vertical = true) { onSelect(m) } }
+                }
             }
         }
+        LapEdge(Modifier.width(3.dp).fillMaxHeight().padding(vertical = 18.dp), vertical = true)
     }
 }
 
 /** Portrait: the same rail laid along the bottom edge. */
 @Composable
 fun BottomRail(store: Store, current: Module, onSelect: (Module) -> Unit, onEscape: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().background(V.Deep).padding(horizontal = 6.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        EscapeMark(52.dp, onEscape)
-        BoxWithConstraints(Modifier.weight(1f)) {
-            // narrow screens get a tighter label so KITCHEN still fits
-            val tight = maxWidth / Module.entries.size < 68.dp
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                Module.entries.forEach { m -> RailItem(m, m == current, store.railLabels, Modifier.weight(1f), tight) { onSelect(m) } }
+    Column(Modifier.fillMaxWidth().background(V.Deep)) {
+        LapEdge(Modifier.fillMaxWidth().height(3.dp).padding(horizontal = 18.dp), vertical = false)
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            EscapeMark(52.dp, onEscape)
+            BoxWithConstraints(Modifier.weight(1f)) {
+                // narrow screens get a tighter label so KITCHEN still fits
+                val tight = maxWidth / Module.entries.size < 68.dp
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Module.entries.forEach { m -> RailItem(m, m == current, store.railLabels, Modifier.weight(1f), tight, vertical = false) { onSelect(m) } }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun RailItem(m: Module, sel: Boolean, labels: Boolean, modifier: Modifier, tight: Boolean = false, onClick: () -> Unit) {
+private fun RailItem(m: Module, sel: Boolean, labels: Boolean, modifier: Modifier, tight: Boolean = false, vertical: Boolean, onClick: () -> Unit) {
     // the selection fades in rather than jumping
-    val tint by animateColorAsState(if (sel) m.accent else V.Muted, tween(220), label = "railTint")
-    val fill by animateColorAsState(if (sel) m.accent.copy(alpha = 0.14f) else Color.Transparent, tween(220), label = "railFill")
-    val edge by animateColorAsState(if (sel) m.accent else Color.Transparent, tween(220), label = "railEdge")
+    val tint by animateColorAsState(if (sel) m.accent else V.Muted.copy(alpha = 0.8f), tween(220), label = "railTint")
+    val pill by animateColorAsState(if (sel) m.accent else Color.Transparent, tween(220), label = "railPill")
+    val glow by animateColorAsState(if (sel) m.accent.copy(alpha = 0.10f) else Color.Transparent, tween(220), label = "railGlow")
     val badge = railBadge(m)
-    Box(modifier.padding(horizontal = 2.dp)) {
+    Box(modifier.clickable(onClick = onClick)) {
+        // the pill: on the outer edge in landscape, on top in portrait
+        Canvas(Modifier.matchParentSize()) {
+            val w = 4.dp.toPx()
+            if (vertical) {
+                val h = size.height * 0.5f
+                drawLine(pill, Offset(w / 2, (size.height - h) / 2), Offset(w / 2, (size.height + h) / 2), w, StrokeCap.Round)
+            } else {
+                val l = size.width * 0.4f
+                drawLine(pill, Offset((size.width - l) / 2, w / 2), Offset((size.width + l) / 2, w / 2), w, StrokeCap.Round)
+            }
+            drawCircle(glow, size.minDimension * 0.42f, Offset(size.width / 2, size.height / 2 - if (labels) 6.dp.toPx() else 0f))
+        }
         Column(
-            Modifier
-                .fillMaxWidth()
-                .clip(OctS)
-                .background(fill)
-                .border(1.dp, edge, OctS)
-                .clickable(onClick = onClick)
-                .padding(vertical = if (labels) 6.dp else 11.dp),
+            Modifier.fillMaxWidth().padding(vertical = if (labels) 7.dp else 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Glyph(m.glyph, tint, Modifier.size(25.dp))
+            Glyph(m.glyph, tint, Modifier.size(if (sel) 27.dp else 24.dp))
             if (labels) {
-                Gap(h = 4.dp)
-                VText(m.label.uppercase(), size = if (tight) 7.sp else 8.sp, color = tint, spacing = if (tight) 0.2.sp else 0.8.sp, maxLines = 1)
+                Gap(h = 5.dp)
+                VText(m.label.uppercase(), size = if (tight) 7.sp else 8.sp, color = tint, spacing = if (tight) 0.2.sp else 1.sp, maxLines = 1)
             }
         }
-        // a live badge: running timers on Kitchen (red while one rings), a dot on Media while something plays
+        // a live badge: running timers on Kitchen (red while one rings), a dot on Sound while something plays
         if (badge != null) Box(
-            Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = 6.dp)
-                .size(if (badge.first.isEmpty()) 8.dp else 16.dp).clip(OctS).background(badge.second),
+            Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = 10.dp)
+                .size(if (badge.first.isEmpty()) 8.dp else 16.dp).clip(RoundedCornerShape(50)).background(badge.second),
             contentAlignment = Alignment.Center,
         ) { if (badge.first.isNotEmpty()) VText(badge.first, size = 9.sp, color = V.Bg, maxLines = 1) }
     }

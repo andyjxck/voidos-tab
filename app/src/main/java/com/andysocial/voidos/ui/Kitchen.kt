@@ -1,5 +1,6 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -99,7 +100,9 @@ fun fmtDur(ms: Long): String {
 
 // ------------------------------------------------------------------- timers
 
-private val presets = listOf("Eggs" to 7, "Pasta" to 10, "Rice" to 12, "Tea" to 4, "Pizza" to 15, "Oven" to 25, "Rest" to 5, "Noodles" to 4)
+/** One-tap timers. Kitchen ones first, then the old Focus screen's lengths, which now live here. */
+internal val presets = listOf("Eggs" to 7, "Pasta" to 10, "Rice" to 12, "Tea" to 4, "Pizza" to 15, "Oven" to 25, "Rest" to 5, "Noodles" to 4)
+internal val focusPresets = listOf("Focus" to 25, "Break" to 5, "Deep work" to 50, "Long break" to 15)
 
 @Composable
 fun TimersPane() {
@@ -112,73 +115,151 @@ fun TimersPane() {
     val timers = KTimers.list.value
 
     Split(Modifier.fillMaxSize()) {
-        // new timer
-        VPanel(Modifier.side(340.dp, 0f), accent = V.Orange) {
-            Label("New timer")
-            Gap(h = 10.dp)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Stepper("MIN", mins, { mins = (mins + it).coerceIn(0, 240) }, big = 10)
-                Gap(w = 6.dp)
-                VText(":", size = 40.sp, color = V.Muted, font = Jupi)
-                Gap(w = 6.dp)
-                Stepper("SEC", secs, { secs = (secs + it).coerceIn(0, 50) }, step = 10, big = 30)
-            }
-            Gap(h = 12.dp)
-            Label("Quick start")
-            Gap(h = 8.dp)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                presets.forEach { (n, m) ->
-                    Chip("$n $m", false, V.Orange) { KTimers.add(ctx, n, m * 60_000L) }
+        // the setup strip: kept narrow so the timers get the room
+        if (portrait) Column(Modifier.side(0.dp, 0f)) {
+            // upright: presets in one swipeable row, the custom timer on one line
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                (presets.map { it to V.Orange } + focusPresets.map { it to V.Coral }).forEach { (pm, acc) ->
+                    PresetKey(pm.first, pm.second, acc, Modifier, fill = false) { KTimers.add(ctx, pm.first, pm.second * 60_000L) }
                 }
             }
-            Gap(h = 12.dp)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("Timer", "Hob", "Oven", "Grill").forEach { n -> Chip(n, label == n, V.Yellow) { label = n } }
+            Gap(h = 10.dp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Nudge(String.format(Locale.UK, "%02d", mins), "MIN", { mins = (mins + it).coerceIn(0, 240) }, 1, 10)
+                VText(":", size = 26.sp, color = V.Muted, font = Jupi, modifier = Modifier.padding(horizontal = 4.dp))
+                Nudge(String.format(Locale.UK, "%02d", secs), "SEC", { secs = (secs + it).coerceIn(0, 50) }, 10, 30)
+                Gap(w = 12.dp)
+                VButton("Start ${fmtDur((mins * 60L + secs) * 1000)}", Modifier.weight(1f), accent = V.Orange, filled = true) {
+                    val ms = (mins * 60L + secs) * 1000
+                    if (ms > 0) KTimers.add(ctx, label, ms)
+                }
             }
-            if (portrait) Gap(h = 14.dp) else Box(Modifier.weight(1f))
+        } else Column(Modifier.side(280.dp, 0f).verticalScroll(rememberScrollState())) {
+            Label("Quick start")
+            Gap(h = 8.dp)
+            PresetGrid(presets, V.Orange) { n, m -> KTimers.add(ctx, n, m * 60_000L) }
+            Gap(h = 14.dp)
+            Label("Focus")
+            Gap(h = 8.dp)
+            PresetGrid(focusPresets, V.Coral) { n, m -> KTimers.add(ctx, n, m * 60_000L) }
+            Gap(h = 14.dp)
+            Label("Custom")
+            Gap(h = 8.dp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Nudge(String.format(Locale.UK, "%02d", mins), "MIN", { mins = (mins + it).coerceIn(0, 240) }, 1, 10)
+                VText(":", size = 26.sp, color = V.Muted, font = Jupi, modifier = Modifier.padding(horizontal = 4.dp))
+                Nudge(String.format(Locale.UK, "%02d", secs), "SEC", { secs = (secs + it).coerceIn(0, 50) }, 10, 30)
+            }
+            Gap(h = 8.dp)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("Timer", "Hob", "Oven", "Focus").forEach { n -> MiniChip(n, label == n, V.Yellow, Modifier.weight(1f)) { label = n } }
+            }
+            Gap(h = 10.dp)
             VButton("Start ${fmtDur((mins * 60L + secs) * 1000)}", Modifier.fillMaxWidth(), accent = V.Orange, filled = true) {
                 val ms = (mins * 60L + secs) * 1000
                 if (ms > 0) KTimers.add(ctx, label, ms)
             }
         }
-        // running timers
-        Box(Modifier.main()) {
+        // running timers: as big as the space allows, readable across the room
+        BoxWithConstraints(Modifier.main()) {
             if (timers.isEmpty()) {
                 Centered(Modifier.fillMaxSize()) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Glyph(G.TIMER, V.Tick, Modifier.size(64.dp))
-                        Gap(h = 12.dp)
-                        VText("NO TIMERS.\nRUN AS MANY AS YOU LIKE AT ONCE.", size = 13.sp, color = V.Muted, align = TextAlign.Center, spacing = 1.sp, lineHeight = 22.sp)
+                        Glyph(G.TIMER, V.Tick, Modifier.size(56.dp))
+                        Gap(h = 10.dp)
+                        VText("TAP A PRESET TO START", size = 13.sp, color = V.Muted, align = TextAlign.Center, spacing = 1.sp)
                     }
                 }
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(200.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(timers, key = { it.id }) { t -> TimerCard(t, now) }
+                val (cols, rows) = timerGrid(timers.size, maxWidth.value, maxHeight.value)
+                val gap = 12.dp
+                val cellW = (maxWidth - gap * (cols - 1)) / cols
+                val cellH = ((maxHeight - gap * (rows - 1)) / rows).coerceAtLeast(150.dp)
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(gap)) {
+                    timers.chunked(cols).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                            row.forEach { t -> Box(Modifier.size(cellW, cellH)) { TimerCard(t, now) } }
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-@Composable
-private fun Stepper(unit: String, value: Int, onChange: (Int) -> Unit, step: Int = 1, big: Int = 10) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            SmallKey("+$big") { onChange(big) }
-            SmallKey("+$step") { onChange(step) }
-        }
-        VText(String.format(Locale.UK, "%02d", value), size = 52.sp, color = V.White, font = Jupi)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            SmallKey("-$big") { onChange(-big) }
-            SmallKey("-$step") { onChange(-step) }
-        }
-        Gap(h = 2.dp)
-        VText(unit, size = 9.sp, color = V.Muted, spacing = 2.sp)
+/**
+ * Columns and rows for [n] timers in a [w] x [h] box: the layout that gives
+ * each timer the biggest square-ish cell. One timer fills the space.
+ */
+internal fun timerGrid(n: Int, w: Float, h: Float): Pair<Int, Int> {
+    var best = 1 to n; var bestSide = 0f
+    for (c in 1..n) {
+        val r = (n + c - 1) / c
+        val side = minOf(w / c, h / r)
+        if (side > bestSide + 0.5f) { bestSide = side; best = c to r }
     }
+    return best
+}
+
+@Composable
+private fun PresetGrid(list: List<Pair<String, Int>>, accent: Color, onPick: (String, Int) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        list.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                row.forEach { (n, m) -> PresetKey(n, m, accent, Modifier.weight(1f)) { onPick(n, m) } }
+                if (row.size == 1) Box(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PresetKey(name: String, mins: Int, accent: Color, modifier: Modifier, fill: Boolean = true, onClick: () -> Unit) {
+    Row(
+        modifier.clip(OctS).background(V.Panel).border(1.dp, V.Line, OctS).clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        VText(name.uppercase(), size = 11.sp, color = V.Text, spacing = 0.5.sp, maxLines = 1, modifier = if (fill) Modifier.weight(1f) else Modifier)
+        Gap(w = 8.dp)
+        VText("$mins", size = 13.sp, color = accent, font = Jupi, maxLines = 1)
+    }
+}
+
+@Composable
+private fun MiniChip(text: String, selected: Boolean, accent: Color, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.clip(OctS).background(if (selected) accent.copy(alpha = 0.18f) else V.Panel)
+            .border(1.dp, if (selected) accent else V.Line, OctS).clickable(onClick = onClick).padding(vertical = 7.dp),
+        contentAlignment = Alignment.Center,
+    ) { VText(text.uppercase(), size = 10.sp, color = if (selected) accent else V.Muted, spacing = 0.5.sp, maxLines = 1) }
+}
+
+/** A number with - and + either side; tap for small steps, hold-free big steps on the outer keys. */
+@Composable
+private fun Nudge(value: String, unit: String, onChange: (Int) -> Unit, step: Int, big: Int) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            TinyKey("+$big") { onChange(big) }
+            TinyKey("-$big") { onChange(-big) }
+        }
+        Column(Modifier.padding(horizontal = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            VText(value, size = 30.sp, color = V.White, font = Jupi, maxLines = 1)
+            VText(unit, size = 8.sp, color = V.Muted, spacing = 1.sp)
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            TinyKey("+$step") { onChange(step) }
+            TinyKey("-$step") { onChange(-step) }
+        }
+    }
+}
+
+@Composable
+private fun TinyKey(text: String, onClick: () -> Unit) {
+    Box(
+        Modifier.size(36.dp, 28.dp).clip(OctS).background(V.Panel2).border(1.dp, V.Line, OctS).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { VText(text, size = 10.sp, color = V.Muted, maxLines = 1) }
 }
 
 @Composable
@@ -195,32 +276,30 @@ private fun TimerCard(t: KTimer, now: Long) {
     val left = t.remaining(now)
     val col = if (t.rang) V.Coral else V.Lap[t.colour % 6]
     val frac = if (t.totalMs > 0) (left.toFloat() / t.totalMs).coerceIn(0f, 1f) else 0f
-    Column(
-        Modifier.fillMaxWidth().clip(Oct).background(V.Panel).border(1.dp, col.copy(alpha = if (t.running || t.rang) 0.9f else 0.4f), Oct).padding(14.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    BoxWithConstraints(
+        Modifier.fillMaxSize().clip(Oct).background(V.Panel).border(1.dp, col.copy(alpha = if (t.running || t.rang) 0.9f else 0.4f), Oct),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            VText(t.label.uppercase(), size = 12.sp, color = col, spacing = 2.sp, modifier = Modifier.weight(1f), maxLines = 1)
-            Box(Modifier.size(30.dp).clickable { KTimers.remove(ctx, t.id) }, contentAlignment = Alignment.Center) { Glyph(G.CLOSE, V.Muted, Modifier.size(16.dp)) }
+        val side = minOf(maxWidth, maxHeight)
+        // the countdown text grows with the card: about a third of the card for m:ss
+        val digits = fmtDur(left).length
+        val big = (side.value * (if (digits > 5) 0.19f else 0.27f)).coerceIn(28f, 200f).sp
+        // a thin progress bar along the top edge, in the timer's colour
+        Canvas(Modifier.fillMaxWidth().height(5.dp).align(Alignment.TopStart)) {
+            drawRect(col.copy(alpha = 0.15f))
+            drawRect(col, size = Size(size.width * frac, size.height))
         }
-        Box(Modifier.size(132.dp), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.fillMaxSize()) {
-                val c = Offset(size.width / 2, size.height / 2)
-                drawOct(c, size.width / 2 - 4f, V.Line, width = 3f)
-                val sw = 9f
-                drawArc(col.copy(alpha = 0.18f), -90f, 360f, false, Offset(sw * 2, sw * 2), Size(size.width - sw * 4, size.height - sw * 4), style = Stroke(sw))
-                drawArc(col, -90f, 360f * frac, false, Offset(sw * 2, sw * 2), Size(size.width - sw * 4, size.height - sw * 4), style = Stroke(sw, cap = StrokeCap.Butt))
-            }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                VText(if (t.rang) "DONE" else fmtDur(left), size = if (left >= 3_600_000) 22.sp else 30.sp, color = if (t.rang) V.Coral else V.White, font = Jupi)
-                VText(if (t.rang) "TAP RESTART" else if (t.running) "RUNNING" else "PAUSED", size = 9.sp, color = V.Muted, spacing = 1.sp)
-            }
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 6.dp, top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            VText(t.label.uppercase(), size = (side.value * 0.05f).coerceIn(12f, 26f).sp, color = col, spacing = 2.sp, modifier = Modifier.weight(1f), maxLines = 1)
+            Box(Modifier.size(40.dp).clickable { KTimers.remove(ctx, t.id) }, contentAlignment = Alignment.Center) { Glyph(G.CLOSE, V.Muted, Modifier.size(18.dp)) }
         }
-        Gap(h = 8.dp)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+            VText(if (t.rang) "DONE" else fmtDur(left), size = big, color = if (t.rang) V.Coral else if (t.running) V.White else V.Muted, font = Jupi, maxLines = 1)
+            if (!t.running && !t.rang) VText("PAUSED", size = 11.sp, color = V.Muted, spacing = 2.sp)
+        }
+        Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SmallKey("+1M") { KTimers.addTime(ctx, t.id, 60_000) }
             Box(
-                Modifier.size(54.dp, 36.dp).clip(OctS).background(col.copy(alpha = 0.2f)).border(1.dp, col, OctS).clickable { KTimers.toggle(ctx, t.id) },
+                Modifier.size(60.dp, 36.dp).clip(OctS).background(col.copy(alpha = 0.2f)).border(1.dp, col, OctS).clickable { KTimers.toggle(ctx, t.id) },
                 contentAlignment = Alignment.Center,
             ) { Glyph(if (t.running) G.PAUSE else G.PLAY, col, Modifier.size(18.dp)) }
             SmallKey("+5M") { KTimers.addTime(ctx, t.id, 300_000) }

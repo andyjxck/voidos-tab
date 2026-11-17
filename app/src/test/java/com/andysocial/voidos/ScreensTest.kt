@@ -17,6 +17,7 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onAllNodesWithText
@@ -210,11 +211,33 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         assertTrue("[$tag] wrong orientation", portrait == tag.startsWith("port"))
     }
 
-    @Test fun face() { checkPortrait(); show { Shell(store, act, Module.FACE) }; shot("01_face"); expect("Timers", "List", "Notes") }
+    @Test fun face() {
+        checkPortrait()
+        store.saveWidgets(emptyList())
+        show { Shell(store, act, Module.FACE) }
+        shot("01_face")
+        // only the running timers show; the paused one stays off the face
+        expect("PASTA", "OVEN CHIPS")
+        val paused = rule.onAllNodesWithText("EGGS", substring = true, useUnmergedTree = true).fetchSemanticsNodes()
+        assertTrue("[$tag] paused timer should not be on the face", paused.isEmpty())
+        // the time is dead centre on the dial, timers or not
+        val dial = rule.onNodeWithTag("dial", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val time = rule.onNodeWithTag("time", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        assertTrue("[$tag] time off centre by ${time.center - dial.center}", (time.center - dial.center).getDistance() < 2f)
+    }
+
+    @Test fun faceWidgets() {
+        store.saveWidgets(emptyList())
+        if (store.notes.isEmpty()) store.saveNote(Note(77L, "Bins out Thursday", 1, 77L))
+        store.addWidget("sky"); store.addWidget("list"); store.addWidget("note", store.notes.first().id)
+        show { Shell(store, act, Module.FACE) }
+        expect("Cheddar", "Bins out Thursday", store.city.uppercase()); shot("01b_face_widgets")
+        store.saveWidgets(emptyList())
+    }
 
     @Test fun kitchen() {
         show { Shell(store, act, Module.KITCHEN) }
-        expect("Pasta", "Oven chips"); shot("02_kitchen_timers")
+        expect("Pasta", "Oven chips", "Deep work"); shot("02_kitchen_timers")
         tap("Convert"); expect("Kilograms", "Pounds"); shot("03_kitchen_convert")
         tap("Oven"); expect("Gas mark"); shot("04_kitchen_convert_oven")
         tap("Cups"); expect("Plain flour"); shot("05_kitchen_convert_cups")
@@ -222,10 +245,16 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     }
 
     @Test fun sky() { show { Shell(store, act, Module.WEATHER) }; shot("07_sky") }
-    @Test fun notes() { show { Shell(store, act, Module.NOTES) }; shot("08_notes") }
-    @Test fun sound() { show { Shell(store, act, Module.MEDIA) }; expect("On this tablet"); shot("09_media") }
-    @Test fun focus() { show { Shell(store, act, Module.FOCUS) }; shot("10_focus") }
-    @Test fun house() { show { Shell(store, act, Module.HOUSE) }; shot("11_house") }
+    @Test fun notes() {
+        show { Shell(store, act, Module.NOTES) }; shot("08_notes")
+        tap("Sketch"); expect("Eraser", "Undo", "Clear"); shot("08b_notes_draw")
+    }
+    @Test fun sound() {
+        show { Shell(store, act, Module.MEDIA) }
+        expect("Nothing playing"); shot("09_media")
+        val old = rule.onAllNodesWithText("On this tablet", substring = true, ignoreCase = true, useUnmergedTree = true).fetchSemanticsNodes()
+        assertTrue("[$tag] the separate On this tablet section should be gone", old.isEmpty())
+    }
 
     @Test fun apps() {
         show { Shell(store, act, Module.APPS) }
@@ -237,6 +266,17 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         store.setIconStyle("void")
     }
 
+    @Test fun appsBlocked() {
+        // lock mode on with only Spotify allowed: the rest fold away, with the reason
+        store.allowed.toList().forEach { store.setAllowed(it, false) }
+        store.setAllowed("com.spotify.music", true)
+        store.set("kiosk", true)
+        show { Shell(store, act, Module.APPS) }
+        expect("Spotify", "won't open in lock mode"); shot("12b_apps_blocked")
+        tap("Show"); expect("Blocked by lock mode")
+        store.set("kiosk", false)
+    }
+
     @Test fun escape() {
         show { com.andysocial.voidos.ui.EscapeOverlay(store, act) {} }
         shot("44_escape_pin")
@@ -245,8 +285,13 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     @Test fun system() {
         show { Shell(store, act, Module.SYSTEM) }
         shot("20_system_wifi")
-        listOf("Bluetooth", "Screen + sound", "Hub + lock", "Do not disturb", "Date + time", "Battery", "Network",
-            "Storage + apps", "Android settings", "Boot + root", "VoidOS rules", "About").forEachIndexed { i, t ->
+        listOf("Bluetooth", "Network", "Screen + sound", "Do not disturb", "Battery", "Look + lock", "Date + time",
+            "Lock mode rules", "Storage", "Boot + root", "Android settings", "About").forEachIndexed { i, t ->
+            // upright, settings show one group at a time: open the group first
+            if (tag.startsWith("port")) tap(when (t) {
+                "Bluetooth", "Network" -> "Connect"; "Screen + sound", "Do not disturb", "Battery" -> "Screen"
+                "Look + lock", "Date + time", "Lock mode rules" -> "VoidOS"; else -> "Tablet"
+            })
             tap(t)
             shot("%02d_system_%s".format(21 + i, t.lowercase().replace(Regex("[^a-z]+"), "_").trim('_')))
         }

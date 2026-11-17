@@ -1,5 +1,7 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.height
 import android.annotation.SuppressLint
 import android.app.ActivityManager
 import android.bluetooth.BluetoothAdapter
@@ -58,20 +60,26 @@ import com.andysocial.voidos.Store
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
-private enum class Tab(val label: String, val g: G) {
-    WIFI("Wi-Fi", G.WIFI), BT("Bluetooth", G.BT), DISPLAY("Screen + sound", G.SUN), HUB("Hub + lock", G.FACE),
-    QUIET("Do not disturb", G.MOON), TIME("Date + time", G.TIMER), BATTERY("Battery", G.BATTERY), NET("Network", G.GLOBE),
-    STORAGE("Storage + apps", G.APPS), ANDROID("Android settings", G.SYSTEM), ROOT("Boot + root", G.POWER),
-    VOID("VoidOS rules", G.LOCK), ABOUT("About", G.INFO)
+/** Settings pages, gathered into four groups so the list reads at a glance. */
+private enum class Tab(val label: String, val g: G, val group: Int, val accent: Color) {
+    WIFI("Wi-Fi", G.WIFI, 0, V.Teal), BT("Bluetooth", G.BT, 0, V.Teal), NET("Network", G.GLOBE, 0, V.Teal),
+    DISPLAY("Screen + sound", G.SUN, 1, V.Yellow), QUIET("Do not disturb", G.MOON, 1, V.Yellow), BATTERY("Battery", G.BATTERY, 1, V.Yellow),
+    HUB("Look + lock", G.FACE, 2, V.Purple), TIME("Date + time", G.TIMER, 2, V.Purple), VOID("Lock mode rules", G.LOCK, 2, V.Purple),
+    STORAGE("Storage", G.APPS, 3, V.Coral), ROOT("Boot + root", G.POWER, 3, V.Coral), ANDROID("Android settings", G.SYSTEM, 3, V.Coral),
+    ABOUT("About", G.INFO, 3, V.Coral),
 }
+
+private val groups = listOf("Connect", "Screen", "VoidOS", "Tablet")
 
 @Composable
 fun SystemScreen(store: Store, act: MainActivity) {
     var tab by rememberSaveable { mutableStateOf(Tab.WIFI) }
     val owner = Policy.isOwner(act)
     val pane: @Composable (Modifier) -> Unit = { m ->
-        VPanel(m) {
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Column(m.clip(Oct).background(V.Panel).border(1.dp, tab.accent.copy(alpha = 0.35f), Oct)) {
+            // a thin bar in the group's colour, then the page
+            Box(Modifier.fillMaxWidth().height(3.dp).background(tab.accent.copy(alpha = 0.7f)))
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 26.dp, vertical = 22.dp)) {
                 when (tab) {
                     Tab.WIFI -> WifiPane(act)
                     Tab.BT -> BtPane()
@@ -91,43 +99,76 @@ fun SystemScreen(store: Store, act: MainActivity) {
         }
     }
     if (LocalPortrait.current) {
+        // upright: the four groups as tabs, then that group's pages
         Column(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Tab.entries.forEach { t -> Chip(t.label, t == tab, V.Teal, glyph = t.g) { tab = t } }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                groups.forEachIndexed { gi, g ->
+                    val sel = tab.group == gi
+                    val acc = Tab.entries.first { it.group == gi }.accent
+                    Box(
+                        Modifier.weight(1f).clip(RoundedCornerShape(50)).background(if (sel) acc.copy(alpha = 0.16f) else Color.Transparent)
+                            .border(1.dp, if (sel) acc else V.Line, RoundedCornerShape(50)).clickable { if (!sel) tab = Tab.entries.first { it.group == gi } }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { VText(g.uppercase(), size = 11.sp, color = if (sel) acc else V.Muted, spacing = 1.5.sp, maxLines = 1) }
+                }
+            }
+            Gap(h = 10.dp)
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                Tab.entries.filter { it.group == tab.group }.forEach { t -> NavItem(t, t == tab, compact = true) { tab = t } }
             }
             Gap(h = 12.dp)
             pane(Modifier.weight(1f).fillMaxWidth())
         }
     } else {
-        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Column(Modifier.width(230.dp).fillMaxHeight()) {
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Tab.entries.forEach { t ->
-                        val sel = t == tab
-                        Row(
-                            Modifier.fillMaxWidth().clip(OctS).background(if (sel) V.Teal.copy(alpha = 0.12f) else V.Panel)
-                                .border(1.dp, if (sel) V.Teal else V.Line, OctS).clickable { tab = t }.padding(horizontal = 14.dp, vertical = 11.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Glyph(t.g, if (sel) V.Teal else V.Muted, Modifier.size(22.dp))
-                            Gap(w = 12.dp)
-                            VText(t.label.uppercase(), size = 11.sp, color = if (sel) V.Teal else V.Text, spacing = 1.sp, maxLines = 1)
-                        }
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            Column(Modifier.width(220.dp).fillMaxHeight()) {
+                VText("SETTINGS", size = 22.sp, color = V.White, spacing = 3.sp)
+                Gap(h = 6.dp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(if (owner) V.Green else V.Yellow))
+                    Gap(w = 7.dp)
+                    VText(if (owner) "IN CHARGE OF THE TABLET" else "NOT DEVICE OWNER", size = 9.sp, color = if (owner) V.Green else V.Yellow, spacing = 1.sp, maxLines = 1)
+                }
+                Gap(h = 16.dp)
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                    groups.forEachIndexed { gi, g ->
+                        if (gi > 0) Gap(h = 14.dp)
+                        Label(g, Modifier.padding(start = 14.dp, bottom = 4.dp))
+                        Tab.entries.filter { it.group == gi }.forEach { t -> NavItem(t, t == tab, compact = false) { tab = t } }
                     }
                 }
-                Gap(h = 8.dp)
-                VText(if (owner) "DEVICE OWNER" else "NOT DEVICE OWNER", size = 10.sp, color = if (owner) V.Green else V.Yellow, spacing = 1.sp)
             }
             pane(Modifier.weight(1f).fillMaxHeight())
         }
     }
 }
 
+/** One settings page in the list: no box, just a coloured pill and text when it's the one open. */
+@Composable
+private fun NavItem(t: Tab, sel: Boolean, compact: Boolean, onClick: () -> Unit) {
+    val col = if (sel) t.accent else V.Muted
+    Row(
+        Modifier.then(if (compact) Modifier else Modifier.fillMaxWidth()).clip(RoundedCornerShape(12.dp))
+            .background(if (sel && !compact) t.accent.copy(alpha = 0.08f) else Color.Transparent)
+            .clickable(onClick = onClick).padding(horizontal = if (compact) 4.dp else 10.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (!compact) {
+            Box(Modifier.size(width = 4.dp, height = 18.dp).clip(RoundedCornerShape(50)).background(if (sel) t.accent else Color.Transparent))
+            Gap(w = 10.dp)
+        }
+        Glyph(t.g, col, Modifier.size(20.dp))
+        Gap(w = 10.dp)
+        VText(t.label, size = 14.sp, color = if (sel) V.White else V.Text.copy(alpha = 0.8f), font = FontFamily.Default, maxLines = 1)
+    }
+}
+
 @Composable
 internal fun Head(title: String, sub: String? = null) {
-    VText(title.uppercase(), size = 20.sp, color = V.White, spacing = 2.sp)
-    if (sub != null) { Gap(h = 4.dp); VText(sub, size = 12.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 17.sp) }
-    Gap(h = 14.dp)
+    VText(title.uppercase(), size = 24.sp, color = V.White, spacing = 2.sp)
+    if (sub != null) { Gap(h = 6.dp); VText(sub, size = 13.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 19.sp) }
+    Gap(h = 20.dp)
 }
 
 // ---------------------------------------------------------------------- Wi-Fi

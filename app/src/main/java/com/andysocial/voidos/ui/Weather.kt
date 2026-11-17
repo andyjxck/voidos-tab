@@ -1,6 +1,15 @@
 package com.andysocial.voidos.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.ui.platform.LocalContext
+import com.andysocial.voidos.Locator
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -47,11 +56,18 @@ data class Wx(
     val sunrise: String, val sunset: String, val hours: List<Hour>, val days: List<Day>, val fetched: Long,
 )
 
-/** Open-Meteo: free, no key, no account. Cached for 30 minutes. */
+/**
+ * Open-Meteo: free, no key, no account. A fresh forecast is kept for 30
+ * minutes. Every good answer is also saved, so after a restart or with no
+ * Wi-Fi the last forecast still shows, marked offline with its age.
+ */
 object WeatherRepo {
     val state = mutableStateOf<Wx?>(null)
     val error = mutableStateOf<String?>(null)
+    /** True when what's on screen is the saved forecast, because the last fetch failed. */
+    val offline = mutableStateOf(false)
     private var forPlace = ""
+    private var loaded = false
 
     private fun get(url: String): String {
         val c = URL(url).openConnection() as HttpURLConnection
@@ -59,10 +75,24 @@ object WeatherRepo {
         return try { c.inputStream.bufferedReader().readText() } finally { c.disconnect() }
     }
 
+    /** Put the saved forecast on screen once, before any fetch, so the face is never blank. */
+    fun loadCache(store: Store) {
+        if (loaded) return
+        loaded = true
+        val raw = store.weatherCache() ?: return
+        runCatching {
+            val o = JSONObject(raw)
+            parse(o.getString("raw"), o.getLong("t")) to o.optString("place")
+        }.onSuccess { (wx, place) ->
+            if (state.value == null) { state.value = wx; forPlace = place; offline.value = true }
+        }
+    }
+
     suspend fun refresh(store: Store, force: Boolean = false) {
+        loadCache(store)
         val place = "${store.lat},${store.lon}"
         val cur = state.value
-        if (!force && cur != null && place == forPlace && System.currentTimeMillis() - cur.fetched < 30 * 60_000) return
+        if (!force && !offline.value && cur != null && place == forPlace && System.currentTimeMillis() - cur.fetched < 30 * 60_000) return
         withContext(Dispatchers.IO) {
             runCatching {
                 val url = "https://api.open-meteo.com/v1/forecast?latitude=${store.lat}&longitude=${store.lon}" +
@@ -70,33 +100,46 @@ object WeatherRepo {
                     "&hourly=temperature_2m,weather_code,precipitation_probability" +
                     "&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max" +
                     "&timezone=auto&forecast_days=6&forecast_hours=12"
-                val o = JSONObject(get(url))
-                val c = o.getJSONObject("current")
-                val h = o.getJSONObject("hourly")
-                val d = o.getJSONObject("daily")
-                val iso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.UK)
-                val isoD = SimpleDateFormat("yyyy-MM-dd", Locale.UK)
-                val hours = (0 until h.getJSONArray("time").length()).map { i ->
-                    val t = iso.parse(h.getJSONArray("time").getString(i))!!
-                    Hour(SimpleDateFormat("HH", Locale.UK).format(t), h.getJSONArray("temperature_2m").getDouble(i),
-                        h.getJSONArray("weather_code").getInt(i), h.getJSONArray("precipitation_probability").optInt(i, 0))
+                val raw = get(url)
+                val now = System.currentTimeMillis()
+                val wx = parse(raw, now)
+                store.setWeatherCache(JSONObject().put("raw", raw).put("t", now).put("place", place).toString())
+                wx
+            }.onSuccess { state.value = it; error.value = null; offline.value = false; forPlace = place }
+                .onFailure {
+                    // keep whatever forecast we have; just say it's old
+                    offline.value = state.value != null
+                    error.value = "No connection"
                 }
-                val days = (0 until d.getJSONArray("time").length()).map { i ->
-                    val t = isoD.parse(d.getJSONArray("time").getString(i))!!
-                    Day(if (i == 0) "TODAY" else SimpleDateFormat("EEE", Locale.UK).format(t).uppercase(),
-                        d.getJSONArray("weather_code").getInt(i), d.getJSONArray("temperature_2m_max").getDouble(i),
-                        d.getJSONArray("temperature_2m_min").getDouble(i), d.getJSONArray("precipitation_probability_max").optInt(i, 0))
-                }
-                fun hm(s: String) = s.substringAfter('T')
-                Wx(
-                    c.getDouble("temperature_2m"), c.getDouble("apparent_temperature"), c.getInt("weather_code"),
-                    c.getDouble("wind_speed_10m"), c.getInt("relative_humidity_2m"), c.getInt("is_day") == 1,
-                    hm(d.getJSONArray("sunrise").getString(0)), hm(d.getJSONArray("sunset").getString(0)),
-                    hours, days, System.currentTimeMillis(),
-                )
-            }.onSuccess { state.value = it; error.value = null; forPlace = place }
-                .onFailure { error.value = "No weather: check Wi-Fi" }
         }
+    }
+
+    /** Open-Meteo's answer -> [Wx]. Public so the offline cache and the tests read it the same way. */
+    fun parse(raw: String, fetched: Long): Wx {
+        val o = JSONObject(raw)
+        val c = o.getJSONObject("current")
+        val h = o.getJSONObject("hourly")
+        val d = o.getJSONObject("daily")
+        val iso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.UK)
+        val isoD = SimpleDateFormat("yyyy-MM-dd", Locale.UK)
+        val hours = (0 until h.getJSONArray("time").length()).map { i ->
+            val t = iso.parse(h.getJSONArray("time").getString(i))!!
+            Hour(SimpleDateFormat("HH", Locale.UK).format(t), h.getJSONArray("temperature_2m").getDouble(i),
+                h.getJSONArray("weather_code").getInt(i), h.getJSONArray("precipitation_probability").optInt(i, 0))
+        }
+        val days = (0 until d.getJSONArray("time").length()).map { i ->
+            val t = isoD.parse(d.getJSONArray("time").getString(i))!!
+            Day(if (i == 0) "TODAY" else SimpleDateFormat("EEE", Locale.UK).format(t).uppercase(),
+                d.getJSONArray("weather_code").getInt(i), d.getJSONArray("temperature_2m_max").getDouble(i),
+                d.getJSONArray("temperature_2m_min").getDouble(i), d.getJSONArray("precipitation_probability_max").optInt(i, 0))
+        }
+        fun hm(s: String) = s.substringAfter('T')
+        return Wx(
+            c.getDouble("temperature_2m"), c.getDouble("apparent_temperature"), c.getInt("weather_code"),
+            c.getDouble("wind_speed_10m"), c.getInt("relative_humidity_2m"), c.getInt("is_day") == 1,
+            hm(d.getJSONArray("sunrise").getString(0)), hm(d.getJSONArray("sunset").getString(0)),
+            hours, days, fetched,
+        )
     }
 
     /** Geocode a place name. Returns (name, lat, lon) or null. */
@@ -106,6 +149,31 @@ object WeatherRepo {
             val r = o.getJSONArray("results").getJSONObject(0)
             Triple(r.getString("name"), r.getDouble("latitude").toFloat(), r.getDouble("longitude").toFloat())
         }.getOrNull()
+    }
+}
+
+/** "Updated 3h ago" style age for the offline badge. */
+fun wxAge(fetched: Long, now: Long = System.currentTimeMillis()): String {
+    val m = ((now - fetched) / 60_000).coerceAtLeast(0)
+    return when {
+        m < 1 -> "just now"
+        m < 60 -> "${m}m ago"
+        m < 48 * 60 -> "${m / 60}h ago"
+        else -> "${m / (24 * 60)}d ago"
+    }
+}
+
+/** The offline flag: impossible to miss, says how old the numbers are. */
+@Composable
+fun OfflineBadge(wx: Wx?, modifier: Modifier = Modifier) {
+    Row(
+        modifier.clip(RoundedCornerShape(50)).background(V.Coral.copy(alpha = 0.16f)).border(1.5.dp, V.Coral, RoundedCornerShape(50))
+            .padding(horizontal = 12.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(V.Coral))
+        Gap(w = 8.dp)
+        VText(if (wx == null) "OFFLINE" else "OFFLINE / ${wxAge(wx.fetched).uppercase()}", size = 11.sp, color = V.Coral, spacing = 1.5.sp, maxLines = 1)
     }
 }
 
@@ -142,7 +210,17 @@ fun t(d: Double) = "${d.roundToInt()}°"
 fun WeatherScreen(store: Store) {
     val wx by WeatherRepo.state
     val err by WeatherRepo.error
+    val off by WeatherRepo.offline
     val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
+    // ask once for location if we can't grant it ourselves (device owner grants it silently)
+    val askLoc = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) scope.launch { if (Locator.locate(ctx, store)) WeatherRepo.refresh(store, force = true) }
+    }
+    LaunchedEffect(store.autoPlace) {
+        if (store.autoPlace && !Locator.selfGrant(ctx)) askLoc.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+        else Locator.locate(ctx, store)
+    }
     LaunchedEffect(store.lat, store.lon) { WeatherRepo.refresh(store) }
     var editing by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
@@ -152,9 +230,11 @@ fun WeatherScreen(store: Store) {
     val now: @Composable (Modifier) -> Unit = { mod ->
         VPanel(mod, accent = wx?.let { wxColour(it.code, it.isDay) }) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (store.autoPlace) { Glyph(G.GLOBE, V.Sun, Modifier.size(16.dp)); Gap(w = 6.dp) }
                 VText(store.city.uppercase(), size = 16.sp, color = V.Text, spacing = 2.sp, modifier = Modifier.weight(1f), maxLines = 1)
                 VButton(if (editing) "Cancel" else "Place", accent = V.Muted) { editing = !editing; findErr = null }
             }
+            if (off || (wx == null && err != null)) { Gap(h = 10.dp); OfflineBadge(wx) }
             if (editing) {
                 Gap(h = 12.dp)
                 VField(query, { query = it }, Modifier.fillMaxWidth(), placeholder = "Town or city")
@@ -163,17 +243,24 @@ fun WeatherScreen(store: Store) {
                     scope.launch {
                         val r = WeatherRepo.find(query.trim())
                         if (r == null) findErr = "Couldn't find that place" else {
+                            store.chooseAutoPlace(false)
                             store.setPlace(r.first, r.second, r.third); editing = false; query = ""
                             WeatherRepo.refresh(store, force = true)
                         }
                     }
                 }
                 findErr?.let { Gap(h = 6.dp); VText(it, size = 12.sp, color = V.Coral, font = FontFamily.Default) }
+                if (!store.autoPlace) {
+                    Gap(h = 8.dp)
+                    VButton("Use my location", accent = V.Sun) {
+                        store.chooseAutoPlace(true); editing = false
+                    }
+                }
             }
             val w = wx
             if (w == null) {
                 Gap(h = if (portrait) 16.dp else 40.dp)
-                VText(err ?: "LOADING SKY", size = 14.sp, color = V.Muted)
+                VText(if (err != null) "NO WI-FI, NO SAVED FORECAST YET" else "LOADING SKY", size = 14.sp, color = V.Muted)
             } else if (portrait && !editing) {
                 // portrait: glyph and temperature on the left, the numbers on the right
                 Gap(h = 10.dp)

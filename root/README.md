@@ -4,7 +4,7 @@
 
 | File | What it is | Used in |
 | --- | --- | --- |
-| `voidos-tab-1.2.0.apk` | The VoidOS app, release build (same fixed key as every build, so it installs over any earlier one and keeps device owner) | main README, Install; after unlocking (section 1) |
+| `voidos-tab-1.3.0.apk` | The VoidOS app, release build (same fixed key as every build, so it installs over any earlier one and keeps device owner) | main README, Install; after unlocking (section 1) |
 | `voidos-boot-magisk.zip` | Magisk module: the Android boot animation | section 3 |
 | `bootanimation.zip` | The boot animation on its own, for a hand copy or your own firmware | section 3 |
 | `voidos-system-magisk.zip` | Magisk module: VoidOS as a system app (optional) | section 4 |
@@ -287,9 +287,13 @@ tablet's bootloader.
 ## 7. What this repo deliberately doesn't do
 
 * **Patch the bootloader (LK) to remove the unlocked-bootloader warning.** That
-  text is drawn by LK, not stored in the logo partition. People have patched it
-  on other Lenovo MediaTek tablets, but nothing confirms the patch for the
-  TB-X306F, and a bad LK can leave the tablet unable to reach fastboot at all.
+  text is drawn by LK, not stored in the logo partition. Checked in the stock
+  `lk-verified.img` for build S120637: the "Orange State" message and its
+  5-second wait are strings and code inside LK itself, and LK is signed. People
+  have patched it on other Lenovo MediaTek tablets, but nothing confirms the
+  patch for the TB-X306F, and a bad LK can leave the tablet unable to reach
+  fastboot at all. Relocking would hide it but wipe the tablet and refuse to
+  boot the Magisk-patched boot image, so don't relock either.
 * **Replace SystemUI's keyguard or build a whole ROM.** VoidOS's own lock screen
   with the keyguard off gets the same result at no risk (see the top).
 * **Port a non-Android OS.** See "Why it's still Android underneath".

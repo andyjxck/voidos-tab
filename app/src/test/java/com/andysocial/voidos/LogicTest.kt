@@ -9,6 +9,11 @@ import com.andysocial.voidos.ui.glyphForPackage
 import com.andysocial.voidos.ui.initialsFor
 import com.andysocial.voidos.ui.G
 import com.andysocial.voidos.ui.BootChain
+import com.andysocial.voidos.ui.WeatherRepo
+import com.andysocial.voidos.ui.eraseAt
+import com.andysocial.voidos.ui.octRadius
+import com.andysocial.voidos.ui.timerGrid
+import com.andysocial.voidos.ui.wxAge
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -171,5 +176,67 @@ class LogicTest {
         assertFalse(v("Home screen", stock).ok)
         assertEquals("None", v("Lock screen", BootChain.stages(null, false, true, false, true)).value)
         assertEquals("Android", v("Lock screen", BootChain.stages(null, false, false, false, true)).value)
+    }
+
+    @Test fun timerGridGivesBigCells() {
+        assertEquals(1 to 1, timerGrid(1, 600f, 500f))
+        // two timers side by side on a wide pane, stacked on a tall one
+        assertEquals(2 to 1, timerGrid(2, 700f, 400f))
+        assertEquals(1 to 2, timerGrid(2, 400f, 700f))
+        val (c, r) = timerGrid(5, 700f, 500f)
+        assertTrue(c * r >= 5)
+    }
+
+    @Test fun octagonRadius() {
+        // edge middles sit at the apothem, corners at apothem / cos(22.5 deg)
+        assertEquals(100f, octRadius(100f, 0.0), 0.01f)
+        assertEquals(100f, octRadius(100f, Math.PI / 2), 0.01f)
+        assertEquals((100 / Math.cos(Math.PI / 8)).toFloat(), octRadius(100f, Math.PI / 8), 0.01f)
+    }
+
+    @Test fun inkSurvivesSaving() {
+        val ink = listOf(Stroke(0xFF00FFAA.toInt(), 0.006f, 1, listOf(0.1f, 0.2f, 0.3f, 0.4f)), Stroke(-1, 0.024f, 0, listOf(0.5f, 0.5f)))
+        val back = strokesFromJson(strokesToJson(ink))
+        assertEquals(ink.size, back.size)
+        assertEquals(ink[0].argb, back[0].argb); assertEquals(1, back[0].style)
+        assertEquals(0.3f, back[0].pts[2], 0.0001f)
+        store.saveNote(Note(4242L, "sketch", 2, 1L, ink))
+        val fresh = Store(RuntimeEnvironment.getApplication())
+        assertEquals(2, fresh.notes.first { it.id == 4242L }.ink.size)
+        store.deleteNote(4242L)
+    }
+
+    @Test fun eraserRemovesOnlyTouchedStrokes() {
+        val ink = mutableListOf(Stroke(-1, 0.01f, 0, listOf(0.1f, 0.1f, 0.2f, 0.1f)), Stroke(-1, 0.01f, 0, listOf(0.8f, 0.8f, 0.9f, 0.9f)))
+        assertTrue(eraseAt(ink, 0.15f, 0.1f, 0.02f))
+        assertEquals(1, ink.size)
+        assertFalse(eraseAt(ink, 0.5f, 0.5f, 0.02f))
+    }
+
+    @Test fun widgetsSaveTheirPlace() {
+        store.saveWidgets(emptyList())
+        store.addWidget("sky"); store.addWidget("sky")
+        assertEquals("no duplicates", 1, store.widgets.size)
+        store.moveWidget(store.widgets[0].id, 0.25f, 1.7f)
+        val fresh = Store(RuntimeEnvironment.getApplication())
+        assertEquals(0.25f, fresh.widgets[0].x, 0.001f)
+        assertEquals("kept on screen", 1f, fresh.widgets[0].y, 0.001f)
+        // deleting a note takes its widget with it
+        store.saveNote(Note(99L, "x", 0, 1L)); store.addWidget("note", 99L)
+        store.deleteNote(99L)
+        assertTrue(store.widgets.none { it.kind == "note" })
+        store.saveWidgets(emptyList())
+    }
+
+    @Test fun weatherParsesAndAges() {
+        val raw = """{"current":{"temperature_2m":7.4,"apparent_temperature":4.9,"weather_code":3,"wind_speed_10m":14.2,"relative_humidity_2m":81,"is_day":1},
+            "hourly":{"time":["2026-11-17T21:00"],"temperature_2m":[7.0],"weather_code":[3],"precipitation_probability":[10]},
+            "daily":{"time":["2026-11-17"],"weather_code":[61],"temperature_2m_max":[9.1],"temperature_2m_min":[3.2],"sunrise":["2026-11-17T07:31"],"sunset":["2026-11-17T16:12"],"precipitation_probability_max":[60]}}"""
+        val wx = WeatherRepo.parse(raw, 1000L)
+        assertEquals(7.4, wx.temp, 0.01); assertEquals("07:31", wx.sunrise); assertEquals("TODAY", wx.days[0].label)
+        assertEquals("just now", wxAge(0L, 30_000L))
+        assertEquals("45m ago", wxAge(0L, 45 * 60_000L))
+        assertEquals("3h ago", wxAge(0L, 3 * 3_600_000L))
+        assertEquals("2d ago", wxAge(0L, 50 * 3_600_000L))
     }
 }

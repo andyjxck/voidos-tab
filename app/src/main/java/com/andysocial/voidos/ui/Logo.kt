@@ -75,6 +75,9 @@ object Mark {
     }
 }
 
+/** Shift left, as a fraction of the word's width, so the wordmark looks centred. Same as tools/voidmark.py OPTICAL_X. */
+const val WORD_OPTICAL_X = 0.05f
+
 /**
  * The wordmark centred on [c], [width] px wide. [reveal] 0..1 wipes it in
  * from the left, [dot] scales the i's dot, [glow] 0..1 haloes the dot, and
@@ -83,7 +86,8 @@ object Mark {
  */
 fun DrawScope.drawVoidWord(c: Offset, width: Float, reveal: Float = 1f, dot: Float = 1f, glow: Float = 0f, alpha: Float = 1f, mono: Color? = null, shuttle: Float = 0f) {
     val s = width / LogoData.WORD_W
-    val o = Offset(c.x - width / 2, c.y - LogoData.WORD_H * s / 2)
+    // optical centring: the root's thin tail makes the box centre look right of centre (tools/voidmark.py OPTICAL_X)
+    val o = Offset(c.x - width / 2 - width * WORD_OPTICAL_X, c.y - LogoData.WORD_H * s / 2)
     val dotDx = if (shuttle < 0f) shuttle * LogoData.DOT_REACH_L else shuttle * LogoData.DOT_REACH_R
     if (glow > 0f && dot > 0f) {
         val dc = Offset(o.x + (LogoData.DOT_CX + dotDx) * s, o.y + LogoData.DOT_CY * s)

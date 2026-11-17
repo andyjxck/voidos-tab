@@ -94,6 +94,9 @@ fun HubPane(store: Store, act: MainActivity) {
             VButton(l, accent = V.Teal, filled = store.iconStyle == k) { store.setIconStyle(k) }
         }
     }
+    SettingRow("Face widgets", "Tap + on the face to add Sky, Sound, the list or a note. Hold one to drag it.") {
+        VButton("Clear all", accent = V.Muted, enabled = store.widgets.isNotEmpty()) { store.saveWidgets(emptyList()) }
+    }
     SettingRow("Labels under rail icons") { VToggle(store.railLabels) { store.set("railLabels", it) } }
     SettingRow("Fahrenheit", "Weather in °F instead of °C.") { VToggle(store.tempF) { store.set("tempF", it) } }
     SettingRow("Timer alarm sound", "Loops until you press Stop. Uses the Alarms volume.") { VToggle(store.timerSound, V.Orange) { store.set("timerSound", it) } }

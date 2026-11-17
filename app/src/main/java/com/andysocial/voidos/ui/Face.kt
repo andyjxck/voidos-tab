@@ -1,33 +1,65 @@
 package com.andysocial.voidos.ui
 
+import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.Typeface
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.runtime.remember
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
-import com.andysocial.voidos.KTimers
-import com.andysocial.voidos.Now
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.res.ResourcesCompat
+import com.andysocial.voidos.FaceWidget
+import com.andysocial.voidos.KTimer
+import com.andysocial.voidos.KTimers
+import com.andysocial.voidos.Now
+import com.andysocial.voidos.R
 import com.andysocial.voidos.Store
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -35,27 +67,46 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.hypot
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
- * The home face. The big octagon is the PineTime digital face scaled up: a
- * 60-tick lap ring that fills with the seconds, changing colour every minute
- * through the six watch colours, with the time in Kenney inside.
+ * The home face: the time and your timers, and nothing else unless you put
+ * it there. The octagon clock sits dead centre with a field of small squares
+ * around it. Running timers show as small pills above the time. Widgets
+ * (weather, sound, the list, any note) are optional: add them with +, hold
+ * one to drag it anywhere, and they stay where you leave them.
  */
 @Composable
 fun FaceScreen(store: Store, onOpen: (Module) -> Unit) {
-    val portrait = LocalPortrait.current
     val now = rememberNow(1000)
+    var editing by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { WeatherRepo.refresh(store) }
-    if (portrait) {
-        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Dial(store, now, Modifier.weight(1.05f).fillMaxWidth())
-            FaceTiles(store, now, onOpen, Modifier.weight(1f).fillMaxWidth(), columns = 2)
+    val ctx = LocalContext.current
+    val favs = remember(store.favs) { store.favs.mapNotNull { pkg -> AppsRepo.find(ctx, pkg) } }
+
+    Column(Modifier.fillMaxSize()) {
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+            val minute = Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.MINUTE)
+            SquareField(Modifier.fillMaxSize(), V.Lap[minute % 6])
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Dial(store, now, onOpen, Modifier.fillMaxSize())
+            }
+            WidgetLayer(store, now, editing, onOpen, maxWidth, maxHeight)
+            // the one control on the face: add, move and remove widgets
+            Box(Modifier.align(Alignment.TopEnd)) {
+                FaceEditButton(editing) { editing = !editing }
+            }
+            if (editing) WidgetMenu(store, Modifier.align(Alignment.TopEnd).padding(top = 60.dp)) { editing = false }
         }
-    } else {
-        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            Dial(store, now, Modifier.weight(1.25f).fillMaxHeight())
-            FaceTiles(store, now, onOpen, Modifier.weight(1f).fillMaxHeight(), columns = 2)
+        // favourites, only when you've starred some
+        if (favs.isNotEmpty()) {
+            Row(
+                Modifier.align(Alignment.CenterHorizontally).padding(top = 10.dp).clip(RoundedCornerShape(50))
+                    .background(V.Panel).border(1.dp, V.Line, RoundedCornerShape(50)).padding(horizontal = 18.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) { favs.take(6).forEach { app -> AppIcon(app, 42.dp) { launchApp(ctx, store, app.pkg) } } }
         }
     }
 }
@@ -69,21 +120,87 @@ internal fun octRadius(a: Float, t: Double): Float {
 }
 
 /**
- * The octagon clock: sixty second ticks run round an octagon (not a circle)
- * and fill in the minute's lap colour; the four quarter ticks are longer. A
- * lap-coloured bead marks the second. Under the time: AM/PM on a 12-hour
- * clock, and the next kitchen timer to finish while any are running.
+ * Small rounded squares on a grid around the clock: brightest near the dial,
+ * fading out towards the edges, a few picked out in the six watch colours.
  */
 @Composable
-private fun Dial(store: Store, now: Long, modifier: Modifier) {
+private fun SquareField(modifier: Modifier, lap: Color) {
+    Canvas(modifier) {
+        val pitch = 30.dp.toPx()
+        val sq = 9.dp.toPx()
+        val c = Offset(size.width / 2, size.height / 2)
+        val dial = size.minDimension / 2 * 0.98f
+        val far = hypot(size.width / 2, size.height / 2)
+        val cols = (size.width / pitch).toInt() + 1
+        val rows = (size.height / pitch).toInt() + 1
+        val ox = (size.width - (cols - 1) * pitch) / 2
+        val oy = (size.height - (rows - 1) * pitch) / 2
+        for (r in 0 until rows) for (k in 0 until cols) {
+            val p = Offset(ox + k * pitch, oy + r * pitch)
+            val d = hypot(p.x - c.x, p.y - c.y)
+            if (d < dial) continue
+            val fade = (1f - (d - dial) / (far - dial + 1f)).coerceIn(0f, 1f)
+            // a fixed scatter of coloured squares; the rest are plain
+            val h = (r * 73 + k * 151) % 23
+            val col = if (h == 0) V.Lap[(r + k) % 6] else if (h == 7) lap else V.Line
+            val a = (if (h == 0 || h == 7) 0.55f else 0.7f) * fade * fade
+            if (a < 0.03f) continue
+            drawRoundRect(col.copy(alpha = a), Offset(p.x - sq / 2, p.y - sq / 2), Size(sq, sq), CornerRadius(sq * 0.28f))
+        }
+    }
+}
+
+/** Kenney, as an Android typeface, for text centred by its ink rather than its line box. */
+@Composable
+private fun rememberKenney(): Typeface {
+    val ctx = LocalContext.current
+    return remember { runCatching { ResourcesCompat.getFont(ctx, R.font.kenney_future) }.getOrNull() ?: Typeface.DEFAULT_BOLD }
+}
+
+/**
+ * Text sized to its ink and drawn dead centre in it. Kenney's digits sit left
+ * of their advance and its line box adds space above, so ordinary text drifts
+ * left and down; this doesn't.
+ */
+@Composable
+private fun InkText(text: String, sizePx: Float, color: Color, face: Typeface, spacingEm: Float = 0f, modifier: Modifier = Modifier) {
+    val paint = remember(face, sizePx, spacingEm) {
+        Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = face; textSize = sizePx; letterSpacing = spacingEm }
+    }
+    // measure every digit the same, so the time doesn't shuffle sideways as it changes
+    val probe = text.map { if (it.isDigit()) '0' else it }.joinToString("")
+    val b = remember(probe, paint) { Rect().also { paint.getTextBounds(probe, 0, probe.length, it) } }
+    val ink = remember(text, paint) { Rect().also { paint.getTextBounds(text, 0, text.length, it) } }
+    val d = LocalDensity.current
+    Canvas(
+        modifier.size(with(d) { b.width().toFloat().toDp() }, with(d) { b.height().toFloat().toDp() })
+            .semantics { contentDescription = text },
+    ) {
+        paint.color = color.toArgb()
+        // centre the real ink horizontally; keep the baseline steady vertically
+        val x = size.width / 2 - ink.exactCenterX()
+        val y = size.height / 2 - b.exactCenterY()
+        drawContext.canvas.nativeCanvas.drawText(text, x, y, paint)
+    }
+}
+
+/**
+ * The octagon clock: sixty second ticks run round an octagon and fill in the
+ * minute's lap colour, with a bead on the second. Inside, centred on the
+ * dial: the date, running timers as pills, the time, then the seconds.
+ */
+@Composable
+private fun Dial(store: Store, now: Long, onOpen: (Module) -> Unit, modifier: Modifier) {
     val cal = Calendar.getInstance().apply { timeInMillis = now }
     val sec = cal.get(Calendar.SECOND)
     val minute = cal.get(Calendar.MINUTE)
     val fmt = if (store.use24h) "HH:mm" else "h:mm"
     val timers by KTimers.list
-    val next = timers.filter { it.running }.minByOrNull { it.remaining() }
+    val running = timers.filter { it.running }.sortedBy { it.endAt }
+    val face = rememberKenney()
+    val d = LocalDensity.current
     SquareFit(modifier) { side ->
-        Box(Modifier.size(side), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(side).testTag("dial"), contentAlignment = Alignment.Center) {
             Canvas(Modifier.fillMaxSize()) {
                 val c = Offset(size.width / 2, size.height / 2)
                 val R = size.minDimension / 2 * 0.96f
@@ -103,160 +220,249 @@ private fun Dial(store: Store, now: Long, modifier: Modifier) {
                 }
                 drawOct(c, R * 0.76f, V.Line, width = R * 0.008f)
                 drawOct(c, R * 0.72f, V.Panel, fill = true)
-                // faint lap colour wash in the dial
                 drawOct(c, R * 0.72f, cur.copy(alpha = 0.05f), fill = true)
                 drawOct(c, R * 0.72f, cur.copy(alpha = 0.35f), width = R * 0.006f)
-                // the bead rides just inside the ticks, on the same octagon
                 val t = sec / 60.0 * 2 * PI - PI / 2
                 val br = octRadius(apo, t) - R * 0.17f
                 drawCircle(cur.copy(alpha = 0.25f), R * 0.045f, Offset(c.x + cos(t).toFloat() * br, c.y + sin(t).toFloat() * br))
                 drawCircle(cur, R * 0.022f, Offset(c.x + cos(t).toFloat() * br, c.y + sin(t).toFloat() * br))
             }
-            val k = side.value / 520f
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                VText(SimpleDateFormat("EEE, MMM d", Locale.UK).format(Date(now)).uppercase(), size = (20 * k).sp, color = V.Text, spacing = (2 * k).sp, maxLines = 1)
-                Row(verticalAlignment = Alignment.Bottom) {
-                    VText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), size = (108 * k).sp, color = V.White, maxLines = 1)
-                    if (!store.use24h) VText(
-                        if (cal.get(Calendar.AM_PM) == Calendar.AM) "AM" else "PM", size = (18 * k).sp, color = V.Muted,
-                        modifier = Modifier.padding(start = (6 * k).dp, bottom = (22 * k).dp), maxLines = 1,
-                    )
-                }
-                VText("%02d".format(sec), size = (22 * k).sp, color = V.Lap[minute % 6], font = Jupi, maxLines = 1)
-                if (next != null) {
-                    Gap(h = (8 * k).dp)
-                    VText("${next.label.uppercase()}  ${fmtDur(next.remaining())}", size = (15 * k).sp, color = V.Orange, spacing = (1.5f * k).sp, maxLines = 1)
-                }
-            }
+            val px = with(d) { side.toPx() } / 520f   // the design is drawn for a 520 px dial
+            val gap = with(d) { (12 * px).toDp() }
+            CentredStack(
+                gap = gap,
+                above = {
+                    InkText(SimpleDateFormat("EEE, MMM d", Locale.UK).format(Date(now)).uppercase(), 19 * px * 1.25f, V.Text, face, 0.1f)
+                    if (running.isNotEmpty()) TimerPills(running, now, px, onOpen)
+                },
+                centre = { InkText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), 112 * px * 1.25f, V.White, face, modifier = Modifier.testTag("time")) },
+                below = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (!store.use24h) {
+                            InkText(if (cal.get(Calendar.AM_PM) == Calendar.AM) "AM" else "PM", 18 * px * 1.25f, V.Muted, face, 0.1f)
+                            Gap(w = with(d) { (14 * px).toDp() })
+                        }
+                        InkText("%02d".format(sec), 22 * px * 1.25f, V.Lap[minute % 6], face)
+                    }
+                },
+            )
         }
     }
 }
 
+/**
+ * Lays out [centre] exactly in the middle, stacks [above] upwards from its top
+ * and [below] downwards from its bottom, so the time is centred on the dial
+ * whatever sits around it.
+ */
 @Composable
-private fun FaceTiles(store: Store, now: Long, onOpen: (Module) -> Unit, modifier: Modifier, columns: Int) {
-    val ctx = LocalContext.current
-    val bat = rememberBattery()
-    val wx by WeatherRepo.state
-    val playing by Now.playing
-    val timers = KTimers.list.value
-    val cal = Calendar.getInstance().apply { timeInMillis = now }
+private fun CentredStack(gap: Dp, above: @Composable () -> Unit, centre: @Composable () -> Unit, below: @Composable () -> Unit) {
+    Layout(
+        contents = listOf(
+            { Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(gap)) { above() } },
+            centre,
+            { Column(horizontalAlignment = Alignment.CenterHorizontally) { below() } },
+        ),
+        modifier = Modifier.fillMaxSize(),
+    ) { (a, c, b), cons ->
+        val loose = cons.copy(minWidth = 0, minHeight = 0)
+        val pa = a.first().measure(loose); val pc = c.first().measure(loose); val pb = b.first().measure(loose)
+        val g = gap.roundToPx()
+        layout(cons.maxWidth, cons.maxHeight) {
+            val cx = cons.maxWidth / 2; val cy = cons.maxHeight / 2
+            val top = cy - pc.height / 2
+            pc.place(cx - pc.width / 2, top)
+            pa.place(cx - pa.width / 2, top - g - pa.height)
+            pb.place(cx - pb.width / 2, top + pc.height + g)
+        }
+    }
+}
 
-    val tiles = mutableListOf<@Composable (Modifier) -> Unit>()
-    // sky
-    tiles += { m ->
-        val w = wx
-        FaceTile(m, "Sky / ${store.city}", w?.let { wxColour(it.code, it.isDay) } ?: V.Muted, onClick = { onOpen(Module.WEATHER) }) {
-            if (w == null) VText("--", size = 30.sp, color = V.Muted)
-            else Row(verticalAlignment = Alignment.CenterVertically) {
-                Glyph(wxGlyph(w.code, w.isDay), wxColour(w.code, w.isDay), Modifier.size(44.dp))
-                Gap(w = 12.dp)
-                Column {
-                    VText(t(w.temp), size = 32.sp, color = V.White, font = Jupi)
-                    VText("${t(w.days.firstOrNull()?.max ?: w.temp)} / ${t(w.days.firstOrNull()?.min ?: w.temp)}", size = 11.sp, color = V.Muted, maxLines = 1)
+/** Running timers, smallest first: up to two pills, then "+n". Tap one to open Kitchen. */
+@Composable
+private fun TimerPills(running: List<KTimer>, now: Long, px: Float, onOpen: (Module) -> Unit) {
+    val d = LocalDensity.current
+    val fs = with(d) { (15 * px * 1.25f).toSp() }
+    Row(horizontalArrangement = Arrangement.spacedBy(with(d) { (8 * px).toDp() }), verticalAlignment = Alignment.CenterVertically) {
+        running.take(2).forEach { t ->
+            val col = V.Lap[t.colour.mod(V.Lap.size)].let { if (t.remaining(now) < 60_000) V.Coral else it }
+            Row(
+                Modifier.clip(RoundedCornerShape(50)).background(col.copy(alpha = 0.14f)).border(1.dp, col.copy(alpha = 0.7f), RoundedCornerShape(50))
+                    .tap { onOpen(Module.KITCHEN) }.padding(horizontal = with(d) { (12 * px).toDp() }, vertical = with(d) { (5 * px).toDp() }),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                VText(t.label.uppercase().take(10), size = fs * 0.75f, color = col, spacing = 1.sp, maxLines = 1)
+                Gap(w = 8.dp)
+                VText(fmtDur(t.remaining(now)), size = fs, color = V.White, font = Jupi, maxLines = 1)
+            }
+        }
+        if (running.size > 2) VText("+${running.size - 2}", size = fs * 0.85f, color = V.Muted, maxLines = 1)
+    }
+}
+
+@Composable
+private fun FaceEditButton(editing: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.padding(4.dp).size(44.dp).clip(OctS).background(if (editing) V.Teal.copy(alpha = 0.2f) else V.Panel.copy(alpha = 0.7f))
+            .border(1.dp, if (editing) V.Teal else V.Line, OctS).tap(onClick),
+        contentAlignment = Alignment.Center,
+    ) { Glyph(if (editing) G.CHECK else G.PLUS, if (editing) V.Teal else V.Muted, Modifier.size(22.dp)) }
+}
+
+/** The widget picker: what you can put on the face, and a tick for what's already there. */
+@Composable
+private fun WidgetMenu(store: Store, modifier: Modifier, onDone: () -> Unit) {
+    VPanel(modifier.width(260.dp), padding = 14.dp) {
+        Label("Add to face")
+        Gap(h = 4.dp)
+        VText("Hold a widget to move it.", size = 12.sp, color = V.Muted, font = FontFamily.Default)
+        Gap(h = 10.dp)
+        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            fun on(kind: String, ref: Long = 0L) = store.widgets.any { it.kind == kind && it.ref == ref }
+            @Composable fun row(label: String, g: G, accent: Color, kind: String, ref: Long = 0L) {
+                val has = on(kind, ref)
+                Row(
+                    Modifier.fillMaxWidth().clip(OctS).background(if (has) accent.copy(alpha = 0.12f) else V.Panel2)
+                        .tap { if (has) store.widgets.filter { it.kind == kind && it.ref == ref }.forEach { store.removeWidget(it.id) } else store.addWidget(kind, ref) }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Glyph(g, accent, Modifier.size(20.dp)); Gap(w = 10.dp)
+                    VText(label, size = 13.sp, color = V.Text, font = FontFamily.Default, maxLines = 1, modifier = Modifier.weight(1f))
+                    if (has) Glyph(G.CHECK, accent, Modifier.size(18.dp))
                 }
             }
-        }
-    }
-    // timers
-    tiles += { m ->
-        val next = timers.filter { it.running }.minByOrNull { it.endAt }
-        FaceTile(m, "Timers", V.Orange, onClick = { onOpen(Module.KITCHEN) }) {
-            if (next == null) Row(verticalAlignment = Alignment.CenterVertically) {
-                Glyph(G.TIMER, V.Tick, Modifier.size(36.dp)); Gap(w = 10.dp)
-                VText(if (timers.isEmpty()) "TAP TO START" else "${timers.size} PAUSED", size = 12.sp, color = V.Muted, spacing = 1.sp)
-            } else Column {
-                VText(fmtDur(next.remaining(now)), size = 32.sp, color = V.White, font = Jupi)
-                val more = timers.count { it.running } - 1
-                VText(next.label.uppercase() + if (more > 0) "  +$more MORE" else "", size = 11.sp, color = V.Orange, maxLines = 1, spacing = 1.sp)
+            row("Sky", G.WEATHER, V.Sun, "sky")
+            row("Sound", G.MEDIA, V.Purple, "sound")
+            row("Shopping list", G.LIST, V.Green, "list")
+            store.notes.take(8).forEach { n ->
+                row(n.text.lineSequence().firstOrNull()?.ifBlank { null } ?: if (n.ink.isNotEmpty()) "Drawing" else "Empty note", G.NOTES, V.Yellow, "note", n.id)
             }
         }
+        Gap(h = 10.dp)
+        VButton("Done", Modifier.fillMaxWidth(), accent = V.Teal, filled = true, onClick = onDone)
     }
-    // now playing
-    tiles += { m ->
-        val p = playing
-        FaceTile(m, if (p != null) "Playing / ${p.appName}" else "Sound", V.Purple, onClick = { onOpen(Module.MEDIA) }) {
-            if (p == null || p.title.isBlank()) Row(verticalAlignment = Alignment.CenterVertically) {
-                Glyph(G.MEDIA, V.Tick, Modifier.size(36.dp)); Gap(w = 10.dp)
-                VText("NOTHING PLAYING", size = 12.sp, color = V.Muted, spacing = 1.sp)
-            } else Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    VText(p.title, size = 15.sp, color = V.White, font = FontFamily.Default, maxLines = 1)
-                    VText(p.artist, size = 12.sp, color = V.Muted, font = FontFamily.Default, maxLines = 1)
+}
+
+/** Every widget, at its saved place. Hold to drag; tap to open its screen. */
+@Composable
+private fun WidgetLayer(store: Store, now: Long, editing: Boolean, onOpen: (Module) -> Unit, w: Dp, h: Dp) {
+    val d = LocalDensity.current
+    val wiggle by rememberInfiniteTransition(label = "wig").animateFloat(-1f, 1f, infiniteRepeatable(tween(260), RepeatMode.Reverse), label = "wig")
+    store.widgets.forEach { wd ->
+        val size = widgetSize(wd)
+        val freeX = with(d) { (w - size.first).toPx() }.coerceAtLeast(0f)
+        val freeY = with(d) { (h - size.second).toPx() }.coerceAtLeast(0f)
+        var drag by remember(wd.id) { mutableStateOf<Offset?>(null) }
+        val base = Offset(wd.x * freeX, wd.y * freeY)
+        val pos = drag ?: base
+        Box(
+            Modifier.offset { IntOffset(pos.x.roundToInt(), pos.y.roundToInt()) }
+                .size(size.first, size.second)
+                .pointerInput(wd.id, freeX, freeY) {
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = { drag = Offset(wd.x * freeX, wd.y * freeY) },
+                        onDragEnd = {
+                            drag?.let { p -> store.moveWidget(wd.id, if (freeX > 0) p.x / freeX else 0f, if (freeY > 0) p.y / freeY else 0f) }
+                            drag = null
+                        },
+                        onDragCancel = { drag = null },
+                    ) { ch, amt ->
+                        ch.consume()
+                        val p = (drag ?: base) + amt
+                        drag = Offset(p.x.coerceIn(0f, freeX), p.y.coerceIn(0f, freeY))
+                    }
+                },
+        ) {
+            Box(Modifier.fillMaxSize().offset(x = if (editing) (wiggle * 1.2f).dp else 0.dp)) {
+                WidgetBody(store, wd, now, onOpen, lifted = drag != null)
+            }
+            if (editing) Box(
+                Modifier.align(Alignment.TopEnd).offset(6.dp, (-6).dp).size(28.dp).clip(RoundedCornerShape(50))
+                    .background(V.Coral).tap { store.removeWidget(wd.id) },
+                contentAlignment = Alignment.Center,
+            ) { Glyph(G.CLOSE, V.Bg, Modifier.size(14.dp)) }
+        }
+    }
+}
+
+private fun widgetSize(wd: FaceWidget): Pair<Dp, Dp> = when (wd.kind) {
+    "note" -> 200.dp to 170.dp
+    "sound" -> 230.dp to 120.dp
+    else -> 150.dp to 150.dp
+}
+
+@Composable
+private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module) -> Unit, lifted: Boolean) {
+    val accent = when (wd.kind) { "sky" -> V.Sun; "sound" -> V.Purple; "list" -> V.Green; else -> V.Yellow }
+    val shape = RoundedCornerShape(18.dp)
+    Column(
+        Modifier.fillMaxSize().clip(shape).background(V.Panel.copy(alpha = if (lifted) 1f else 0.92f))
+            .border(if (lifted) 2.dp else 1.dp, if (lifted) accent else V.Line, shape)
+            .tap {
+                onOpen(when (wd.kind) { "sky" -> Module.WEATHER; "sound" -> Module.MEDIA; "list" -> Module.KITCHEN; else -> Module.NOTES })
+            }
+            .padding(14.dp),
+    ) {
+        when (wd.kind) {
+            "sky" -> {
+                val wx by WeatherRepo.state
+                val off by WeatherRepo.offline
+                val w = wx
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Label(store.city.take(14))
+                    if (off) { Gap(w = 6.dp); Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(V.Coral)) }
                 }
-                IconTap(if (p.playing) G.PAUSE else G.PLAY, V.Purple, 44.dp) { Now.playPause() }
-            }
-        }
-    }
-    // shopping
-    tiles += { m ->
-        val left = store.shopping.filter { !it.done }
-        FaceTile(m, "List", V.Green, onClick = { onOpen(Module.KITCHEN) }) {
-            if (left.isEmpty()) VText("NOTHING TO BUY", size = 12.sp, color = V.Muted, spacing = 1.sp)
-            else Column {
-                VText("${left.size}", size = 32.sp, color = V.White, font = Jupi)
-                VText(left.take(3).joinToString(", ") { it.text }, size = 12.sp, color = V.Muted, font = FontFamily.Default, maxLines = 1)
-            }
-        }
-    }
-    // notes
-    tiles += { m ->
-        val note = store.notes.firstOrNull()
-        FaceTile(m, "Notes", V.Yellow, onClick = { onOpen(Module.NOTES) }) {
-            VText(note?.text ?: "Tap to write a note.", size = 14.sp, color = if (note == null) V.Muted else V.Text,
-                font = FontFamily.Default, maxLines = 2, lineHeight = 19.sp)
-        }
-    }
-    // day + power
-    tiles += { m ->
-        FaceTile(m, if (bat.charging) "Charging" else "Power", if (bat.charging) V.Green else V.Teal) {
-            val mins = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
-            Column {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    VText(if (bat.pct >= 0) "${bat.pct}%" else "--", size = 30.sp, color = V.White, font = Jupi)
-                    Gap(w = 10.dp)
-                    VText("DAY ${(mins / 14.4f).toInt()}%", size = 11.sp, color = V.Teal, spacing = 1.sp)
-                }
-                Gap(h = 6.dp)
-                Canvas(Modifier.fillMaxWidth().size(0.dp, 10.dp)) {
-                    val n = 24
-                    for (i in 0 until n) {
-                        val x = size.width * (i + 0.5f) / n
-                        drawLine(if (i < cal.get(Calendar.HOUR_OF_DAY)) V.Teal else V.Line, Offset(x, 0f), Offset(x, size.height), 5f, StrokeCap.Round)
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                    if (w == null) VText("--", size = 30.sp, color = V.Muted)
+                    else Column {
+                        Glyph(wxGlyph(w.code, w.isDay), wxColour(w.code, w.isDay), Modifier.size(40.dp))
+                        Gap(h = 4.dp)
+                        VText(t(w.temp), size = 34.sp, color = V.White, font = Jupi, maxLines = 1)
                     }
                 }
+                VText(
+                    if (off && w != null) "OFFLINE " + wxAge(w.fetched, now).uppercase()
+                    else w?.let { "${t(it.days.firstOrNull()?.max ?: it.temp)} / ${t(it.days.firstOrNull()?.min ?: it.temp)}" } ?: "",
+                    size = 10.sp, color = if (off) V.Coral else V.Muted, spacing = 1.sp, maxLines = 1,
+                )
             }
-        }
-    }
-
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        tiles.chunked(columns).forEach { row ->
-            Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                row.forEach { tile -> tile(Modifier.weight(1f).fillMaxHeight()) }
+            "sound" -> {
+                val playing by Now.playing
+                val p = playing
+                Label(if (p != null) p.appName.take(18) else "Sound")
+                Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    if (p == null || p.title.isBlank()) VText("NOTHING PLAYING", size = 11.sp, color = V.Muted, spacing = 1.sp, modifier = Modifier.weight(1f))
+                    else Column(Modifier.weight(1f)) {
+                        VText(p.title, size = 15.sp, color = V.White, font = FontFamily.Default, maxLines = 1)
+                        VText(p.artist, size = 12.sp, color = V.Muted, font = FontFamily.Default, maxLines = 1)
+                    }
+                    if (p != null) IconTap(if (p.playing) G.PAUSE else G.PLAY, V.Purple, 44.dp) { Now.playPause() }
+                }
             }
-        }
-        // favourite apps dock
-        val favs = remember(store.favs) { store.favs.mapNotNull { pkg -> AppsRepo.find(ctx, pkg) } }
-        if (favs.isNotEmpty()) {
-            Row(Modifier.fillMaxWidth().clip(Oct).background(V.Panel).border(1.dp, V.Line, Oct).padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly) {
-                favs.take(6).forEach { app -> AppIcon(app, 46.dp) { launchApp(ctx, store, app.pkg) } }
+            "list" -> {
+                val left = store.shopping.filter { !it.done }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Label("List", Modifier.weight(1f))
+                    VText("${left.size}", size = 18.sp, color = V.Green, font = Jupi)
+                }
+                Gap(h = 6.dp)
+                if (left.isEmpty()) VText("ALL BOUGHT", size = 11.sp, color = V.Muted, spacing = 1.sp)
+                left.take(4).forEach { VText(it.text, size = 13.sp, color = V.Text, font = FontFamily.Default, maxLines = 1, lineHeight = 17.sp) }
+            }
+            else -> {
+                val n = store.notes.firstOrNull { it.id == wd.ref }
+                val bg = n?.let { V.Lap[it.colour.mod(V.Lap.size)] } ?: V.Yellow
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(bg)); Gap(w = 6.dp); Label("Note")
+                }
+                Gap(h = 6.dp)
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    if (n != null && n.ink.isNotEmpty()) InkPreview(n.ink, Modifier.fillMaxSize())
+                    if (n != null && n.text.isNotBlank()) VText(n.text, size = 14.sp, color = V.Text, font = FontFamily.Default, maxLines = 5, lineHeight = 18.sp)
+                    if (n == null) VText("Note deleted", size = 13.sp, color = V.Muted, font = FontFamily.Default)
+                }
             }
         }
     }
 }
-
-@Composable
-private fun FaceTile(
-    modifier: Modifier, label: String, accent: androidx.compose.ui.graphics.Color, onClick: (() -> Unit)? = null,
-    content: @Composable () -> Unit,
-) {
-    VPanel(modifier.fillMaxWidth().let { if (onClick != null) it.tap(onClick) else it }, padding = 14.dp) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Canvas(Modifier.size(10.dp)) { drawOct(Offset(size.width / 2, size.height / 2), size.width / 2, accent, fill = true) }
-            Gap(w = 8.dp)
-            Label(label)
-        }
-        Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.CenterStart) { content() }
-    }
-}
-

@@ -9,7 +9,32 @@ import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
 
-data class Note(val id: Long, val text: String, val colour: Int, val updated: Long)
+/**
+ * A note: typed text plus anything drawn on it. [ink] strokes keep their
+ * points as fractions of the page width, so a drawing keeps its shape when
+ * the tablet turns.
+ */
+data class Note(val id: Long, val text: String, val colour: Int, val updated: Long, val ink: List<Stroke> = emptyList())
+
+/** One pen stroke: [argb] colour, [width] as a fraction of the page width, [style] 0 solid, 1 dotted, 2 dashed. */
+data class Stroke(val argb: Int, val width: Float, val style: Int, val pts: List<Float>)
+
+/** A widget on the face. [x], [y] place its top-left corner as fractions of the free space; [ref] is the note it shows. */
+data class FaceWidget(val id: Long, val kind: String, val x: Float, val y: Float, val ref: Long = 0L)
+
+internal fun strokesToJson(ink: List<Stroke>): JSONArray = JSONArray().also { a ->
+    ink.forEach { st ->
+        val pts = JSONArray()
+        st.pts.forEach { pts.put(Math.round(it * 10000) / 10000.0) }
+        a.put(JSONObject().put("c", st.argb).put("w", st.width.toDouble()).put("s", st.style).put("p", pts))
+    }
+}
+
+internal fun strokesFromJson(a: JSONArray?): List<Stroke> = if (a == null) emptyList() else List(a.length()) { i ->
+    val o = a.getJSONObject(i)
+    val p = o.getJSONArray("p")
+    Stroke(o.getInt("c"), o.getDouble("w").toFloat(), o.optInt("s"), List(p.length()) { p.getDouble(it).toFloat() })
+}
 
 /**
  * Everything VoidOS remembers. Backed by SharedPreferences, exposed as Compose
@@ -116,7 +141,7 @@ class Store(private val ctx: Context) {
         val a = JSONArray(notesFile.readText())
         (0 until a.length()).map {
             val o = a.getJSONObject(it)
-            Note(o.getLong("id"), o.getString("text"), o.optInt("colour", 0), o.optLong("updated"))
+            Note(o.getLong("id"), o.getString("text"), o.optInt("colour", 0), o.optLong("updated"), strokesFromJson(o.optJSONArray("ink")))
         }
     }.getOrDefault(emptyList())
 
@@ -126,12 +151,53 @@ class Store(private val ctx: Context) {
         writeNotes()
     }
 
-    fun deleteNote(id: Long) { notes = notes.filter { it.id != id }; writeNotes() }
+    fun deleteNote(id: Long) {
+        notes = notes.filter { it.id != id }; writeNotes()
+        if (widgets.any { it.kind == "note" && it.ref == id }) saveWidgets(widgets.filterNot { it.kind == "note" && it.ref == id })
+    }
+
+    // ---- face widgets: optional, draggable, saved with their place ----
+    var widgets by mutableStateOf(loadWidgets()); private set
+
+    private fun loadWidgets(): List<FaceWidget> {
+        val raw = p.getString("widgets", null) ?: return emptyList()
+        return runCatching {
+            val a = JSONArray(raw)
+            List(a.length()) { val o = a.getJSONObject(it); FaceWidget(o.getLong("id"), o.getString("k"), o.getDouble("x").toFloat(), o.getDouble("y").toFloat(), o.optLong("r")) }
+        }.getOrDefault(emptyList())
+    }
+
+    fun saveWidgets(list: List<FaceWidget>) {
+        widgets = list
+        val a = JSONArray()
+        list.forEach { a.put(JSONObject().put("id", it.id).put("k", it.kind).put("x", it.x.toDouble()).put("y", it.y.toDouble()).put("r", it.ref)) }
+        p.edit().putString("widgets", a.toString()).apply()
+    }
+
+    fun addWidget(kind: String, ref: Long = 0L) {
+        if (widgets.any { it.kind == kind && it.ref == ref }) return
+        // new widgets go to the first free corner, then the middle of each side, so none lands on another or on the clock
+        val slots = listOf(0f to 1f, 1f to 1f, 0f to 0f, 1f to 0.14f, 0f to 0.5f, 1f to 0.5f, 0.5f to 1f, 0.5f to 0f)
+        val free = slots.firstOrNull { (x, y) -> widgets.none { Math.abs(it.x - x) < 0.2f && Math.abs(it.y - y) < 0.2f } } ?: (0.5f to 1f)
+        saveWidgets(widgets + FaceWidget(System.currentTimeMillis() + widgets.size, kind, free.first, free.second, ref))
+    }
+
+    fun moveWidget(id: Long, x: Float, y: Float) = saveWidgets(widgets.map { if (it.id == id) it.copy(x = x.coerceIn(0f, 1f), y = y.coerceIn(0f, 1f)) else it })
+    fun removeWidget(id: Long) = saveWidgets(widgets.filter { it.id != id })
+
+    // ---- weather: where the tablet is, and the last forecast it fetched ----
+    /** True while the place comes from the tablet's location; false once a city is picked by hand. */
+    var autoPlace by mutableStateOf(p.getBoolean("autoPlace", true)); private set
+    fun chooseAutoPlace(v: Boolean) { autoPlace = v; p.edit().putBoolean("autoPlace", v).apply() }
+    fun weatherCache(): String? = p.getString("wxCache", null)
+    fun setWeatherCache(json: String) { p.edit().putString("wxCache", json).apply() }
 
     private fun writeNotes() {
         val a = JSONArray()
         notes.sortedByDescending { it.updated }.forEach {
-            a.put(JSONObject().put("id", it.id).put("text", it.text).put("colour", it.colour).put("updated", it.updated))
+            val o = JSONObject().put("id", it.id).put("text", it.text).put("colour", it.colour).put("updated", it.updated)
+            if (it.ink.isNotEmpty()) o.put("ink", strokesToJson(it.ink))
+            a.put(o)
         }
         runCatching {
             val tmp = File(notesFile.path + ".tmp")

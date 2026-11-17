@@ -1,5 +1,9 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.draw.alpha
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -62,10 +66,42 @@ object Icons {
     suspend fun get(ctx: Context, pkg: String): ImageBitmap? {
         cache.get(pkg)?.let { return it }
         return withContext(Dispatchers.IO) {
-            runCatching { ctx.packageManager.getApplicationIcon(pkg).toBitmap(96, 96).asImageBitmap() }
+            runCatching { evenIcon(ctx.packageManager.getApplicationIcon(pkg).toBitmap(128, 128)).asImageBitmap() }
                 .getOrNull()?.also { cache.put(pkg, it) }
         }
     }
+}
+
+/**
+ * Old-style icons come with their own blank margin, different for every app,
+ * so they sit smaller than the rest. This crops each icon to what's actually
+ * drawn and centres it in a 96 px square with the same small margin.
+ */
+internal fun evenIcon(src: android.graphics.Bitmap): android.graphics.Bitmap {
+    val w = src.width; val h = src.height
+    val px = IntArray(w * h); src.getPixels(px, 0, w, 0, 0, w, h)
+    var l = w; var t = h; var r = -1; var b = -1
+    for (y in 0 until h) for (x in 0 until w) if ((px[y * w + x] ushr 24) > 24) {
+        if (x < l) l = x; if (x > r) r = x; if (y < t) t = y; if (y > b) b = y
+    }
+    val out = android.graphics.Bitmap.createBitmap(96, 96, android.graphics.Bitmap.Config.ARGB_8888)
+    if (r < l || b < t) return out
+    val bw = r - l + 1; val bh = b - t + 1
+    val k = 92f / maxOf(bw, bh)
+    val dw = bw * k; val dh = bh * k
+    val dst = android.graphics.RectF((96 - dw) / 2, (96 - dh) / 2, (96 + dw) / 2, (96 + dh) / 2)
+    android.graphics.Canvas(out).drawBitmap(src, android.graphics.Rect(l, t, r + 1, b + 1), dst, android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
+    return out
+}
+
+/** Why an app won't open, if Android or lock mode would stop it; null when it opens. */
+fun blockReason(ctx: Context, store: Store, pkg: String): String? {
+    val pm = ctx.packageManager
+    val ai = runCatching { pm.getApplicationInfo(pkg, 0) }.getOrNull() ?: return "not installed"
+    if (!ai.enabled) return "turned off in Android"
+    if (runCatching { pm.isPackageSuspended(pkg) }.getOrDefault(false)) return "paused by Android"
+    if (store.kiosk && pkg !in store.allowed) return "blocked by lock mode"
+    return null
 }
 
 object AppsRepo {
@@ -90,6 +126,8 @@ fun launchableApps(ctx: Context): List<AppEntry> {
 
 /** Last launch problem, shown by the drawer. */
 val launchMsg = mutableStateOf<String?>(null)
+/** The app that was just stopped, so the drawer can offer to allow it. */
+val blocked = mutableStateOf<String?>(null)
 
 fun launchApp(ctx: Context, store: Store, pkg: String): Boolean {
     val i = ctx.packageManager.getLaunchIntentForPackage(pkg)
@@ -98,8 +136,10 @@ fun launchApp(ctx: Context, store: Store, pkg: String): Boolean {
 }
 
 private fun startSafely(ctx: Context, store: Store, i: Intent, pkg: String?): Boolean {
-    if (store.kiosk && pkg != null && pkg !in store.allowed) {
-        launchMsg.value = "Lock mode is on and that app isn't allowed. Allow it under Manage."
+    if (pkg != null) blockReason(ctx, store, pkg)?.let { why ->
+        val name = AppsRepo.find(ctx, pkg)?.label ?: "That app"
+        launchMsg.value = if (why == "blocked by lock mode") "$name is blocked by lock mode. Tap Manage to allow it." else "$name is $why."
+        blocked.value = pkg
         return false
     }
     return runCatching { ctx.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); launchMsg.value = null; true }
@@ -141,7 +181,9 @@ fun quickTargets(ctx: Context, q: Quick): List<String> {
 
 fun runQuick(ctx: Context, store: Store, q: Quick) {
     val targets = quickTargets(ctx, q)
-    if (targets.isNotEmpty()) { launchApp(ctx, store, targets.first()); return }
+    // prefer an app that will actually open
+    val ok = targets.firstOrNull { blockReason(ctx, store, it) == null }
+    if (ok != null || targets.isNotEmpty()) { launchApp(ctx, store, ok ?: targets.first()); return }
     // nothing installed for it: fall back to the web where that makes sense
     when (q) {
         Quick.WATCH -> startSafely(ctx, store, Intent(Intent.ACTION_VIEW, Uri.parse("https://m.youtube.com")), null)
@@ -223,7 +265,9 @@ fun AppGlyph(app: AppEntry, style: String, size: Dp) {
                 Modifier.size(size).clip(OctS).background(accent.copy(alpha = 0.12f)).border(1.5.dp, accent, OctS),
                 contentAlignment = Alignment.Center,
             ) { icon?.let { Image(it, app.label, Modifier.size(size * 0.66f), colorFilter = greyscale, alpha = 0.9f) } }
-            else icon?.let { Image(it, app.label, Modifier.size(size)) }
+            else Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+                icon?.let { Image(it, app.label, Modifier.size(size)) }
+            }
         }
     }
 }
@@ -236,22 +280,28 @@ fun AppsScreen(store: Store) {
     var managing by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
+    var showBlocked by remember { mutableStateOf(false) }
     var all by remember { mutableStateOf(AppsRepo.all(ctx)) }
     LaunchedEffect(refresh) { all = withContext(Dispatchers.IO) { AppsRepo.all(ctx, fresh = true) } }
-    val base = if (managing || !store.kiosk) all else all.filter { it.pkg in store.allowed }
-    val shown = if (query.isBlank()) base else base.filter { it.label.contains(query.trim(), ignoreCase = true) }
-    val favs = store.favs.mapNotNull { f -> all.firstOrNull { it.pkg == f } }
+    val q = query.trim()
+    val match = if (q.isEmpty()) all else all.filter { it.label.contains(q, ignoreCase = true) }
+    // what opens and what doesn't, worked out once per list
+    val reasons = remember(all, store.kiosk, store.allowed, refresh) { all.associate { it.pkg to blockReason(ctx, store, it.pkg) } }
+    val open = match.filter { reasons[it.pkg] == null }
+    val shut = match.filter { reasons[it.pkg] != null }
+    val favs = store.favs.mapNotNull { f -> open.firstOrNull { it.pkg == f } }
     val msg by launchMsg
+    val stopped by blocked
 
     LaunchedEffect(managing) { if (!managing) refresh++ }
 
     Column(Modifier.fillMaxSize()) {
-        // header: search + manage
+        // header: search + manage, nothing else
         Row(verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                 Glyph(G.SEARCH, V.Muted, Modifier.size(22.dp))
                 Gap(w = 10.dp)
-                VField(query, { query = it }, Modifier.weight(1f), placeholder = "Search ${base.size} apps")
+                VField(query, { query = it }, Modifier.weight(1f), placeholder = "Search ${open.size} apps")
             }
             Gap(w = 12.dp)
             VButton(if (managing) "Done" else "Manage", accent = V.Purple, filled = managing) {
@@ -262,81 +312,121 @@ fun AppsScreen(store: Store) {
         if (managing) {
             Gap(h = 8.dp)
             VText(
-                if (store.kiosk) "Tap to allow or block. Lock mode is on, so blocked apps can't open."
-                else "Tap to choose which apps lock mode lets through. Long-press any app to star it for the face.",
+                if (store.kiosk) "Lock mode is on. Tap an app to allow or block it. Long-press to star it for the face."
+                else "Lock mode is off, so every app opens. Tap apps to choose what lock mode will let through. Long-press to star.",
                 size = 12.sp, color = V.Muted, font = FontFamily.Default,
             )
         }
-        msg?.let { Gap(h = 8.dp); VText(it, size = 12.sp, color = V.Coral, font = FontFamily.Default) }
+        // a blocked launch says so, and offers the fix right there
+        msg?.let { m ->
+            Gap(h = 8.dp)
+            Row(
+                Modifier.fillMaxWidth().clip(OctS).background(V.Coral.copy(alpha = 0.1f)).border(1.dp, V.Coral.copy(alpha = 0.6f), OctS).padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Glyph(G.LOCK, V.Coral, Modifier.size(18.dp)); Gap(w = 10.dp)
+                VText(m, size = 13.sp, color = V.Text, font = FontFamily.Default, modifier = Modifier.weight(1f))
+                if (stopped != null && reasons[stopped] == "blocked by lock mode") {
+                    VButton("Manage", accent = V.Purple) { managing = true; launchMsg.value = null }
+                    Gap(w = 6.dp)
+                }
+                IconTap(G.CLOSE, V.Muted, 36.dp) { launchMsg.value = null; blocked.value = null }
+            }
+        }
         Gap(h = 12.dp)
 
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(if (portrait) 108.dp else 120.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            columns = GridCells.Adaptive(if (portrait) 96.dp else 104.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             contentPadding = PaddingValues(bottom = 12.dp),
         ) {
-            if (!managing && query.isBlank()) {
+            if (managing) {
+                // managing: every app, allowed ones first
+                val sorted = match.sortedBy { if (it.pkg in store.allowed) 0 else 1 }
+                items(sorted, key = { "m_" + it.pkg }) { app -> AppTile(app, store, managing = true, starred = app.pkg in store.favs, why = null) }
+                return@LazyVerticalGrid
+            }
+            if (q.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Quick.entries.forEach { q -> QuickTile(q) { runQuick(ctx, store, q) } }
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Quick.entries.forEach { qk -> QuickTile(qk) { runQuick(ctx, store, qk) } }
                     }
                 }
                 if (favs.isNotEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) { Label("Starred", modifier = Modifier.padding(top = 6.dp)) }
-                    items(favs, key = { "f_" + it.pkg }) { app -> AppTile(app, store, managing, starred = true) }
+                    item(span = { GridItemSpan(maxLineSpan) }) { Label("Starred", modifier = Modifier.padding(top = 10.dp, start = 4.dp)) }
+                    items(favs, key = { "f_" + it.pkg }) { app -> AppTile(app, store, false, starred = true, why = null) }
                 }
-                item(span = { GridItemSpan(maxLineSpan) }) { Label(if (store.kiosk) "Allowed in lock mode" else "All apps", modifier = Modifier.padding(top = 6.dp)) }
+                item(span = { GridItemSpan(maxLineSpan) }) { Label("Apps", modifier = Modifier.padding(top = 10.dp, start = 4.dp)) }
             }
-            if (shown.isEmpty()) {
+            if (open.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
-                    VText(if (query.isNotBlank()) "NO APP MATCHES" else "NOTHING ALLOWED YET. TAP MANAGE.", size = 13.sp, color = V.Muted,
-                        align = TextAlign.Center, spacing = 1.sp, modifier = Modifier.padding(top = 40.dp).fillMaxWidth())
+                    VText(if (q.isNotEmpty()) "NO APP MATCHES" else "NOTHING ALLOWED YET. TAP MANAGE.", size = 13.sp, color = V.Muted,
+                        align = TextAlign.Center, spacing = 1.sp, modifier = Modifier.padding(vertical = 30.dp).fillMaxWidth())
                 }
             }
-            items(shown, key = { it.pkg }) { app -> AppTile(app, store, managing, starred = app.pkg in store.favs) }
+            items(open, key = { it.pkg }) { app -> AppTile(app, store, false, starred = app.pkg in store.favs, why = null) }
+            // apps that won't open: counted, folded away, and honest about why
+            if (shut.isNotEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 12.dp).clip(OctS).clickable { showBlocked = !showBlocked }.padding(horizontal = 4.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Glyph(G.LOCK, V.Muted, Modifier.size(16.dp)); Gap(w = 8.dp)
+                        Label("${shut.size} won't open${if (store.kiosk) " in lock mode" else ""}", Modifier.weight(1f))
+                        VText(if (showBlocked) "HIDE" else "SHOW", size = 11.sp, color = V.Purple, spacing = 1.sp)
+                    }
+                }
+                if (showBlocked || q.isNotEmpty()) items(shut, key = { "x_" + it.pkg }) { app -> AppTile(app, store, false, starred = false, why = reasons[app.pkg]) }
+            }
         }
     }
 }
 
 @Composable
 private fun QuickTile(q: Quick, onClick: () -> Unit) {
-    Column(
-        Modifier.width(118.dp).clip(Oct).background(q.accent.copy(alpha = 0.12f)).border(1.dp, q.accent.copy(alpha = 0.6f), Oct)
-            .tap(onClick).padding(vertical = 14.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Row(
+        Modifier.clip(RoundedCornerShape(50)).background(q.accent.copy(alpha = 0.1f)).border(1.dp, q.accent.copy(alpha = 0.5f), RoundedCornerShape(50))
+            .tap(onClick).padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Glyph(q.glyph, q.accent, Modifier.size(34.dp))
-        Gap(h = 8.dp)
-        VText(q.label.uppercase(), size = 11.sp, color = q.accent, spacing = 1.sp)
+        Glyph(q.glyph, q.accent, Modifier.size(20.dp))
+        Gap(w = 8.dp)
+        VText(q.label.uppercase(), size = 11.sp, color = q.accent, spacing = 1.sp, maxLines = 1)
     }
 }
 
+/**
+ * One app: the same size tile for every app, icon on top, name underneath,
+ * no box round it. A blocked app is dimmed with a lock and its reason.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AppTile(app: AppEntry, store: Store, managing: Boolean, starred: Boolean) {
+private fun AppTile(app: AppEntry, store: Store, managing: Boolean, starred: Boolean, why: String?) {
     val ctx = LocalContext.current
     val allowed = app.pkg in store.allowed
+    val dim = why != null || (managing && !allowed)
     Column(
-        Modifier.fillMaxWidth().clip(Oct)
-            .background(if (managing && allowed) V.Purple.copy(alpha = 0.14f) else V.Panel)
-            .border(1.dp, if (managing && allowed) V.Purple else V.Line, Oct)
+        Modifier.fillMaxWidth().height(112.dp).clip(Oct)
+            .background(if (managing && allowed) V.Purple.copy(alpha = 0.12f) else Color.Transparent)
+            .border(1.dp, if (managing && allowed) V.Purple.copy(alpha = 0.7f) else Color.Transparent, Oct)
             .combinedClickable(
                 onClick = { if (managing) store.setAllowed(app.pkg, !allowed) else launchApp(ctx, store, app.pkg) },
                 onLongClick = { store.toggleFav(app.pkg) },
             )
-            .padding(vertical = 14.dp, horizontal = 8.dp),
+            .padding(top = 12.dp, start = 4.dp, end = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(Modifier.size(56.dp)) {
-            Box(Modifier.align(Alignment.Center)) { AppGlyph(app, store.iconStyle, 52.dp) }
-            if (starred) Glyph(G.STAR, V.Yellow, Modifier.size(16.dp).align(Alignment.TopEnd))
+        Box(Modifier.size(58.dp).alpha(if (dim) 0.38f else 1f), contentAlignment = Alignment.Center) {
+            AppGlyph(app, store.iconStyle, 54.dp)
         }
         Gap(h = 8.dp)
-        VText(app.label, size = 12.sp, color = V.Text, font = FontFamily.Default, maxLines = 1, align = TextAlign.Center)
-        if (managing) {
-            Gap(h = 4.dp)
-            VText(if (allowed) "ALLOWED" else "BLOCKED", size = 10.sp, color = if (allowed) V.Purple else V.Tick, spacing = 1.sp)
+        VText(app.label, size = 12.sp, color = if (dim) V.Muted else V.Text, font = FontFamily.Default, maxLines = 1, align = TextAlign.Center)
+        when {
+            managing -> VText(if (allowed) "ALLOWED" else "BLOCKED", size = 9.sp, color = if (allowed) V.Purple else V.Tick, spacing = 1.sp)
+            why != null -> VText(why.uppercase(), size = 8.sp, color = V.Coral, spacing = 0.5.sp, maxLines = 1)
+            starred -> Glyph(G.STAR, V.Yellow, Modifier.size(11.dp))
         }
     }
 }
