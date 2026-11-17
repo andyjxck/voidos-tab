@@ -1,0 +1,46 @@
+name: Build debug APK
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk voidos-tab-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voidos-tab-debug
+          path: voidos-tab-debug.apk
+
+      - name: Publish to the 'latest' release
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: VoidOS Tab (latest debug build)
+          prerelease: true
+          make_latest: true
+          body: |
+            Debug build of ${{ github.sha }}. Install with:
+            adb install -r -t voidos-tab-debug.apk
+          files: voidos-tab-debug.apk
+    permissions:
+      contents: write
