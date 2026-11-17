@@ -99,6 +99,8 @@ fun LockScreen(store: Store, onUnlock: () -> Unit) {
                     )
                 },
         ) {
+            // under the PIN pad the lock screen is only a backdrop: keep it out of reach of touch and TalkBack
+            if (askPin) { LockBackdrop(now); return@Box }
             LockBackdrop(now)
             if (portrait) {
                 Column(Modifier.fillMaxSize().padding(horizontal = 36.dp, vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -253,10 +255,18 @@ private fun SwipeHint() {
 fun LockPin(store: Store, title: String, onOk: () -> Unit, onCancel: () -> Unit) {
     var entry by remember { mutableStateOf("") }
     var wrong by remember { mutableStateOf(false) }
+    // PINs are always four digits (set on the escape-hatch pad), so check at four.
+    // After five wrong tries in a row the pad waits 30 seconds.
+    var misses by remember { mutableStateOf(0) }
+    var waitUntil by remember { mutableStateOf(0L) }
     LaunchedEffect(entry) {
-        if (entry.length >= 4 && store.checkPin(entry)) onOk()
-        else if (entry.length >= 8) { wrong = true; entry = "" }
+        if (entry.length < 4) return@LaunchedEffect
+        if (store.checkPin(entry)) { misses = 0; onOk(); return@LaunchedEffect }
+        wrong = true; entry = ""
+        if (++misses >= 5) { misses = 0; waitUntil = System.currentTimeMillis() + 30_000 }
     }
+    val now = rememberNow(1000)
+    val waiting = now < waitUntil
     Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         VText(title, size = 16.sp, color = V.Text, spacing = 2.sp)
         Gap(h = 14.dp)
@@ -264,10 +274,11 @@ fun LockPin(store: Store, title: String, onOk: () -> Unit, onCancel: () -> Unit)
             repeat(maxOf(4, entry.length)) { i -> Box(Modifier.size(16.dp).clip(OctS).background(if (i < entry.length) V.Teal else V.Line)) }
         }
         Gap(h = 6.dp)
-        VText(if (wrong) "WRONG PIN" else " ", size = 11.sp, color = V.Coral, spacing = 1.sp)
+        VText(if (waiting) "TRY AGAIN IN ${(waitUntil - now + 999) / 1000}S" else if (wrong) "WRONG PIN" else " ", size = 11.sp, color = V.Coral, spacing = 1.sp)
         Gap(h = 10.dp)
         Box(Modifier.width(300.dp).size(300.dp, 340.dp)) {
             NumPad(Modifier.fillMaxSize()) { k ->
+                if (waiting) return@NumPad
                 wrong = false
                 entry = when (k) { "<" -> entry.dropLast(1); "." -> ""; else -> entry + k }
             }

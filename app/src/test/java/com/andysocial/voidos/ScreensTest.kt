@@ -21,6 +21,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.assertIsDisplayed
@@ -64,10 +66,15 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     @Before
     fun seed() {
         act = rule.activity
+        // the hub never idles (clocks tick every second), so time only moves when a test moves it
+        rule.mainClock.autoAdvance = false
         fakeApps()
         store.set("setupDone", true)
         if (store.shopping.isEmpty()) listOf("Semi-skimmed milk", "Bananas", "Sourdough loaf", "Washing-up liquid", "Cheddar").forEach { store.addItem(it) }
-        if (KTimers.list.value.isEmpty()) {
+        // start from a known board (other test classes share these objects)
+        KTimers.silence(act)
+        KTimers.list.value.forEach { KTimers.remove(act, it.id) }
+        run {
             KTimers.add(act, "Pasta", 9 * 60_000L)
             KTimers.add(act, "Oven chips", 22 * 60_000L)
             KTimers.add(act, "Eggs", 6 * 60_000L, start = false)
@@ -232,7 +239,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
 
     @Test fun escape() {
         show { com.andysocial.voidos.ui.EscapeOverlay(store, act) {} }
-        shot("34_escape_pin")
+        shot("44_escape_pin")
     }
 
     @Test fun system() {
@@ -247,25 +254,46 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
 
     @Test fun lock() {
         show { LockScreen(store) {} }
-        expect("Swipe up"); shot("30_lock")
+        expect("Swipe up"); shot("40_lock")
+    }
+
+    @Test fun lockSwipe() {
+        var unlocked = false
+        show { LockScreen(store) { unlocked = true } }
+        swipeUp()
+        assertTrue("[$tag] swipe up should unlock", unlocked)
     }
 
     @Test fun lockPin() {
         store.setPin("1234"); store.set("lockNeedsPin", true)
-        show { LockScreen(store) {} }
-        shot("31_lock_pin_idle")
+        var unlocked = false
+        show { LockScreen(store) { unlocked = true } }
+        swipeUp()
+        assertTrue("[$tag] PIN should be asked first", !unlocked)
+        expect("ENTER PIN TO UNLOCK"); shot("41_lock_pin")
+        "1235".forEach { tap(it.toString()) }
+        assertTrue("[$tag] wrong PIN must not unlock", !unlocked)
+        expect("WRONG PIN")
+        "1234".forEach { tap(it.toString()) }
+        settle(800)
+        assertTrue("[$tag] right PIN should unlock", unlocked)
         store.set("lockNeedsPin", false)
+    }
+
+    private fun swipeUp() {
+        rule.onRoot().performTouchInput { swipeUp(startY = bottom * 0.85f, endY = top + bottom * 0.15f, durationMillis = 300) }
+        settle(1200)
     }
 
     @Test fun boot() {
         show { Box(Modifier.fillMaxSize()) { BootAnim {} } }
-        shot("32_boot_mid")
+        shot("42_boot_mid")
     }
 
     @Test fun setup() {
         store.set("setupDone", false)
         show { Setup(store, act) }
-        shot("33_setup")
+        shot("43_setup")
         store.set("setupDone", true)
     }
 }

@@ -378,7 +378,7 @@ fun RootPane() {
     val locked = RootInfo.prop("ro.boot.flash.locked")
     val mod = RootInfo.moduleVersion()
     val su = RootInfo.hasSu()
-    Head("Boot + root", "The VoidOS boot animation and boot logo are installed from your Mac. The steps are in the README of the voidos-tab repo, under ROOT.")
+    Head("Boot + root", "Everything else in VoidOS works without root. The boot animation (the one before VoidOS starts) needs root: root/README.md in the voidos-tab repo has the steps. Unlocking the bootloader wipes the tablet.")
     InfoRow("Firmware build", Build.DISPLAY)
     InfoRow("Incremental", Build.VERSION.INCREMENTAL)
     InfoRow("Security patch", Build.VERSION.SECURITY_PATCH)

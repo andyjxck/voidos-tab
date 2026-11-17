@@ -85,6 +85,12 @@ class LogicTest {
         KTimers.list.value.forEach { KTimers.remove(RuntimeEnvironment.getApplication(), it.id) }
     }
 
+    @org.junit.After fun tidy() {
+        val c = RuntimeEnvironment.getApplication()
+        KTimers.silence(c)
+        KTimers.list.value.forEach { KTimers.remove(c, it.id) }
+    }
+
     @Test fun shoppingList() {
         store.addItem("  bananas ")
         store.addItem("Bananas")          // same item, not added twice
