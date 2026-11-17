@@ -1,5 +1,7 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
@@ -85,6 +87,12 @@ fun HubPane(store: Store, act: MainActivity) {
         VField(name, { name = it.take(16) }, Modifier.weight(1f), placeholder = "Kitchen", onDone = { store.setHubName(name.ifBlank { "Kitchen" }) })
         Gap(w = 8.dp)
         VButton("Save", accent = V.Teal) { store.setHubName(name.ifBlank { "Kitchen" }) }
+    }
+    SettingRow("App icons", "Void: VoidOS glyphs for apps it knows, the rest greyed in an octagon. Letters: initials. Colour: each app's own icon.") {}
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf("void" to "Void", "letter" to "Letters", "colour" to "Colour").forEach { (k, l) ->
+            VButton(l, accent = V.Teal, filled = store.iconStyle == k) { store.setIconStyle(k) }
+        }
     }
     SettingRow("Labels under rail icons") { VToggle(store.railLabels) { store.set("railLabels", it) } }
     SettingRow("Fahrenheit", "Weather in °F instead of °C.") { VToggle(store.tempF) { store.set("tempF", it) } }
@@ -301,7 +309,7 @@ fun StoragePane(store: Store) {
     InfoRow("Shopping list", "${store.shopping.size} items")
     InfoRow("Notes", "${store.notes.size}")
     Gap(h = 10.dp)
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         VButton("Android storage", accent = V.Muted) { open(ctx, Settings.ACTION_INTERNAL_STORAGE_SETTINGS) }
         VButton("Manage apps", accent = V.Muted) { open(ctx, Settings.ACTION_APPLICATION_SETTINGS) }
         VButton("Play Store", accent = V.Muted) { runQuickPkg(ctx, store, "com.android.vending") }

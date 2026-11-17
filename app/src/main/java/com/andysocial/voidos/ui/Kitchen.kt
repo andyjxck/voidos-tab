@@ -113,7 +113,7 @@ fun TimersPane() {
 
     Split(Modifier.fillMaxSize()) {
         // new timer
-        VPanel(Modifier.side(340.dp, 0.9f), accent = V.Orange) {
+        VPanel(Modifier.side(340.dp, 0f), accent = V.Orange) {
             Label("New timer")
             Gap(h = 10.dp)
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -135,7 +135,7 @@ fun TimersPane() {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("Timer", "Hob", "Oven", "Grill").forEach { n -> Chip(n, label == n, V.Yellow) { label = n } }
             }
-            Box(Modifier.weight(1f))
+            if (portrait) Gap(h = 14.dp) else Box(Modifier.weight(1f))
             VButton("Start ${fmtDur((mins * 60L + secs) * 1000)}", Modifier.fillMaxWidth(), accent = V.Orange, filled = true) {
                 val ms = (mins * 60L + secs) * 1000
                 if (ms > 0) KTimers.add(ctx, label, ms)

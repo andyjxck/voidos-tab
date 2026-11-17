@@ -107,8 +107,8 @@ fun VoidRoot(store: Store, act: MainActivity) {
 }
 
 @Composable
-fun Shell(store: Store, act: MainActivity) {
-    var module by rememberSaveable { mutableStateOf(Module.FACE) }
+fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
+    var module by rememberSaveable { mutableStateOf(start) }
     var escape by remember { mutableStateOf(false) }
     val ambient by Idle.ambient
     val home by Idle.homePressed
@@ -204,8 +204,12 @@ fun Rail(store: Store, current: Module, onSelect: (Module) -> Unit, onEscape: ()
     ) {
         EscapeMark(60.dp, onEscape)
         Gap(h = 6.dp)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.SpaceEvenly, horizontalAlignment = Alignment.CenterHorizontally) {
-            Module.entries.forEach { m -> RailItem(m, m == current, store.railLabels, Modifier.width(82.dp)) { onSelect(m) } }
+        BoxWithConstraints(Modifier.weight(1f)) {
+            // on a short screen (bigger display size) the labels go, so no item is squashed
+            val labels = store.railLabels && maxHeight / Module.entries.size >= 52.dp
+            Column(Modifier.fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly, horizontalAlignment = Alignment.CenterHorizontally) {
+                Module.entries.forEach { m -> RailItem(m, m == current, labels, Modifier.width(82.dp)) { onSelect(m) } }
+            }
         }
     }
 }
@@ -218,14 +222,18 @@ fun BottomRail(store: Store, current: Module, onSelect: (Module) -> Unit, onEsca
         verticalAlignment = Alignment.CenterVertically,
     ) {
         EscapeMark(52.dp, onEscape)
-        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.SpaceEvenly) {
-            Module.entries.forEach { m -> RailItem(m, m == current, store.railLabels, Modifier.weight(1f)) { onSelect(m) } }
+        BoxWithConstraints(Modifier.weight(1f)) {
+            // narrow screens get a tighter label so KITCHEN still fits
+            val tight = maxWidth / Module.entries.size < 68.dp
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                Module.entries.forEach { m -> RailItem(m, m == current, store.railLabels, Modifier.weight(1f), tight) { onSelect(m) } }
+            }
         }
     }
 }
 
 @Composable
-private fun RailItem(m: Module, sel: Boolean, labels: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun RailItem(m: Module, sel: Boolean, labels: Boolean, modifier: Modifier, tight: Boolean = false, onClick: () -> Unit) {
     Column(
         modifier
             .padding(horizontal = 2.dp)
@@ -239,7 +247,7 @@ private fun RailItem(m: Module, sel: Boolean, labels: Boolean, modifier: Modifie
         Glyph(m.glyph, if (sel) m.accent else V.Muted, Modifier.size(25.dp))
         if (labels) {
             Gap(h = 4.dp)
-            VText(m.label.uppercase(), size = 8.sp, color = if (sel) m.accent else V.Muted, spacing = 0.8.sp, maxLines = 1)
+            VText(m.label.uppercase(), size = if (tight) 7.sp else 8.sp, color = if (sel) m.accent else V.Muted, spacing = if (tight) 0.2.sp else 0.8.sp, maxLines = 1)
         }
     }
 }

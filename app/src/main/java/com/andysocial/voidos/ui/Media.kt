@@ -1,5 +1,7 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import android.content.ContentUris
 import android.content.Context
 import android.media.AudioAttributes
@@ -192,8 +194,8 @@ fun MediaScreen() {
                         Label("On this tablet")
                         Gap(h = 6.dp)
                         val cur = tracks.getOrNull(idx)
-                        VText(cur?.title?.uppercase() ?: if (tracks.isEmpty()) "NO MUSIC FILES FOUND" else "PICK A TRACK", size = 18.sp, color = V.White, maxLines = 1)
-                        VText(cur?.artist ?: if (tracks.isEmpty()) "Copy music into the Music folder over USB." else "", size = 12.sp, color = V.Muted, font = FontFamily.Default, maxLines = 1)
+                        VText(cur?.title?.uppercase() ?: if (tracks.isEmpty()) "NO MUSIC FILES FOUND" else "PICK A TRACK", size = 18.sp, color = V.White, maxLines = 2)
+                        VText(cur?.artist ?: if (tracks.isEmpty()) "Copy music into the Music folder over USB." else "", size = 12.sp, color = V.Muted, font = FontFamily.Default, maxLines = 2)
                     }
                     IconTap(G.PREV, V.Text, 50.dp) { Player.prev(ctx) }
                     Gap(w = 6.dp)
@@ -276,7 +278,7 @@ private fun NowPlayingPanel(modifier: Modifier) {
                 else Glyph(G.MEDIA, V.Tick, Modifier.size(56.dp))
             }
             Gap(w = 18.dp)
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                 val np = p
                 if (np == null || np.title.isBlank()) {
                     VText("NOTHING PLAYING", size = 20.sp, color = V.White)

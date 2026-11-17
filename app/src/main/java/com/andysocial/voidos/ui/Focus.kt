@@ -1,5 +1,7 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import android.media.AudioManager
 import android.media.ToneGenerator
 import androidx.compose.foundation.Canvas
@@ -73,9 +75,10 @@ fun FocusScreen() {
         }
     }
 
-    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-        Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.fillMaxHeight().aspectRatio(1f)) {
+    val portrait = LocalPortrait.current
+    Split(Modifier.fillMaxSize(), spacing = 24.dp) {
+        SquareFit(Modifier.main()) { side ->
+            Canvas(Modifier.size(side)) {
                 val c = Offset(size.width / 2, size.height / 2)
                 val R = size.minDimension / 2 * 0.92f
                 drawOct(c, R, V.Line, width = 2.5f)
@@ -100,28 +103,46 @@ fun FocusScreen() {
                 )
             }
         }
-        Column(Modifier.width(300.dp).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
-            Label("Length")
-            Gap(h = 10.dp)
-            listOf(listOf(5, 15, 25), listOf(45, 60, 90)).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    row.forEach { m ->
-                        VButton("$m", Modifier.width(88.dp), accent = if (total == m * 60_000L) V.Coral else V.Muted, filled = total == m * 60_000L) { FocusTimer.set(m) }
-                    }
-                }
-                Gap(h = 10.dp)
+        if (portrait) {
+            // portrait: the dial on top, lengths and buttons side by side under it
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally)) {
+                Column { FocusLengths(total) }
+                Column(Modifier.width(284.dp)) { FocusActions() }
             }
-            Gap(h = 16.dp)
-            if (FocusTimer.running) VButton("Pause", Modifier.width(284.dp), accent = V.Yellow, filled = true) { FocusTimer.pause() }
-            else VButton(if (FocusTimer.pausedLeft.longValue > 0) "Resume" else "Start", Modifier.width(284.dp), accent = V.Coral, filled = true) { FocusTimer.start() }
-            Gap(h = 10.dp)
-            VButton("Reset", Modifier.width(284.dp), accent = V.Muted) { FocusTimer.reset() }
-            Gap(h = 24.dp)
-            Label("Rounds finished since power on")
-            Gap(h = 4.dp)
-            VText("${FocusTimer.rounds.intValue}", size = 34.sp, color = V.Text, font = Jupi)
-            Gap(h = 8.dp)
-            VText("The timer keeps running while you use the rest of VoidOS. It beeps three times at the end.", size = 12.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 17.sp)
+        } else {
+            Column(Modifier.side(300.dp), verticalArrangement = Arrangement.Center) {
+                FocusLengths(total)
+                Gap(h = 16.dp)
+                FocusActions()
+            }
         }
     }
+}
+
+@Composable
+private fun FocusLengths(total: Long) {
+    Label("Length")
+    Gap(h = 10.dp)
+    listOf(listOf(5, 15, 25), listOf(45, 60, 90)).forEach { row ->
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            row.forEach { m ->
+                VButton("$m", Modifier.width(88.dp), accent = if (total == m * 60_000L) V.Coral else V.Muted, filled = total == m * 60_000L) { FocusTimer.set(m) }
+            }
+        }
+        Gap(h = 10.dp)
+    }
+}
+
+@Composable
+private fun FocusActions() {
+    if (FocusTimer.running) VButton("Pause", Modifier.width(284.dp), accent = V.Yellow, filled = true) { FocusTimer.pause() }
+    else VButton(if (FocusTimer.pausedLeft.longValue > 0) "Resume" else "Start", Modifier.width(284.dp), accent = V.Coral, filled = true) { FocusTimer.start() }
+    Gap(h = 10.dp)
+    VButton("Reset", Modifier.width(284.dp), accent = V.Muted) { FocusTimer.reset() }
+    Gap(h = 24.dp)
+    Label("Rounds finished since power on")
+    Gap(h = 4.dp)
+    VText("${FocusTimer.rounds.intValue}", size = 34.sp, color = V.Text, font = Jupi)
+    Gap(h = 8.dp)
+    VText("The timer keeps running while you use the rest of VoidOS. It beeps three times at the end.", size = 12.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 17.sp)
 }

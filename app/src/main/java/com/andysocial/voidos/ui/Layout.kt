@@ -40,7 +40,9 @@ fun Split(modifier: Modifier = Modifier, spacing: Dp = 16.dp, content: @Composab
             val scope = object : SplitScope {
                 override val portrait = true
                 override fun Modifier.main(weight: Float) = with(col) { this@main.weight(weight).fillMaxWidth() }
-                override fun Modifier.side(width: Dp, portraitWeight: Float) = with(col) { this@side.weight(portraitWeight).fillMaxWidth() }
+                // portraitWeight 0: the side panel takes just the height its content needs
+                override fun Modifier.side(width: Dp, portraitWeight: Float) =
+                    if (portraitWeight <= 0f) this.fillMaxWidth() else with(col) { this@side.weight(portraitWeight).fillMaxWidth() }
             }
             scope.content()
         }

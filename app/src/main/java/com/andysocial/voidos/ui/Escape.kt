@@ -1,5 +1,8 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -123,7 +126,7 @@ fun EscapeOverlay(store: Store, act: MainActivity, onClose: () -> Unit) {
                 },
             )
         } else if (released != null) {
-            Column(Modifier.width(560.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 VText("RELEASED", size = 26.sp, color = V.Coral, spacing = 4.sp)
                 Gap(h = 12.dp)
                 VText(released!!, size = 14.sp, color = V.Text, font = FontFamily.Default, align = TextAlign.Center, lineHeight = 20.sp)
@@ -131,7 +134,7 @@ fun EscapeOverlay(store: Store, act: MainActivity, onClose: () -> Unit) {
                 VButton("Open Android settings", accent = V.Teal, filled = true) { act.openAndroidSettings(); onClose() }
             }
         } else {
-            Column(Modifier.width(620.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(Modifier.widthIn(max = 620.dp).fillMaxWidth().padding(horizontal = 24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 VText("ESCAPE HATCH", size = 24.sp, color = V.White, spacing = 4.sp)
                 VText("Pick how far out you want to go. Pressing Home always brings you back to VoidOS while it's still device owner.", size = 13.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 18.sp)
                 Gap(h = 4.dp)

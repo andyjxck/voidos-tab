@@ -26,8 +26,8 @@ import androidx.compose.ui.unit.sp
  */
 @Composable
 fun HouseScreen() {
-    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-        Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+    Split(Modifier.fillMaxSize(), spacing = 20.dp) {
+        Box(Modifier.main(), contentAlignment = Alignment.Center) {
             Canvas(Modifier.fillMaxSize()) {
                 // a blueprint-ish empty floor plan
                 val dash = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))
@@ -40,7 +40,7 @@ fun HouseScreen() {
                 drawArc(V.Green.copy(alpha = 0.5f), 180f, 90f, true, Offset(o.x + w * 0.2f - 50f, o.y + h - 50f), Size(100f, 100f), style = Stroke(2f))
             }
         }
-        VPanel(Modifier.width(380.dp).fillMaxHeight(), accent = V.Green) {
+        VPanel(Modifier.side(380.dp, portraitWeight = 1.1f), accent = V.Green) {
             VText("VOID HOME", size = 24.sp, color = V.Green, spacing = 3.sp)
             Gap(h = 6.dp)
             Label("Not connected yet")

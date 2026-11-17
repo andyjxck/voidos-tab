@@ -1,5 +1,9 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,12 +34,13 @@ fun Setup(store: Store, act: MainActivity) {
     val tick = rememberNow(2000)
     val owner = remember(tick) { Policy.isOwner(act) }
 
-    Row(Modifier.fillMaxSize().padding(48.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
+    // landscape: the story on the left, the PIN pad on the right; portrait: stacked
+    Split(Modifier.fillMaxSize().padding(if (LocalPortrait.current) 28.dp else 48.dp), spacing = 24.dp) {
+        Column(Modifier.main().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.Center) {
             VText("VOIDOS", size = 54.sp, color = V.White, spacing = 10.sp)
             VText("TAB EDITION", size = 14.sp, color = V.Teal, spacing = 5.sp)
             Gap(h = 28.dp)
-            VPanel(Modifier.width(520.dp), accent = if (owner) V.Green else V.Yellow) {
+            VPanel(Modifier.widthIn(max = 520.dp).fillMaxWidth(), accent = if (owner) V.Green else V.Yellow) {
                 Label("Device owner")
                 Gap(h = 6.dp)
                 VText(if (owner) "YES. VOIDOS CAN RUN THE WHOLE TABLET." else "NOT YET", size = 16.sp, color = if (owner) V.Green else V.Yellow)
@@ -49,10 +54,10 @@ fun Setup(store: Store, act: MainActivity) {
             Gap(h = 18.dp)
             VText(
                 "Your PIN is the way out. Hold the VoidOS mark (top left) for three seconds any time, then enter it.",
-                size = 13.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 19.sp, modifier = Modifier.width(520.dp),
+                size = 13.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 19.sp, modifier = Modifier.widthIn(max = 520.dp),
             )
         }
-        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+        Box(Modifier.main(1.1f), contentAlignment = Alignment.Center) {
             PinPad(
                 title = if (first == null) "Choose a PIN" else "Once more",
                 subtitle = if (first == null) "Four digits for the escape hatch" else "Type the same four digits again",

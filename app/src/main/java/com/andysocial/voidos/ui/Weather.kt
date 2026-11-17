@@ -1,5 +1,6 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -147,9 +148,9 @@ fun WeatherScreen(store: Store) {
     var query by remember { mutableStateOf("") }
     var findErr by remember { mutableStateOf<String?>(null) }
 
-    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        // now
-        VPanel(Modifier.width(380.dp).fillMaxHeight(), accent = wx?.let { wxColour(it.code, it.isDay) }) {
+    val portrait = LocalPortrait.current
+    val now: @Composable (Modifier) -> Unit = { mod ->
+        VPanel(mod, accent = wx?.let { wxColour(it.code, it.isDay) }) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 VText(store.city.uppercase(), size = 16.sp, color = V.Text, spacing = 2.sp, modifier = Modifier.weight(1f), maxLines = 1)
                 VButton(if (editing) "Cancel" else "Place", accent = V.Muted) { editing = !editing; findErr = null }
@@ -171,9 +172,29 @@ fun WeatherScreen(store: Store) {
             }
             val w = wx
             if (w == null) {
-                Gap(h = 40.dp)
+                Gap(h = if (portrait) 16.dp else 40.dp)
                 VText(err ?: "LOADING SKY", size = 14.sp, color = V.Muted)
-            } else {
+            } else if (portrait && !editing) {
+                // portrait: glyph and temperature on the left, the numbers on the right
+                Gap(h = 10.dp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Glyph(wxGlyph(w.code, w.isDay), wxColour(w.code, w.isDay), Modifier.size(84.dp), weight = 3f)
+                    Gap(w = 14.dp)
+                    Column {
+                        VText(t(w.temp), size = 72.sp, color = V.White, font = Jupi)
+                        VText(wxWords(w.code).uppercase(), size = 14.sp, color = wxColour(w.code, w.isDay), spacing = 2.sp, maxLines = 1)
+                    }
+                    Box(Modifier.weight(1f))
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                            Stat("Feels", t(w.feels)); Stat("Wind", "${w.wind.roundToInt()} km/h"); Stat("Humid", "${w.humidity}%")
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) { Stat("Sunrise", w.sunrise); Stat("Sunset", w.sunset) }
+                    }
+                }
+                Gap(h = 8.dp)
+                Label("Open-Meteo", color = V.Tick)
+            } else if (!portrait) {
                 Gap(h = 24.dp)
                 Glyph(wxGlyph(w.code, w.isDay), wxColour(w.code, w.isDay), Modifier.size(110.dp), weight = 3f)
                 Gap(h = 10.dp)
@@ -189,29 +210,46 @@ fun WeatherScreen(store: Store) {
                 Label("Open-Meteo", color = V.Tick)
             }
         }
-        Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            val w = wx
-            VPanel(Modifier.fillMaxWidth().weight(1f)) {
-                Label("Next 12 hours")
-                Gap(h = 10.dp)
-                if (w != null) TempGraph(w.hours, Modifier.fillMaxWidth().weight(1f))
-            }
-            VPanel(Modifier.fillMaxWidth().height(200.dp)) {
-                Label("Six days")
-                Gap(h = 12.dp)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    w?.days?.forEach { d ->
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            VText(d.label, size = 12.sp, color = V.Muted, spacing = 1.sp)
-                            Gap(h = 8.dp)
-                            Glyph(wxGlyph(d.code), wxColour(d.code), Modifier.size(38.dp))
-                            Gap(h = 8.dp)
-                            VText(t(d.max), size = 20.sp, color = V.White, font = Jupi)
-                            VText(t(d.min), size = 14.sp, color = V.Muted, font = Jupi)
-                            VText("${d.rain}%", size = 11.sp, color = V.Teal)
-                        }
+    }
+    val graph: @Composable (Modifier) -> Unit = { mod ->
+        VPanel(mod) {
+            Label("Next 12 hours")
+            Gap(h = 10.dp)
+            wx?.let { TempGraph(it.hours, Modifier.fillMaxWidth().weight(1f)) }
+        }
+    }
+    val days: @Composable () -> Unit = {
+        VPanel(Modifier.fillMaxWidth().height(200.dp)) {
+            Label("Six days")
+            Gap(h = 12.dp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                wx?.days?.forEach { d ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        VText(d.label, size = 12.sp, color = V.Muted, spacing = 1.sp)
+                        Gap(h = 8.dp)
+                        Glyph(wxGlyph(d.code), wxColour(d.code), Modifier.size(38.dp))
+                        Gap(h = 8.dp)
+                        VText(t(d.max), size = 20.sp, color = V.White, font = Jupi)
+                        VText(t(d.min), size = 14.sp, color = V.Muted, font = Jupi)
+                        VText("${d.rain}%", size = 11.sp, color = V.Teal)
                     }
                 }
+            }
+        }
+    }
+
+    if (portrait) {
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            now(Modifier.fillMaxWidth())
+            graph(Modifier.fillMaxWidth().weight(1f))
+            days()
+        }
+    } else {
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            now(Modifier.width(380.dp).fillMaxHeight())
+            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                graph(Modifier.fillMaxWidth().weight(1f))
+                days()
             }
         }
     }

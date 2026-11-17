@@ -55,8 +55,8 @@ fun NotesScreen(store: Store) {
         }
     }
 
-    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Column(Modifier.width(300.dp).fillMaxHeight()) {
+    Split(Modifier.fillMaxSize()) {
+        Column(Modifier.side(300.dp, portraitWeight = 0.38f)) {
             VButton("New note", Modifier.fillMaxWidth(), accent = V.Yellow, filled = true) {
                 val id = System.currentTimeMillis()
                 store.saveNote(Note(id, "", 0, id))
@@ -82,7 +82,7 @@ fun NotesScreen(store: Store) {
                 }
             }
         }
-        VPanel(Modifier.weight(1f).fillMaxHeight(), accent = if (open != null) V.Lap[colour % V.Lap.size] else null) {
+        VPanel(Modifier.main(0.62f), accent = if (open != null) V.Lap[colour % V.Lap.size] else null) {
             if (open == null) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     VText("PICK A NOTE OR START A NEW ONE", size = 14.sp, color = V.Muted, spacing = 1.sp)
