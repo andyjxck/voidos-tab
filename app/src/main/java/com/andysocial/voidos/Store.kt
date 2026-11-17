@@ -169,19 +169,30 @@ class Store(private val ctx: Context) {
 data class ShopItem(val id: Long, val text: String, val done: Boolean, val aisle: String)
 
 /** Rough supermarket sections so the list groups itself. */
+/**
+ * Rough supermarket aisle for a shopping item. Words match from their start
+ * ("egg" matches "eggs", not "veggie"; "ham" doesn't match "shampoo"), and the
+ * more specific groups are checked first ("butternut squash" is veg, "ice
+ * cream" frozen, "orange juice" a drink).
+ */
 fun aisleFor(t: String): String {
     val s = t.lowercase()
-    fun has(vararg w: String) = w.any { s.contains(it) }
+    // a trailing ! means the whole word: "gin!" is gin, not ginger
+    fun has(vararg w: String) = w.any {
+        val whole = it.endsWith("!")
+        Regex("(^|[^a-z])" + Regex.escape(it.removeSuffix("!")) + if (whole) "($|[^a-z])" else "").containsMatchIn(s)
+    }
     return when {
-        has("milk", "cheese", "butter", "yog", "cream", "egg") -> "Dairy & eggs"
-        has("bread", "roll", "wrap", "bagel", "crumpet", "croissant") -> "Bakery"
-        has("apple", "banana", "onion", "potato", "carrot", "tomato", "lettuce", "pepper", "garlic", "fruit", "veg", "lemon", "lime", "cucumber", "spring onion", "mushroom") -> "Fruit & veg"
-        has("chicken", "beef", "pork", "mince", "bacon", "sausage", "ham", "duck", "fish", "salmon", "tuna", "prawn") -> "Meat & fish"
-        has("pasta", "rice", "noodle", "flour", "sugar", "oil", "sauce", "tin", "beans", "cereal", "oats", "spice", "salt", "stock", "hoisin", "soy") -> "Cupboard"
-        has("frozen", "ice", "chips", "pizza") -> "Frozen"
-        has("tea", "coffee", "juice", "water", "cola", "squash", "beer", "wine") -> "Drinks"
-        has("cat", "litter", "dog", "pet") -> "Pets"
-        has("soap", "shampoo", "toilet", "kitchen roll", "bin bag", "washing", "bleach", "sponge", "foil", "cling") -> "Household"
+        has("kitchen roll", "toilet", "bin bag", "washing", "bleach", "sponge", "foil", "cling", "soap", "shampoo", "toothpaste", "dishwasher", "fabric", "detergent", "tissue") -> "Household"
+        has("cat food", "cat litter", "litter", "dog food", "dog!", "pet!", "pet food") -> "Pets"
+        has("butternut", "squash!") && !has("orange squash", "lemon squash", "squash drink", "fruit squash") -> "Fruit & veg"
+        has("ice cream", "frozen", "ice!", "ice cubes", "oven chips", "chips", "fish fingers", "peas") -> "Frozen"
+        has("juice", "tea!", "teabag", "coffee", "water", "cola", "squash", "lemonade", "beer", "wine", "cider", "gin!") -> "Drinks"
+        has("apple", "banana", "onion", "potato", "carrot", "tomato", "lettuce", "pepper", "garlic", "fruit", "veg", "lemon", "lime", "cucumber", "mushroom", "broccoli", "spinach", "avocado", "grape", "berr", "strawberr", "orange", "pear", "salad", "herb", "ginger", "courgette", "leek") -> "Fruit & veg"
+        has("milk", "cheese", "cheddar", "mozzarella", "parmesan", "butter", "yog", "cream", "egg") -> "Dairy & eggs"
+        has("bread", "loaf", "sourdough", "roll", "wrap", "bagel", "crumpet", "croissant", "pitta", "naan", "muffin") -> "Bakery"
+        has("chicken", "beef", "pork", "mince", "bacon", "sausage", "ham", "duck", "fish", "salmon", "tuna", "prawn", "lamb", "turkey", "steak", "chorizo", "cod") -> "Meat & fish"
+        has("pasta", "spaghetti", "rice", "noodle", "flour", "sugar", "oil", "sauce", "tin!", "tinned", "beans", "cereal", "oats", "spice", "salt!", "stock", "hoisin", "soy", "vinegar", "honey", "jam", "crisps", "biscuit", "chocolate", "lentil", "chickpea") -> "Cupboard"
         else -> "Other"
     }
 }

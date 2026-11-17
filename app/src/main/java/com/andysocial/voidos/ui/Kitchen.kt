@@ -254,13 +254,13 @@ fun TimerAlert() {
 
 // ------------------------------------------------------------------ convert
 
-private data class Unit_(val name: String, val short: String, val toBase: (Double) -> Double, val fromBase: (Double) -> Double)
+internal data class Unit_(val name: String, val short: String, val toBase: (Double) -> Double, val fromBase: (Double) -> Double)
 
 private fun lin(name: String, short: String, factor: Double) = Unit_(name, short, { it * factor }, { it / factor })
 
-private val gasMarks = listOf(1 to 140.0, 2 to 150.0, 3 to 170.0, 4 to 180.0, 5 to 190.0, 6 to 200.0, 7 to 220.0, 8 to 230.0, 9 to 240.0)
+internal val gasMarks = listOf(1 to 140.0, 2 to 150.0, 3 to 170.0, 4 to 180.0, 5 to 190.0, 6 to 200.0, 7 to 220.0, 8 to 230.0, 9 to 240.0)
 
-private val categories: List<Pair<String, List<Unit_>>> = listOf(
+internal val categories: List<Pair<String, List<Unit_>>> = listOf(
     "Weight" to listOf(lin("Grams", "g", 1.0), lin("Kilograms", "kg", 1000.0), lin("Ounces", "oz", 28.349523125), lin("Pounds", "lb", 453.59237), lin("Stone", "st", 6350.29318)),
     "Volume" to listOf(
         lin("Millilitres", "ml", 1.0), lin("Litres", "l", 1000.0), lin("Teaspoons", "tsp", 5.0), lin("Tablespoons", "tbsp", 15.0),
@@ -270,15 +270,15 @@ private val categories: List<Pair<String, List<Unit_>>> = listOf(
         Unit_("Celsius", "°C", { it }, { it }),
         Unit_("Fan oven", "°C fan", { it + 20 }, { it - 20 }),
         Unit_("Fahrenheit", "°F", { (it - 32) * 5 / 9 }, { it * 9 / 5 + 32 }),
-        Unit_("Gas mark", "gas", { g -> gasMarks.minByOrNull { abs(it.first - g) }!!.second }, { c -> gasMarks.minByOrNull { abs(it.second - c) }!!.first.toDouble() }),
+        Unit_("Gas mark", "gas", { g -> gasMarks.minByOrNull { abs(it.first - g) }!!.second }, { c -> if (c < 130 || c > 250) Double.NaN else gasMarks.minByOrNull { abs(it.second - c) }!!.first.toDouble() }),
     ),
     "Length" to listOf(lin("Centimetres", "cm", 1.0), lin("Millimetres", "mm", 0.1), lin("Inches", "in", 2.54), lin("Feet", "ft", 30.48)),
 )
 
 /** Grams in one US cup, for the cups-to-grams helper. */
-private val cupGrams = listOf("Plain flour" to 125.0, "Caster sugar" to 200.0, "Brown sugar" to 220.0, "Icing sugar" to 120.0, "Butter" to 227.0, "Rice (raw)" to 185.0, "Oats" to 90.0, "Milk" to 240.0, "Water" to 237.0, "Honey" to 340.0)
+internal val cupGrams = listOf("Plain flour" to 125.0, "Caster sugar" to 200.0, "Brown sugar" to 220.0, "Icing sugar" to 120.0, "Butter" to 227.0, "Rice (raw)" to 185.0, "Oats" to 90.0, "Milk" to 240.0, "Water" to 237.0, "Honey" to 340.0)
 
-private fun fmtNum(v: Double): String {
+internal fun fmtNum(v: Double): String {
     if (v.isNaN() || v.isInfinite()) return "-"
     val a = abs(v)
     return when {
@@ -336,7 +336,7 @@ fun ConvertPane() {
                 LazyVerticalGrid(GridCells.Adaptive(190.dp), verticalArrangement = Arrangement.spacedBy(10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(units.filterIndexed { i, _ -> i != from }) { u ->
                         val out = u.fromBase(base)
-                        ResultTile(u.name, if (u.short == "gas") "Gas ${out.toInt()}" else "${fmtNum(out)} ${u.short}", V.Orange)
+                        ResultTile(u.name, if (u.short == "gas") (if (out.isNaN()) "Off the scale" else "Gas ${out.toInt()}") else "${fmtNum(out)} ${u.short}", V.Orange)
                     }
                 }
             }
