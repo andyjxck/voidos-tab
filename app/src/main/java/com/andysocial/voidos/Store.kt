@@ -70,8 +70,8 @@ class Store(private val ctx: Context) {
         }
     }
 
-    fun setRotation(r: String) { rotation = r; p.edit().putString("rotation", r).apply() }
-    fun setHubName(n: String) { hubName = n; p.edit().putString("hubName", n).apply() }
+    @JvmName("pickRotation") fun setRotation(r: String) { rotation = r; p.edit().putString("rotation", r).apply() }
+    @JvmName("pickHubName") fun setHubName(n: String) { hubName = n; p.edit().putString("hubName", n).apply() }
 
     /** Favourite apps, shown first in the drawer and on the face. Order kept. */
     fun toggleFav(pkg: String) {

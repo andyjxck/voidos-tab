@@ -97,10 +97,18 @@ class MainActivity : ComponentActivity() {
         applyBars()
     }
 
-    /** Escape screen: step out to stock Android Settings. Home brings you back. */
-    fun openAndroidSettings() {
+    /**
+     * About to open a stock Android screen (Settings, a Wi-Fi panel...): drop
+     * lock mode until VoidOS is resumed again, so the screen can open.
+     */
+    fun visitAndroid() {
         visitingAndroid = true
         leaveLockTask()
+    }
+
+    /** Escape screen: step out to stock Android Settings. Home brings you back. */
+    fun openAndroidSettings() {
+        visitAndroid()
         runCatching {
             startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
