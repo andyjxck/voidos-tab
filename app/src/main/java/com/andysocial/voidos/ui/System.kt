@@ -148,9 +148,9 @@ private fun WifiPane(act: MainActivity) {
 
     fun refresh() {
         enabled = wm.isWifiEnabled
-        current = wm.connectionInfo?.takeIf { it.networkId != -1 }?.ssid?.trim('"') ?: ""
-        results = runCatching { wm.scanResults }.getOrDefault(emptyList())
-            .filter { it.SSID.isNotBlank() }.groupBy { it.SSID }.map { (_, v) -> v.maxBy { it.level } }
+        current = wm.connectionInfo?.takeIf { it.networkId != -1 }?.ssid?.trim('"')?.takeIf { it != "<unknown ssid>" } ?: ""
+        results = (runCatching { wm.scanResults }.getOrNull() ?: emptyList())
+            .filter { !it.SSID.isNullOrBlank() }.groupBy { it.SSID }.map { (_, v) -> v.maxBy { it.level } }
             .sortedByDescending { it.level }
     }
 
