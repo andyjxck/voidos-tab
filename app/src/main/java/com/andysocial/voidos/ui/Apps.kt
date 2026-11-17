@@ -31,7 +31,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -218,7 +217,8 @@ fun AppGlyph(app: AppEntry, style: String, size: Dp) {
             contentAlignment = Alignment.Center,
         ) { Glyph(glyph, accent, Modifier.size(size * 0.58f)) }
         else -> {
-            val icon by produceState<ImageBitmap?>(null, app.pkg) { value = Icons.get(ctx, app.pkg) }
+            var icon by remember(app.pkg) { mutableStateOf<ImageBitmap?>(null) }
+            LaunchedEffect(app.pkg) { icon = Icons.get(ctx, app.pkg) }
             if (style == "void") Box(
                 Modifier.size(size).clip(OctS).background(accent.copy(alpha = 0.12f)).border(1.5.dp, accent, OctS),
                 contentAlignment = Alignment.Center,
@@ -236,7 +236,8 @@ fun AppsScreen(store: Store) {
     var managing by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
-    val all by produceState(AppsRepo.all(ctx), refresh) { value = withContext(Dispatchers.IO) { AppsRepo.all(ctx, fresh = true) } }
+    var all by remember { mutableStateOf(AppsRepo.all(ctx)) }
+    LaunchedEffect(refresh) { all = withContext(Dispatchers.IO) { AppsRepo.all(ctx, fresh = true) } }
     val base = if (managing || !store.kiosk) all else all.filter { it.pkg in store.allowed }
     val shown = if (query.isBlank()) base else base.filter { it.label.contains(query.trim(), ignoreCase = true) }
     val favs = store.favs.mapNotNull { f -> all.firstOrNull { it.pkg == f } }

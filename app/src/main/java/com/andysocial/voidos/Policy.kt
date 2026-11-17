@@ -30,6 +30,18 @@ object Policy {
     fun admin(c: Context) = ComponentName(c, VoidAdmin::class.java)
     fun isOwner(c: Context): Boolean = runCatching { dpm(c).isDeviceOwnerApp(c.packageName) }.getOrDefault(false)
 
+    /**
+     * Change the system time zone. As device owner on Android 11+ VoidOS asks
+     * the device policy manager; otherwise it tries AlarmManager, which only a
+     * system app (a flashed/priv-app VoidOS) is allowed to do. False if neither works.
+     */
+    @android.annotation.SuppressLint("MissingPermission")
+    fun setTimeZone(c: Context, zone: String): Boolean {
+        if (isOwner(c) && android.os.Build.VERSION.SDK_INT >= 30 &&
+            runCatching { dpm(c).setTimeZone(admin(c), zone) }.getOrDefault(false)) return true
+        return runCatching { c.getSystemService(android.app.AlarmManager::class.java).setTimeZone(zone); true }.getOrDefault(false)
+    }
+
     const val SET_OWNER_CMD = "adb shell dpm set-device-owner com.andysocial.voidos/.VoidAdmin"
 
     private inline fun safe(what: String, block: () -> Unit) {

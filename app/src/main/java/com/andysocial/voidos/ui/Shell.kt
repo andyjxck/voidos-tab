@@ -1,5 +1,8 @@
 package com.andysocial.voidos.ui
 
+import com.andysocial.voidos.Now
+import com.andysocial.voidos.KTimers
+import androidx.compose.animation.animateColorAsState
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -234,22 +237,56 @@ fun BottomRail(store: Store, current: Module, onSelect: (Module) -> Unit, onEsca
 
 @Composable
 private fun RailItem(m: Module, sel: Boolean, labels: Boolean, modifier: Modifier, tight: Boolean = false, onClick: () -> Unit) {
-    Column(
-        modifier
-            .padding(horizontal = 2.dp)
-            .clip(OctS)
-            .background(if (sel) m.accent.copy(alpha = 0.14f) else Color.Transparent)
-            .border(1.dp, if (sel) m.accent else Color.Transparent, OctS)
-            .clickable(onClick = onClick)
-            .padding(vertical = if (labels) 6.dp else 11.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Glyph(m.glyph, if (sel) m.accent else V.Muted, Modifier.size(25.dp))
-        if (labels) {
-            Gap(h = 4.dp)
-            VText(m.label.uppercase(), size = if (tight) 7.sp else 8.sp, color = if (sel) m.accent else V.Muted, spacing = if (tight) 0.2.sp else 0.8.sp, maxLines = 1)
+    // the selection fades in rather than jumping
+    val tint by animateColorAsState(if (sel) m.accent else V.Muted, tween(220), label = "railTint")
+    val fill by animateColorAsState(if (sel) m.accent.copy(alpha = 0.14f) else Color.Transparent, tween(220), label = "railFill")
+    val edge by animateColorAsState(if (sel) m.accent else Color.Transparent, tween(220), label = "railEdge")
+    val badge = railBadge(m)
+    Box(modifier.padding(horizontal = 2.dp)) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(OctS)
+                .background(fill)
+                .border(1.dp, edge, OctS)
+                .clickable(onClick = onClick)
+                .padding(vertical = if (labels) 6.dp else 11.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Glyph(m.glyph, tint, Modifier.size(25.dp))
+            if (labels) {
+                Gap(h = 4.dp)
+                VText(m.label.uppercase(), size = if (tight) 7.sp else 8.sp, color = tint, spacing = if (tight) 0.2.sp else 0.8.sp, maxLines = 1)
+            }
+        }
+        // a live badge: running timers on Kitchen (red while one rings), a dot on Media while something plays
+        if (badge != null) Box(
+            Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = 6.dp)
+                .size(if (badge.first.isEmpty()) 8.dp else 16.dp).clip(OctS).background(badge.second),
+            contentAlignment = Alignment.Center,
+        ) { if (badge.first.isNotEmpty()) VText(badge.first, size = 9.sp, color = V.Bg, maxLines = 1) }
+    }
+}
+
+/** What a rail item's badge shows, or null: (text, colour); empty text draws a dot. */
+@Composable
+private fun railBadge(m: Module): Pair<String, Color>? = when (m) {
+    Module.KITCHEN -> {
+        val timers by KTimers.list
+        val ringing by KTimers.ringing
+        val running = timers.count { it.running }
+        when {
+            ringing.isNotEmpty() -> "!" to V.Coral
+            running > 0 -> running.toString() to m.accent
+            else -> null
         }
     }
+    Module.MEDIA -> {
+        val local by Player.playing
+        val other by Now.playing
+        if (local || other?.playing == true) "" to m.accent else null
+    }
+    else -> null
 }
 
 // --------------------------------------------------------------- status strip

@@ -1,5 +1,6 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -46,7 +47,7 @@ fun BootAnim(onDone: () -> Unit) {
         t.animateTo(3.6f, tween(3600, easing = LinearEasing))
         onDone()
     }
-    BoxWithConstraints(Modifier.fillMaxSize().background(V.Bg).pointerInput(Unit) { detectTapGestures { onDone() } }) {
+    Box(Modifier.fillMaxSize().background(V.Bg).pointerInput(Unit) { detectTapGestures { onDone() } }) {
         Canvas(Modifier.fillMaxSize()) {
             val s = t.value
             val fade = if (s > 3.2f) 1f - ((s - 3.2f) / 0.4f).coerceIn(0f, 1f) else 1f

@@ -60,39 +60,73 @@ fun FaceScreen(store: Store, onOpen: (Module) -> Unit) {
     }
 }
 
-/** The octagon clock: sixty second ticks fill in the minute's lap colour. */
+/** Distance from the centre to an octagon (flat top, apothem [a]) along angle [t]. */
+internal fun octRadius(a: Float, t: Double): Float {
+    val step = PI / 4
+    val d = ((t % step) + step) % step                // 0..45 degrees past an edge's middle
+    val off = if (d > step / 2) step - d else d       // to the nearest edge middle
+    return (a / cos(off)).toFloat()
+}
+
+/**
+ * The octagon clock: sixty second ticks run round an octagon (not a circle)
+ * and fill in the minute's lap colour; the four quarter ticks are longer. A
+ * lap-coloured bead marks the second. Under the time: AM/PM on a 12-hour
+ * clock, and the next kitchen timer to finish while any are running.
+ */
 @Composable
 private fun Dial(store: Store, now: Long, modifier: Modifier) {
     val cal = Calendar.getInstance().apply { timeInMillis = now }
     val sec = cal.get(Calendar.SECOND)
     val minute = cal.get(Calendar.MINUTE)
     val fmt = if (store.use24h) "HH:mm" else "h:mm"
+    val timers by KTimers.list
+    val next = timers.filter { it.running }.minByOrNull { it.remaining() }
     SquareFit(modifier) { side ->
         Box(Modifier.size(side), contentAlignment = Alignment.Center) {
             Canvas(Modifier.fillMaxSize()) {
                 val c = Offset(size.width / 2, size.height / 2)
                 val R = size.minDimension / 2 * 0.96f
+                val apo = R * cos(PI / 8).toFloat()           // so the corners touch R
                 val cur = V.Lap[minute % 6]; val prev = V.Lap[(minute + 5) % 6]
                 for (i in 0 until 60) {
-                    val a = i / 60.0 * 2 * PI - PI / 2
+                    val t = i / 60.0 * 2 * PI - PI / 2
+                    val quarter = i % 15 == 0
                     val major = i % 5 == 0
-                    val r1 = R * (if (major) 0.86f else 0.90f)
-                    val col = if (i <= sec) cur else prev.copy(alpha = 0.35f)
-                    drawLine(col, Offset(c.x + cos(a).toFloat() * r1, c.y + sin(a).toFloat() * r1),
-                        Offset(c.x + cos(a).toFloat() * R, c.y + sin(a).toFloat() * R), R * (if (major) 0.022f else 0.013f), StrokeCap.Round)
+                    val outer = octRadius(apo, t)
+                    val len = R * when { quarter -> 0.13f; major -> 0.10f; else -> 0.065f }
+                    val col = if (i <= sec) cur else prev.copy(alpha = 0.30f)
+                    val dx = cos(t).toFloat(); val dy = sin(t).toFloat()
+                    drawLine(col, Offset(c.x + dx * (outer - len), c.y + dy * (outer - len)),
+                        Offset(c.x + dx * outer, c.y + dy * outer),
+                        R * when { quarter -> 0.026f; major -> 0.02f; else -> 0.012f }, StrokeCap.Round)
                 }
-                drawOct(c, R * 0.78f, V.Line, width = R * 0.008f)
-                drawOct(c, R * 0.74f, V.Panel, fill = true)
+                drawOct(c, R * 0.76f, V.Line, width = R * 0.008f)
+                drawOct(c, R * 0.72f, V.Panel, fill = true)
                 // faint lap colour wash in the dial
-                drawOct(c, R * 0.74f, cur.copy(alpha = 0.04f), fill = true)
-                val a = sec / 60.0 * 2 * PI - PI / 2
-                drawCircle(V.Cyan, R * 0.022f, Offset(c.x + cos(a).toFloat() * R * 0.80f, c.y + sin(a).toFloat() * R * 0.80f))
+                drawOct(c, R * 0.72f, cur.copy(alpha = 0.05f), fill = true)
+                drawOct(c, R * 0.72f, cur.copy(alpha = 0.35f), width = R * 0.006f)
+                // the bead rides just inside the ticks, on the same octagon
+                val t = sec / 60.0 * 2 * PI - PI / 2
+                val br = octRadius(apo, t) - R * 0.17f
+                drawCircle(cur.copy(alpha = 0.25f), R * 0.045f, Offset(c.x + cos(t).toFloat() * br, c.y + sin(t).toFloat() * br))
+                drawCircle(cur, R * 0.022f, Offset(c.x + cos(t).toFloat() * br, c.y + sin(t).toFloat() * br))
             }
             val k = side.value / 520f
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                VText(SimpleDateFormat("EEE, MMM d", Locale.UK).format(Date(now)).uppercase(), size = (20 * k).sp, color = V.Text, spacing = (2 * k).sp)
-                VText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), size = (108 * k).sp, color = V.White)
-                VText("%02d".format(sec), size = (22 * k).sp, color = V.Lap[minute % 6], font = Jupi)
+                VText(SimpleDateFormat("EEE, MMM d", Locale.UK).format(Date(now)).uppercase(), size = (20 * k).sp, color = V.Text, spacing = (2 * k).sp, maxLines = 1)
+                Row(verticalAlignment = Alignment.Bottom) {
+                    VText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), size = (108 * k).sp, color = V.White, maxLines = 1)
+                    if (!store.use24h) VText(
+                        if (cal.get(Calendar.AM_PM) == Calendar.AM) "AM" else "PM", size = (18 * k).sp, color = V.Muted,
+                        modifier = Modifier.padding(start = (6 * k).dp, bottom = (22 * k).dp), maxLines = 1,
+                    )
+                }
+                VText("%02d".format(sec), size = (22 * k).sp, color = V.Lap[minute % 6], font = Jupi, maxLines = 1)
+                if (next != null) {
+                    Gap(h = (8 * k).dp)
+                    VText("${next.label.uppercase()}  ${fmtDur(next.remaining())}", size = (15 * k).sp, color = V.Orange, spacing = (1.5f * k).sp, maxLines = 1)
+                }
             }
         }
     }

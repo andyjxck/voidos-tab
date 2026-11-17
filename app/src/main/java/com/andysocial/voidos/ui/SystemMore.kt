@@ -186,9 +186,7 @@ fun TimePane(store: Store, act: MainActivity) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 row.forEach { z ->
                     Chip(z.substringAfter('/').replace('_', ' '), z == zone, V.Teal, Modifier.weight(1f)) {
-                        val ok = runCatching {
-                            val am = ctx.getSystemService(android.app.AlarmManager::class.java); am.setTimeZone(z); true
-                        }.getOrDefault(false)
+                        val ok = Policy.setTimeZone(ctx, z)
                         if (ok) { zone = z; msg = null } else msg = "Android didn't allow VoidOS to change the time zone. Use Android settings > Date & time."
                     }
                 }
