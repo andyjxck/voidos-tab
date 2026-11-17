@@ -46,6 +46,8 @@ class Store(private val ctx: Context) {
     var tempF by mutableStateOf(p.getBoolean("tempF", false)); private set
     var favs by mutableStateOf(p.getString("favs", "")!!.split(',').filter { it.isNotBlank() }); private set
     var hubName by mutableStateOf(p.getString("hubName", "Kitchen")!!); private set
+    /** How Android app icons are drawn: "colour" (as shipped), "void" (VoidOS glyph or tinted) or "letter". */
+    var iconStyle by mutableStateOf(p.getString("iconStyle", "void")!!); private set
 
     private var pinHash: String = p.getString("pinHash", "")!!
 
@@ -71,6 +73,7 @@ class Store(private val ctx: Context) {
     }
 
     @JvmName("pickRotation") fun setRotation(r: String) { rotation = r; p.edit().putString("rotation", r).apply() }
+    @JvmName("pickIconStyle") fun setIconStyle(v: String) { iconStyle = v; p.edit().putString("iconStyle", v).apply() }
     @JvmName("pickHubName") fun setHubName(n: String) { hubName = n; p.edit().putString("hubName", n).apply() }
 
     /** Favourite apps, shown first in the drawer and on the face. Order kept. */

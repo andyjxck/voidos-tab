@@ -38,6 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -49,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.andysocial.voidos.MainActivity
 import com.andysocial.voidos.Store
+import com.andysocial.voidos.VoidApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -150,10 +153,78 @@ fun runQuick(ctx: Context, store: Store, q: Quick) {
 
 @Composable
 fun AppIcon(app: AppEntry, size: Dp, onClick: () -> Unit) {
-    val ctx = LocalContext.current
-    val icon by produceState<ImageBitmap?>(null, app.pkg) { value = Icons.get(ctx, app.pkg) }
     Box(Modifier.size(size).tap(onClick), contentAlignment = Alignment.Center) {
-        icon?.let { Image(it, app.label, Modifier.size(size * 0.9f)) }
+        AppGlyph(app, VoidApp.instance.store.iconStyle, size * 0.9f)
+    }
+}
+
+// ------------------------------------------------------------- custom icons
+
+/** Apps that get a hand-drawn VoidOS glyph in the "void" icon style. */
+private val glyphFor: List<Pair<Regex, G>> = listOf(
+    Regex("camera") to G.CAMERA,
+    Regex("youtube|netflix|primevideo|disney|iplayer|tvplayer|video|plex|twitch") to G.VIDEO,
+    Regex("spotify|music|sounds|podcast|radio|audible|deezer|tidal|soundcloud") to G.MEDIA,
+    Regex("whatsapp|messag|mms|telegram|signal|discord|snapchat|messenger") to G.MESSAGE,
+    Regex("dialer|\\.phone|contacts") to G.PHONE,
+    Regex("chrome|browser|firefox|opera|duckduckgo|edge|\\.web") to G.GLOBE,
+    Regex("weather") to G.WEATHER,
+    Regex("deskclock|\\.clock|alarm|timer") to G.TIMER,
+    Regex("calendar") to G.LIST,
+    Regex("keep|notes|docs|evernote|onenote") to G.NOTES,
+    Regex("settings") to G.SYSTEM,
+    Regex("recipe|food|deliveroo|ubereats|justeat|tesco|sainsbury|asda|ocado") to G.CUTLERY,
+    Regex("home|nest|hue|smartthings|alexa|ring") to G.HOUSE,
+    Regex("gallery|photos") to G.CAMERA,
+)
+
+fun glyphForPackage(pkg: String): G? = glyphFor.firstOrNull { it.first.containsMatchIn(pkg.lowercase()) }?.second
+
+/** A steady accent per app, so the same app keeps its colour everywhere. */
+fun accentFor(pkg: String): Color {
+    val palette = listOf(V.Teal, V.Coral, V.Yellow, V.Green, V.Purple, V.Orange, V.Pink, V.Cyan)
+    return palette[Math.floorMod(pkg.hashCode(), palette.size)]
+}
+
+/** Up to two letters for the "letter" style: "BBC Sounds" -> "BS", "Spotify" -> "SP". */
+fun initialsFor(label: String): String {
+    val words = label.split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotBlank() }
+    return when {
+        words.isEmpty() -> "?"
+        words.size == 1 -> words[0].take(2)
+        else -> "${words[0].first()}${words[1].first()}"
+    }.uppercase()
+}
+
+private val greyscale = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) })
+
+/**
+ * One Android app's icon in the chosen style: "colour" is the app's own icon,
+ * "void" a VoidOS glyph for apps it knows and a greyed icon in an octagon for
+ * the rest, "letter" the app's initials in an octagon.
+ */
+@Composable
+fun AppGlyph(app: AppEntry, style: String, size: Dp) {
+    val ctx = LocalContext.current
+    val accent = accentFor(app.pkg)
+    val glyph = if (style == "void") glyphForPackage(app.pkg) else null
+    when {
+        style == "letter" -> Box(
+            Modifier.size(size).clip(OctS).background(accent.copy(alpha = 0.12f)).border(1.5.dp, accent, OctS),
+            contentAlignment = Alignment.Center,
+        ) { VText(initialsFor(app.label), size = (size.value * 0.32f).sp, color = accent, font = Kenney, maxLines = 1) }
+        glyph != null -> Box(
+            Modifier.size(size).clip(OctS).background(accent.copy(alpha = 0.12f)).border(1.5.dp, accent, OctS),
+            contentAlignment = Alignment.Center,
+        ) { Glyph(glyph, accent, Modifier.size(size * 0.58f)) }
+        else -> {
+            val icon by produceState<ImageBitmap?>(null, app.pkg) { value = Icons.get(ctx, app.pkg) }
+            if (style == "void") Box(
+                Modifier.size(size).clip(OctS).background(accent.copy(alpha = 0.12f)).border(1.5.dp, accent, OctS),
+                contentAlignment = Alignment.Center,
+            ) { icon?.let { Image(it, app.label, Modifier.size(size * 0.66f), colorFilter = greyscale, alpha = 0.9f) } }
+            else icon?.let { Image(it, app.label, Modifier.size(size)) }
+        }
     }
 }
 
@@ -245,7 +316,6 @@ private fun QuickTile(q: Quick, onClick: () -> Unit) {
 private fun AppTile(app: AppEntry, store: Store, managing: Boolean, starred: Boolean) {
     val ctx = LocalContext.current
     val allowed = app.pkg in store.allowed
-    val icon by produceState<ImageBitmap?>(null, app.pkg) { value = Icons.get(ctx, app.pkg) }
     Column(
         Modifier.fillMaxWidth().clip(Oct)
             .background(if (managing && allowed) V.Purple.copy(alpha = 0.14f) else V.Panel)
@@ -258,7 +328,7 @@ private fun AppTile(app: AppEntry, store: Store, managing: Boolean, starred: Boo
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(Modifier.size(56.dp)) {
-            icon?.let { Image(it, null, Modifier.size(52.dp).align(Alignment.Center)) }
+            Box(Modifier.align(Alignment.Center)) { AppGlyph(app, store.iconStyle, 52.dp) }
             if (starred) Glyph(G.STAR, V.Yellow, Modifier.size(16.dp).align(Alignment.TopEnd))
         }
         Gap(h = 8.dp)
