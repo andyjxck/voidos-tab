@@ -109,6 +109,9 @@ internal fun wheelStep(n: Int): Float = Math.toRadians(minOf(20.0, 112.0 / (n - 
 internal fun wheelStart(n: Int): Float = -wheelStep(n) * (n - 1) / 2f
 
 /** A wheel angle in radians as a canvas angle in degrees; the right wheel is the left one mirrored. */
+/** Keeps a wheel angle between its first and last slot, so it can't be dragged past either end. */
+internal fun wheelClamp(a: Float, first: Float, last: Float): Float = a.coerceIn(min(first, last), max(first, last))
+
 internal fun wheelDeg(e: Edge, a: Float): Float =
     Math.toDegrees((if (e == Edge.LEFT) a else (Math.PI - a).toFloat()).toDouble()).toFloat()
 
@@ -292,6 +295,22 @@ internal class WheelFx {
         m.postRotate(tangent)
         m.postTranslate(b.x, b.y)
         cv.drawBitmap(bd, m, sprite)
+    }
+
+    /** One slot's own drop of clear glass at [b], scaled by [scale]; [lit] brightens it under the finger. */
+    fun drop(cv: android.graphics.Canvas, d: Density, b: Offset, scale: Float, lit: Float) {
+        val key = (Color.White.toArgb().toLong() shl 8) xor (d.density * 100).toLong()
+        if (bead == null || key != beadKey) { paintBead(d, Color.White); beadKey = key }
+        val sh = shadow ?: return
+        val bd = bead ?: return
+        sprite.alpha = (150 + 105 * lit).toInt().coerceIn(0, 255)
+        m.setTranslate(-sh.width / 2f, -sh.height / 2f); m.postScale(scale, scale); m.postTranslate(b.x, b.y + 5f * dens * scale)
+        cv.drawBitmap(sh, m, sprite)
+        m.setTranslate(-bd.width / 2f, -bd.height / 2f)
+        m.postScale(scale / over, scale / over)
+        m.postTranslate(b.x, b.y)
+        cv.drawBitmap(bd, m, sprite)
+        sprite.alpha = 255
     }
 
     private fun paintBead(d: Density, hl: Color) {
@@ -509,7 +528,8 @@ fun EdgeWheels(
                         val s = mo.sel.intValue
                         var x = mo.bead.floatValue
                         val target = when {
-                            mo.dragging -> mo.finger.coerceIn(slotAngle(0, open) - step * 0.5f, slotAngle(n - 1, open) + step * 0.5f)
+                            // the first and last icons are hard stops: the highlight never goes past them
+                            mo.dragging -> wheelClamp(mo.finger, slotAngle(0, open), slotAngle(n - 1, open))
                             s >= 0 -> slotAngle(s, open)
                             else -> x
                         }
@@ -523,6 +543,10 @@ fun EdgeWheels(
                             x += v * hs
                             rem -= hs
                         }
+                        // a fast flick can't spring it out past the ends either
+                        val lo = slotAngle(0, open); val hi = slotAngle(n - 1, open)
+                        if (x < lo) { x = lo; if (v < 0f) v = 0f }
+                        if (x > hi) { x = hi; if (v > 0f) v = 0f }
                         if (!mo.dragging && abs(x - target) < 0.0005f && abs(v) < 0.01f) { x = target; v = 0f; settled = true }
                         mo.vel = v
                         if (mo.bead.floatValue != x) mo.bead.floatValue = x
@@ -572,11 +596,15 @@ fun EdgeWheels(
                     cv.translate(c.x, c.y)
                     fx.glint(cv, art, wheelDeg(open, b - 0.55f), wheelDeg(open, b + 1.1f))
                     cv.restore()
-                    if (mo.sel.intValue >= 0) {
-                        fx.bead(cv, density, moodNow().a, at(open, b, px(Geo.rItem)), wheelDeg(open, b) + 90f, mo.stretch.floatValue)
+                    // every slot is its own drop of clear glass, Apple style; the one under your finger swells.
+                    // No separate blob travels between them.
+                    items.indices.forEach { i ->
+                        val a = slotAngle(i, open)
+                        val near = if (mo.sel.intValue >= 0) (1f - abs(a - b) / step).coerceIn(0f, 1f) else 0f
+                        fx.drop(cv, density, at(open, a, px(Geo.rItem)), 0.78f + 0.40f * near * near, near)
                     }
                 }
-                // slot icons: magnified as the drop passes over them, like looking through water
+                // slot icons: each sits in its own drop and grows with it
                 items.forEachIndexed { i, it ->
                     val p = at(open, slotAngle(i, open), px(Geo.rItem))
                     val a = slotAngle(i, open)
@@ -585,9 +613,9 @@ fun EdgeWheels(
                             .size(40.dp)
                             .graphicsLayer {
                                 val near = if (mo.sel.intValue >= 0) (1f - abs(a - mo.bead.floatValue) / step).coerceIn(0f, 1f) else 0f
-                                val mag = 1f + 0.34f * near * near
+                                val mag = (0.78f + 0.40f * near * near) / 0.78f
                                 scaleX = mag; scaleY = mag
-                                alpha = 0.7f + 0.3f * near
+                                alpha = 0.75f + 0.25f * near
                             }
                             .semantics { contentDescription = it.label },
                         contentAlignment = Alignment.Center,
@@ -660,7 +688,7 @@ fun EdgeWheels(
                     if (!g.moved && hypot(g.lx - g.sx, g.ly - g.sy) > px(14f)) g.moved = true
                     if (g.moved) {
                         val p = Offset(g.lx, g.ly)
-                        mo.finger = angleAt(e, p)
+                        mo.finger = wheelClamp(angleAt(e, p), slotAngle(0, e), slotAngle(nOf(e) - 1, e))
                         mo.dragging = true
                         val i = indexAt(e, p)
                         if (i != mo.sel.intValue) {
