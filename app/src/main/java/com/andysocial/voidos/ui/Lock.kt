@@ -179,7 +179,7 @@ private fun LockClock(store: Store, now: Long, big: Boolean, start: Boolean = fa
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             wx?.let { w ->
                 Row(Modifier.glass(Pill, 0.7f).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Glyph(wxGlyph(w.code, w.isDay), wxColour(w.code, w.isDay), Modifier.size(22.dp))
+                    WxIcon(w.code, w.isDay, Modifier.size(30.dp))
                     Gap(w = 8.dp)
                     VText("${t(w.temp)}  ${wxWords(w.code)}", size = Type.body, color = V.Text)
                 }
@@ -226,7 +226,7 @@ private fun LockCards(store: Store, now: Long) {
     val p by Now.playing
     val timers = KTimers.list.value.filter { it.running }.sortedBy { it.endAt }
     val notices by VoidListener.notices
-    val quiet = p?.title.isNullOrBlank() && timers.isEmpty() && !((store.lockNotices && !store.guest) && notices.isNotEmpty())
+    val quiet = p?.title.isNullOrBlank() && timers.isEmpty() && !(store.lockNotices && notices.isNotEmpty())
     if (quiet) LockToday(store, now)
     p?.takeIf { it.title.isNotBlank() }?.let { np ->
         Row(
@@ -260,7 +260,7 @@ private fun LockCards(store: Store, now: Long) {
             VText(fmtDur(tm.remaining(now)), size = Type.title2, color = V.White, font = SansLight)
         }
     }
-    if ((store.lockNotices && !store.guest)) {
+    if (store.lockNotices) {
         notices.take(if (LocalPortrait.current) 5 else 3).forEach { n ->
             Row(
                 Modifier.fillMaxWidth().glass(OctS, 0.8f).padding(horizontal = 16.dp, vertical = 12.dp),

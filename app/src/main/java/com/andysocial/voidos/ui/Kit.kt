@@ -271,6 +271,8 @@ fun VField(
     font: FontFamily = Sans,
     onDone: (() -> Unit)? = null,
 ) {
+    // no back button on the tablet: Done always puts the keyboard away
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
     Box(
         modifier
             .clip(OctS)
@@ -285,9 +287,9 @@ fun VField(
             textStyle = TextStyle(color = V.Text, fontSize = size, fontFamily = font),
             cursorBrush = SolidColor(V.Teal),
             visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
-            keyboardOptions = if (password) KeyboardOptions(keyboardType = KeyboardType.Password)
-                else if (onDone != null) KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done) else KeyboardOptions.Default,
-            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { onDone?.invoke() }),
+            keyboardOptions = if (password) KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = androidx.compose.ui.text.input.ImeAction.Done)
+                else if (singleLine) KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done) else KeyboardOptions.Default,
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { onDone?.invoke(); focus.clearFocus() }),
             modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -331,7 +333,7 @@ enum class G(@DrawableRes val res: Int) {
     SHIELD(R.drawable.vi_shield), SEND(R.drawable.vi_send), STOPWATCH(R.drawable.vi_stopwatch), LEVEL(R.drawable.vi_level), MIC(R.drawable.vi_mic),
     METER(R.drawable.vi_meter), TORCH(R.drawable.vi_torch), SCREENSHOT(R.drawable.vi_screenshot), RECORD(R.drawable.vi_record), LEAF(R.drawable.vi_leaf),
     CONTRAST(R.drawable.vi_contrast), EYE(R.drawable.vi_eye), TEXT(R.drawable.vi_text), USB(R.drawable.vi_usb), SD(R.drawable.vi_sd),
-    WORLD(R.drawable.vi_world), RADIO(R.drawable.vi_radio), CALENDAR(R.drawable.vi_calendar), KIDS(R.drawable.vi_kids), ASSISTANT(R.drawable.vi_assistant),
+    WORLD(R.drawable.vi_world), RADIO(R.drawable.vi_radio), CALENDAR(R.drawable.vi_calendar), ASSISTANT(R.drawable.vi_assistant),
     SPLIT(R.drawable.vi_split), SCAN(R.drawable.vi_scan), MIRROR(R.drawable.vi_mirror), ZOOM(R.drawable.vi_zoom), DOC(R.drawable.vi_doc),
     WAVE(R.drawable.vi_wave), RING(R.drawable.vi_ring), RESTART(R.drawable.vi_restart), FILES(R.drawable.vi_files), VIBRATE(R.drawable.vi_vibrate),
     FOCUS_MODE(R.drawable.vi_focus_mode), WORK(R.drawable.vi_work), BED(R.drawable.vi_bed), BOOK(R.drawable.vi_book), GAME(R.drawable.vi_game),

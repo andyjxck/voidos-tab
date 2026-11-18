@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import com.andysocial.voidos.Store
 import com.andysocial.voidos.Su
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -101,6 +102,7 @@ fun HoneycombApps(store: Store, apps: List<AppEntry>, onOpen: (AppEntry) -> Unit
         val h = constraints.maxHeight.toFloat()
         val half = minOf(w, h) / 2f
         val limit = (maxR * cell - half * 0.4f).coerceAtLeast(0f)
+        val spanX = (cells.maxOfOrNull { abs(it.x) } ?: 0f) * cell + cell / 2f
         fun clampBack() = scope.launch {
             val d = hypot(px.value, py.value)
             if (d > limit) {
@@ -123,7 +125,12 @@ fun HoneycombApps(store: Store, apps: List<AppEntry>, onOpen: (AppEntry) -> Unit
                         if (!ch.pressed) break
                         if (dragging != null) break
                         val dlt = ch.positionChange()
-                        if (!moved && hypot(ch.position.x - down.position.x, ch.position.y - down.position.y) > viewConfiguration.touchSlop) moved = true
+                        if (!moved && hypot(ch.position.x - down.position.x, ch.position.y - down.position.y) > viewConfiguration.touchSlop) {
+                            // a sideways swipe turns the page unless there's comb left to see that way
+                            val dx = ch.position.x - down.position.x; val dy = ch.position.y - down.position.y
+                            if (abs(dx) > abs(dy) * 1.4f && !combLeftThatWay(dx, px.value, spanX, w, limit)) break
+                            moved = true
+                        }
                         if (moved) {
                             ch.consume()
                             vt.addPosition(ch.uptimeMillis, ch.position)
@@ -223,3 +230,13 @@ object Split {
     }
 }
 
+/**
+ * True when a sideways drag of [dx] has comb still hidden that way: the comb is wider
+ * than the screen and hasn't been panned to that edge yet. Otherwise the swipe is the page's.
+ */
+internal fun combLeftThatWay(dx: Float, panX: Float, spanX: Float, width: Float, limit: Float = Float.MAX_VALUE): Boolean {
+    val room = minOf(spanX - width / 2f, limit)
+    if (room <= 1f) return false
+    // dragging left (dx < 0) shows the right side: there's more while panX > -room
+    return if (dx < 0f) panX > -room + 1f else panX < room - 1f
+}

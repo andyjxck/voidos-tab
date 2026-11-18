@@ -11,8 +11,8 @@ import androidx.compose.runtime.mutableStateOf
 
 /**
  * The smaller pieces from the feature list that need the system: battery use per
- * app, the notification sound, the next calendar event, FM radio, Dolby, Kids
- * Space, the assistant, USB and screenshots. Everything that blocks runs off the
+ * app, the notification sound, the next calendar event, FM radio, Dolby, the
+ * assistant, USB and screenshots. Everything that blocks runs off the
  * main thread.
  */
 object Extras {
@@ -50,14 +50,47 @@ object Extras {
     // ------------------------------------------------------------ notification sound
     data class Sound(val title: String, val uri: Uri?)
 
+    /** VoidOS's own notification sounds (res/raw/notif_*, made by tools/void_sounds.py) and their names. */
+    val voidSounds = listOf(
+        R.raw.notif_void_drop to "Void Drop", R.raw.notif_void_bubble to "Void Bubble", R.raw.notif_void_orbit to "Void Orbit",
+        R.raw.notif_void_glint to "Void Glint", R.raw.notif_void_pulse to "Void Pulse", R.raw.notif_void_rise to "Void Rise",
+    )
+
+    /**
+     * Puts the Void sounds in the tablet's Notifications folder, where every app's sound picker
+     * finds them. Returns true when it added any (so the list is read again once they're scanned).
+     */
+    fun installVoidSounds(ctx: Context): Boolean {
+        val dir = java.io.File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_NOTIFICATIONS), "Void")
+        val added = mutableListOf<String>()
+        runCatching {
+            dir.mkdirs()
+            voidSounds.forEach { (res, name) ->
+                val f = java.io.File(dir, "$name.ogg")
+                if (!f.exists()) {
+                    ctx.resources.openRawResource(res).use { inp -> f.outputStream().use { inp.copyTo(it) } }
+                    added += f.absolutePath
+                }
+            }
+        }
+        if (added.isEmpty()) return false
+        val latch = java.util.concurrent.CountDownLatch(added.size)
+        android.media.MediaScannerConnection.scanFile(ctx, added.toTypedArray(), Array(added.size) { "audio/ogg" }) { _, _ -> latch.countDown() }
+        runCatching { latch.await(4, java.util.concurrent.TimeUnit.SECONDS) }
+        return true
+    }
+
     fun notificationSounds(ctx: Context): List<Sound> {
+        installVoidSounds(ctx)
         val rm = RingtoneManager(ctx).apply { setType(RingtoneManager.TYPE_NOTIFICATION) }
-        val list = mutableListOf(Sound("None", null))
+        val list = mutableListOf<Sound>()
         runCatching {
             val c = rm.cursor
             while (c.moveToNext()) list += Sound(c.getString(RingtoneManager.TITLE_COLUMN_INDEX), rm.getRingtoneUri(c.position))
         }
-        return list
+        // the Void sounds first, then the tablet's own
+        val names = voidSounds.map { it.second }
+        return listOf(Sound("None", null)) + list.filter { it.title in names }.sortedBy { names.indexOf(it.title) } + list.filter { it.title !in names }
     }
 
     fun currentNotificationSound(ctx: Context): Uri? =
@@ -88,10 +121,9 @@ object Extras {
         }
     }.getOrNull()
 
-    // ------------------------------------------------------------ FM radio, Dolby, Kids Space, assistant
+    // ------------------------------------------------------------ FM radio, Dolby, assistant
     val fmPackages = listOf("com.android.fmradio", "com.mediatek.fmradio", "com.lenovo.fmradio", "com.caf.fmradio", "com.mediatek.FMRadio", "com.android.FMRadio")
     val dolbyPackages = listOf("com.dolby.daxappui", "com.dolby.dax2appUI", "com.dolby.ds1appUI", "com.lenovo.dolby")
-    const val KIDS = "com.google.android.apps.kids.home"
 
     fun installed(ctx: Context, pkg: String) = runCatching { ctx.packageManager.getApplicationInfo(pkg, PackageManager.MATCH_DISABLED_COMPONENTS); true }.getOrDefault(false)
     fun fmPackage(ctx: Context) = fmPackages.firstOrNull { installed(ctx, it) }

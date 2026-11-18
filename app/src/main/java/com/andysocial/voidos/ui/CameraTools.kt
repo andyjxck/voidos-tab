@@ -82,7 +82,7 @@ fun QrImage(text: String, modifier: Modifier = Modifier) {
 
 /** The screen as a light: torch (white, full brightness) or ring light (warm to cool, round the edge). */
 @Composable
-fun LightPane(ring: Boolean) {
+fun LightPane(edge: Boolean = false) {
     val ctx = LocalContext.current
     var warm by remember { mutableFloatStateOf(0.35f) }
     var level by remember { mutableFloatStateOf(1f) }
@@ -96,13 +96,8 @@ fun LightPane(ring: Boolean) {
             w?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
-    Box(Modifier.fillMaxSize().clip(Radius.Panel)) {
-        if (ring) {
-            Box(Modifier.fillMaxSize().background(colour))
-            Box(Modifier.fillMaxSize().padding(56.dp).clip(Radius.Panel).background(Color.Black))
-        } else {
-            Box(Modifier.fillMaxSize().background(colour))
-        }
+    Box(Modifier.fillMaxSize().then(if (edge) Modifier else Modifier.clip(Radius.Panel))) {
+        Box(Modifier.fillMaxSize().background(colour))
         Column(
             Modifier.align(Alignment.BottomCenter).padding(Grid.xl).fillMaxWidth(0.7f),
             verticalArrangement = Arrangement.spacedBy(Grid.m),
@@ -125,7 +120,7 @@ enum class CamMode { SCAN, MIRROR, ZOOM }
 
 /** One camera screen for the QR scanner (rear camera), mirror (front, flipped) and magnifier (rear, zoomed). */
 @Composable
-fun CameraPane(mode: CamMode) {
+fun CameraPane(mode: CamMode, edge: Boolean = false) {
     val ctx = LocalContext.current
     val owner = LocalLifecycleOwner.current
     var allowed by remember { mutableStateOf(ctx.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) }
@@ -141,7 +136,7 @@ fun CameraPane(mode: CamMode) {
     }
     val exec = remember { Executors.newSingleThreadExecutor() }
     var cam by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
-    Box(Modifier.fillMaxSize().clip(Radius.Panel).background(Color.Black)) {
+    Box(Modifier.fillMaxSize().then(if (edge) Modifier else Modifier.clip(Radius.Panel)).background(Color.Black)) {
         AndroidView(
             factory = { c ->
                 PreviewView(c).apply {

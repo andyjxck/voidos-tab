@@ -94,6 +94,9 @@ fun HubPane(store: Store, act: MainActivity) {
     SettingRow("Edge wheels in other apps", if (com.andysocial.voidos.EdgeOverlay.allowed.value) null else "Needs permission") {
         VToggle(store.edgeInApps) { store.set("edgeInApps", it); com.andysocial.voidos.EdgeOverlay.sync(ctx, store) }
     }
+    SettingRow("Tap sound") {
+        VToggle(store.tapSound) { store.set("tapSound", it); if (it) com.andysocial.voidos.TapSound.play() }
+    }
     SettingRow("Living background") {
         VToggle(store.motion) { store.set("motion", it) }
     }

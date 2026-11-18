@@ -1,5 +1,13 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.ui.input.pointer.pointerInput
+
+import androidx.compose.ui.platform.testTag
+
+import androidx.compose.ui.semantics.contentDescription
+
+import androidx.compose.ui.semantics.semantics
+
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.graphics.lerp
 
@@ -37,6 +45,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -69,8 +78,60 @@ enum class KTab(val label: String, val glyph: G) {
     TIMERS("Timers", G.TIMER), STOPWATCH("Stopwatch", G.STOPWATCH), ALARMS("Alarms", G.BELL), WORLD("World", G.WORLD),
     CALENDAR("Calendar", G.CALENDAR), CONVERT("Convert", G.CONVERT), LIST("List", G.LIST), MEMO("Memos", G.MIC),
     LEVEL("Level", G.LEVEL), METER("Sound", G.METER), SCAN("QR scan", G.QR), MIRROR("Mirror", G.MIRROR),
-    ZOOM("Magnifier", G.ZOOM), TORCH("Torch", G.TORCH), RING("Ring light", G.LIGHT),
-    FILES("Files", G.FOLDER), SHARE("Send files", G.SEND), CAST("Cast", G.CAST), DOCSCAN("Doc scan", G.DOC), FM("FM radio", G.RADIO),
+    ZOOM("Magnifier", G.ZOOM), TORCH("Torch", G.TORCH),
+    FILES("Files", G.FOLDER), DOCSCAN("Doc scan", G.DOC),
+}
+
+/** The four groups on the Tools screen, each with its tools in order. */
+enum class KGroup(val label: String, val tabs: List<KTab>) {
+    TIME("Time", listOf(KTab.TIMERS, KTab.STOPWATCH, KTab.ALARMS, KTab.WORLD)),
+    ORGANISE("Organise", listOf(KTab.CALENDAR, KTab.LIST, KTab.MEMO, KTab.FILES)),
+    CAMERA("Camera", listOf(KTab.SCAN, KTab.DOCSCAN, KTab.ZOOM, KTab.MIRROR)),
+    UTILITIES("Utilities", listOf(KTab.CONVERT, KTab.LEVEL, KTab.METER, KTab.TORCH));
+
+    companion object {
+        fun of(t: KTab): KGroup = entries.firstOrNull { t in it.tabs } ?: UTILITIES
+    }
+}
+
+/** One tool's name in the row under the group bar: no pill, no border; the chosen one is bright. */
+@Composable
+private fun ToolName(t: KTab, on: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.clip(Pill).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Glyph(t.glyph, if (on) V.Teal else V.Muted, Modifier.size(16.dp))
+        Gap(w = 6.dp)
+        VText(t.label, size = Type.body, font = if (on) SansMedium else Sans, color = if (on) V.White else V.Text.copy(alpha = 0.6f), maxLines = 1)
+    }
+}
+
+/** The tools that open over the whole screen, edge to edge. */
+val FULL_TOOLS = setOf(KTab.MIRROR, KTab.TORCH)
+
+/** The tool open over the whole screen right now, if any. */
+val fullTool = mutableStateOf<KTab?>(null)
+
+/** The mirror or the torch, edge to edge over everything, with one glass button to close it. */
+@Composable
+fun FullToolOverlay() {
+    val t = fullTool.value ?: return
+    Box(
+        Modifier.fillMaxSize().background(Color.Black).testTag("full_tool")
+            // nothing under it moves while it's open
+            .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { it.consume() } } },
+    ) {
+        when (t) {
+            KTab.MIRROR -> CameraPane(CamMode.MIRROR, edge = true)
+            else -> LightPane(edge = true)
+        }
+        Box(
+            Modifier.align(Alignment.TopEnd).padding(20.dp).size(52.dp).glass(CircleShape, 0.7f)
+                .clickable { fullTool.value = null }.semantics { contentDescription = "Close ${t.label}" },
+            contentAlignment = Alignment.Center,
+        ) { Glyph(G.CLOSE, V.White, Modifier.size(24.dp)) }
+    }
 }
 
 /** A tool another screen asked to open (the control centre's Cast, Files...). */
@@ -96,10 +157,27 @@ fun ToolsScreen(store: Store) {
     var tab by rememberSaveable { mutableStateOf(KTab.TIMERS) }
     val wantTool by pendingTool
     LaunchedEffect(wantTool) { wantTool?.let { tab = it; pendingTool.value = null } }
+    // the last tool used in each group, so switching group comes back to where you were
+    val lastIn = remember { mutableStateMapOf<KGroup, KTab>() }
+    val group = KGroup.of(tab)
+    LaunchedEffect(tab) { lastIn[group] = tab }
+    // the mirror and the torch take the whole screen; closing them comes back to the tool before
+    var before by rememberSaveable { mutableStateOf(KTab.TIMERS) }
+    val full by fullTool
+    LaunchedEffect(tab) { if (tab in FULL_TOOLS) fullTool.value = tab else before = tab }
+    LaunchedEffect(full) { if (full == null && tab in FULL_TOOLS) tab = before }
     Column(Modifier.fillMaxSize()) {
-        // ten tools: a scrolling row of glass chips rather than one cramped bar
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            KTab.entries.forEach { t -> Chip(t.label, t == tab, V.Teal, glyph = t.glyph) { tab = t } }
+        // twenty tools in four groups: one glass bar picks the group, a quiet row of names picks the tool
+        GlassSegments(
+            KGroup.entries.map { it.name to it.label }, group.name,
+            Modifier.align(Alignment.CenterHorizontally).widthIn(max = 560.dp), height = 46.dp,
+        ) { k -> val g = KGroup.valueOf(k); tab = lastIn[g] ?: g.tabs.first() }
+        Gap(h = 10.dp)
+        Row(
+            Modifier.align(Alignment.CenterHorizontally).horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            group.tabs.forEach { t -> ToolName(t, t == tab) { tab = t } }
         }
         Gap(h = 16.dp)
         Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -109,15 +187,10 @@ fun ToolsScreen(store: Store) {
                 KTab.CONVERT -> ConvertPane()
                 KTab.LIST -> ShoppingPane(store)
                 KTab.SCAN -> CameraPane(CamMode.SCAN)
-                KTab.MIRROR -> CameraPane(CamMode.MIRROR)
+                KTab.MIRROR, KTab.TORCH -> Box(Modifier.fillMaxSize())
                 KTab.ZOOM -> CameraPane(CamMode.ZOOM)
-                KTab.TORCH -> LightPane(ring = false)
-                KTab.RING -> LightPane(ring = true)
-                KTab.FILES -> FilesPane(store) { Share.files = (Share.files + it).distinct(); tab = KTab.SHARE }
-                KTab.SHARE -> Column(Modifier.verticalScroll(rememberScrollState())) { SharePane(store) }
-                KTab.CAST -> Column(Modifier.verticalScroll(rememberScrollState()).widthIn(max = 720.dp)) { CastPane() }
+                KTab.FILES -> FilesPane(store) { }
                 KTab.DOCSCAN -> DocScanPane(store)
-                KTab.FM -> FmPane(store)
                 else -> MoreToolsPane(tab, store)
             }
         }

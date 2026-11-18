@@ -73,6 +73,13 @@ class Store(private val ctx: Context) {
     var deskMode by mutableStateOf(p.getBoolean("deskMode", true)); private set
     var hideLenovo by mutableStateOf(p.getBoolean("hideLenovo", false)); private set
     var use24h by mutableStateOf(p.getBoolean("use24h", true)); private set
+
+    /** Screens left out of the side wheel (their Module names). The screens themselves stay. */
+    var wheelHidden by mutableStateOf(p.getStringSet("wheelHidden", emptySet())!!.toSet()); private set
+    fun setWheelShown(module: String, shown: Boolean) {
+        wheelHidden = if (shown) wheelHidden - module else wheelHidden + module
+        p.edit().putStringSet("wheelHidden", wheelHidden).apply()
+    }
     var ambientMinutes by mutableStateOf(p.getInt("ambientMinutes", 5)); private set
     var allowed by mutableStateOf(p.getStringSet("allowed", emptySet())!!.toSet()); private set
     var city by mutableStateOf(p.getString("city", "Redditch")!!); private set
@@ -120,9 +127,6 @@ class Store(private val ctx: Context) {
     ); private set
     /** Apps whose notifications are switched off (VoidOS clears them and Android stops them). */
     var mutedApps by mutableStateOf(p.getStringSet("mutedApps", emptySet())!!.toSet().also { VoidListener.muted = it }); private set
-    /** Guest mode: only guestApps open, Notes, Settings and notifications are hidden until the PIN. */
-    var guest by mutableStateOf(p.getBoolean("guest", false)); private set
-    var guestApps by mutableStateOf(p.getStringSet("guestApps", emptySet())!!.toSet()); private set
     /** Lying face down also turns Do Not Disturb on until it's picked up. */
     var faceDownQuiet by mutableStateOf(p.getBoolean("faceDownQuiet", false)); private set
     /** The resting clock glows when there are unread notifications. */
@@ -132,17 +136,17 @@ class Store(private val ctx: Context) {
         VoidListener.muted = mutedApps
         p.edit().putStringSet("mutedApps", mutedApps).apply()
     }
-    fun setGuestApp(pkg: String, on: Boolean) {
-        guestApps = if (on) guestApps + pkg else guestApps - pkg
-        p.edit().putStringSet("guestApps", guestApps).apply()
-    }
 
     /** The VoidOS PIN as "pbkdf2$<rounds>$<salt hex>$<hash hex>"; empty means still the starting code. */
     private var vpin: String = p.getString("voidPin", "")!!
 
+    /** A soft tick on every tap. */
+    var tapSound by mutableStateOf(p.getBoolean("tapSound", true)); private set
+
     fun set(key: String, v: Boolean) {
         p.edit().putBoolean(key, v).apply()
         when (key) {
+            "tapSound" -> tapSound = v
             "setupDone" -> setupDone = v
             "kiosk" -> kiosk = v
             "hideBars" -> hideBars = v
@@ -162,7 +166,6 @@ class Store(private val ctx: Context) {
             "autoNight" -> autoNight = v
             "alarmVibrate" -> alarmVibrate = v
             "waveWake" -> waveWake = v
-            "guest" -> guest = v
             "faceDownQuiet" -> faceDownQuiet = v
             "notifyLight" -> notifyLight = v
             "faceDown" -> faceDown = v
@@ -223,9 +226,34 @@ class Store(private val ctx: Context) {
         p.edit().putStringSet("allowed", allowed).apply()
     }
 
+    /** Places kept on the Weather screen, as "name|lat|lon", in the order they were added. */
+    var places by mutableStateOf(p.getString("places", "")!!.split("\n").filter { it.count { c -> c == '|' } == 2 }); private set
+    fun addPlace(name: String, la: Float, lo: Float) {
+        val e = "$name|$la|$lo"
+        if (places.none { it.substringBefore('|') == name }) { places = places + e; p.edit().putString("places", places.joinToString("\n")).apply() }
+    }
+    fun removePlace(e: String) { places = places - e; p.edit().putString("places", places.joinToString("\n")).apply() }
+
     fun setPlace(name: String, la: Float, lo: Float) {
         city = name; lat = la; lon = lo
         p.edit().putString("city", name).putFloat("lat", la).putFloat("lon", lo).apply()
+        // the last place the tablet found itself, so "Here" can come straight back when you swipe to it
+        if (autoPlace) p.edit().putString("here", "$name|$la|$lo").apply()
+    }
+
+    /** Where the tablet last found itself, as "name|lat|lon", or null if it never has. */
+    fun herePlace(): String? = p.getString("here", null)?.takeIf { it.count { c -> c == '|' } == 2 }
+
+    /** The last forecast fetched for each place ("lat,lon" -> {raw, t}), so switching place never shows another place's weather. */
+    fun weatherCacheFor(place: String): String? =
+        runCatching { org.json.JSONObject(p.getString("wxPlaces", "{}")!!).optJSONObject(place)?.toString() }.getOrNull()
+    fun setWeatherCacheFor(place: String, json: String) {
+        val all = runCatching { org.json.JSONObject(p.getString("wxPlaces", "{}")!!) }.getOrDefault(org.json.JSONObject())
+        all.put(place, org.json.JSONObject(json))
+        // only the places you keep (and wherever you are now) are worth holding on to
+        val keep = places.map { val f = it.split('|'); "${f[1]},${f[2]}" }.toSet() + place + "$lat,$lon"
+        all.keys().asSequence().toList().filter { it !in keep }.forEach { all.remove(it) }
+        p.edit().putString("wxPlaces", all.toString()).apply()
     }
 
     // ---- the VoidOS PIN: one code for the lock screen and the way out ----
@@ -267,6 +295,12 @@ class Store(private val ctx: Context) {
             Note(o.getLong("id"), o.getString("text"), o.optInt("colour", 0), o.optLong("updated"), strokesFromJson(o.optJSONArray("ink")))
         }
     }.getOrDefault(emptyList())
+
+    /** Changes a note's colour without moving it up the list. */
+    fun setNoteColour(id: Long, colour: Int) {
+        notes = notes.map { if (it.id == id) it.copy(colour = colour) else it }
+        writeNotes()
+    }
 
     fun saveNote(n: Note) {
         val rest = notes.filter { it.id != n.id }

@@ -623,12 +623,6 @@ fun EdgeWheels(
                 }
                 // the chosen slot's name, floating just outside the band in its own drop of glass
                 WheelLabel(mo, items) { a -> at(open, a, px(Geo.rOut + 22f)) to (open == Edge.LEFT) }
-                if (open == Edge.RIGHT && items.isEmpty()) {
-                    val p = at(open, 0f, px(Geo.rOut + 18f))
-                    Box(Modifier.offset { IntOffset((p.x - px(300f)).roundToInt(), (p.y - px(40f)).roundToInt()) }.width(300.dp)) {
-                        VText("Apps you open from VoidOS appear here.", size = 15.sp, color = V.Text, align = androidx.compose.ui.text.style.TextAlign.End)
-                    }
-                }
                 // the hub: a glass orb with the VoidOS mark on the tab wheel, the app grid on the other
                 val hubC = hubAt(open)
                 Box(
@@ -737,6 +731,7 @@ fun EdgeWheels(
             } else {
                 EdgeSwipe.sink = sink
                 EdgeSwipe.enabled = enabled && !(side != null && sticky)
+                EdgeSwipe.rightEnabled = appsNow.isNotEmpty()
             }
         }
         DisposableEffect(Unit) {

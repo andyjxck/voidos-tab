@@ -42,6 +42,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -73,6 +74,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -201,7 +203,14 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
 
     val side = if (portrait) 22.dp else 40.dp
     // while a wheel is open the page holds still in one cached texture, so the GPU only redraws the wheel
-    Column(Modifier.fillMaxSize().stillWhileHeld()) {
+    // there's no back button to put the keyboard away: a tap on anything that isn't a control does it,
+    // and so does turning the page
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    LaunchedEffect(pager.currentPage) { focus.clearFocus() }
+    Column(
+        Modifier.fillMaxSize().stillWhileHeld()
+            .pointerInput(Unit) { detectTapGestures(onTap = { focus.clearFocus() }) },
+    ) {
         StatusStrip(store, module, Modifier.padding(horizontal = side), onPull = { control = true })
         HorizontalPager(
             state = pager,
@@ -219,7 +228,8 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
                         Module.FACE -> FaceScreen(store, onOpen = { go(it) })
                         Module.TOOLS -> ToolsScreen(store)
                         Module.WEATHER -> WeatherScreen(store)
-                        Module.NOTES, Module.SYSTEM -> if (store.guest) GuestGate(store) else if (mod == Module.NOTES) NotesScreen(store) else SystemScreen(store, act)
+                        Module.NOTES -> NotesScreen(store)
+                        Module.SYSTEM -> SystemScreen(store, act)
                         Module.MEDIA -> MediaScreen()
                         Module.APPS -> AppsScreen(store)
                     }
@@ -233,7 +243,13 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
         store.recentApps.filter { blockReason(ctx, store, it) == null }.take(7)
     }
     val all = remember(apps) { AppsRepo.all(ctx) }
-    val tabItems = remember(pages) { pages.map { m -> WheelItem(m.name, m.label) { mod, c -> Glyph(m.glyph, c, mod) } } }
+    // the side wheel shows the screens you picked, then a pencil at its end to change them:
+    // slide past the last screen onto it, or tap it
+    var editWheel by remember { mutableStateOf(false) }
+    val tabItems = remember(pages, store.wheelHidden) {
+        pages.filter { it.name !in store.wheelHidden }.map { m -> WheelItem(m.name, m.label) { mod, c -> Glyph(m.glyph, c, mod) } } +
+            WheelItem(WHEEL_EDIT, "Edit") { mod, c -> Glyph(G.PEN, c.copy(alpha = 0.7f), mod) }
+    }
     val appItems = remember(apps, all, store.iconStyle) {
         apps.mapNotNull { pkg ->
             val e = all.firstOrNull { it.pkg == pkg } ?: return@mapNotNull null
@@ -243,14 +259,16 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
     EdgeWheels(
         tabs = tabItems,
         currentTab = module.name,
-        onTab = { k -> go(Module.valueOf(k), animate = false) },
+        onTab = { k -> if (k == WHEEL_EDIT) editWheel = true else go(Module.valueOf(k), animate = false) },
         apps = appItems,
         onApp = { pkg -> if (!launchApp(ctx, store, pkg)) store.forgetRecent(pkg) },
         onAllApps = { go(Module.APPS, animate = false) },
         // anything over the screens (lock, ringing timer, control centre, the way out, the ambient clock) keeps the edges
-        enabled = edgeOff(escape, control, ambient, LockState.locked.value && store.voidLock).isEmpty(),
+        enabled = edgeOff(escape, control, ambient, LockState.locked.value && store.voidLock).isEmpty() && fullTool.value == null,
     )
+    FullToolOverlay()
 
+    if (editWheel) WheelPagesEditor(store, pages) { editWheel = false }
     EdgeDebugOverlay()
     val ccReq by EdgeSwipe.controlRequest
     LaunchedEffect(ccReq) { if (ccReq) { EdgeSwipe.controlRequest.value = false; control = true } }
@@ -258,6 +276,43 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
     AppSwitcher(store)
     if (ambient) AmbientClock(store)
     if (escape) EscapeOverlay(store, act, onClose = { escape = false })
+}
+
+/** The key of the pencil at the end of the side wheel. */
+const val WHEEL_EDIT = "__edit"
+
+/** Picks which screens the side wheel shows. Home always stays, so the wheel is never empty. */
+@Composable
+private fun WheelPagesEditor(store: Store, pages: List<Module>, onDone: () -> Unit) {
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f))
+            .pointerInput(Unit) { detectTapGestures(onTap = { onDone() }) },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier.widthIn(max = 420.dp).fillMaxWidth(0.86f).glass(RoundedCornerShape(32.dp))
+                .pointerInput(Unit) { detectTapGestures { } }
+                .padding(horizontal = 22.dp, vertical = 18.dp),
+        ) {
+            VText("Side wheel", size = Type.title, font = SansMedium, color = V.White)
+            Gap(h = 10.dp)
+            pages.forEach { m ->
+                val shown = m.name !in store.wheelHidden
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                        .tap { if (m != Module.FACE) store.setWheelShown(m.name, !shown) }.padding(vertical = 10.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Glyph(m.glyph, if (shown) V.Teal else V.Muted, Modifier.size(24.dp))
+                    Gap(w = 14.dp)
+                    VText(m.label, size = Type.body, color = if (shown) V.White else V.Muted, modifier = Modifier.weight(1f))
+                    VToggle(shown, enabled = m != Module.FACE) { store.setWheelShown(m.name, it) }
+                }
+            }
+            Gap(h = 12.dp)
+            GlassActions(listOf(GlassAction("Done", onClick = onDone)), height = 46.dp)
+        }
+    }
 }
 
 /** Why the edges are off right now, for the debug overlay and the log; empty when they're on. */
@@ -411,7 +466,7 @@ fun AmbientClock(store: Store) {
             VText(SimpleDateFormat("EEEE d MMMM", Locale.UK).format(Date(now)), size = Type.title, color = V.Muted.copy(alpha = 0.6f))
             // the notification light the tablet doesn't have: a slow teal glow while something new waits
             val waiting = com.andysocial.voidos.VoidListener.notices.value
-            if (store.notifyLight && waiting.isNotEmpty() && !store.guest) {
+            if (store.notifyLight && waiting.isNotEmpty()) {
                 val pulse by androidx.compose.animation.core.rememberInfiniteTransition(label = "notify").animateFloat(
                     0.25f, 0.9f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1800), androidx.compose.animation.core.RepeatMode.Reverse), label = "glow",
                 )

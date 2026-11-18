@@ -434,26 +434,28 @@ private fun Volume(modifier: Modifier) {
     }
 }
 
-/** Brown noise made on the tablet: one row, a switch, and Swell once it's on. */
+/** Brown noise made on the tablet: one glass bar like the player above, a round play button, and Steady / Swell once it's on. */
 @Composable
 private fun NoiseRow() {
     val noiseOn by Noise.on
     var swell by remember { mutableStateOf(Noise.swell) }
+    val shape = RoundedCornerShape(50)
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.card)).background(GroupFill).padding(horizontal = 16.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().liquidGlass(shape, GlassLook(smoke = 1.1f)).padding(start = 8.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
-            VText("Brown noise", size = Type.headline, color = V.Text)
-            VText(if (noiseOn) "Playing, made on the tablet" else "Steady background sound, no internet needed", size = Type.caption, color = V.Muted, maxLines = 1)
-        }
+        Box(
+            Modifier.size(48.dp).clip(CircleShape).background(if (noiseOn) V.Teal.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.07f))
+                .tap { if (noiseOn) Noise.stop() else Noise.start() }.semantics { contentDescription = if (noiseOn) "Stop brown noise" else "Play brown noise" },
+            contentAlignment = Alignment.Center,
+        ) { Glyph(if (noiseOn) G.PAUSE else G.WAVE, if (noiseOn) V.Teal else V.Text, Modifier.size(24.dp)) }
+        Gap(w = 14.dp)
+        VText("Brown noise", size = Type.headline, color = if (noiseOn) V.White else V.Text, modifier = Modifier.weight(1f), maxLines = 1)
         if (noiseOn) {
-            VText("Swell", size = Type.label, color = V.Muted)
-            Gap(w = 8.dp)
-            VToggle(swell) { swell = it; Noise.swell = it }
-            Gap(w = 16.dp)
+            GlassSegments(listOf("steady" to "Steady", "swell" to "Swell"), if (swell) "swell" else "steady", Modifier.width(210.dp), height = 40.dp) {
+                swell = it == "swell"; Noise.swell = swell
+            }
         }
-        VToggle(noiseOn) { if (it) Noise.start() else Noise.stop() }
     }
 }
 

@@ -22,6 +22,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onAllNodesWithText
@@ -330,17 +331,29 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
             val left = rule.onAllNodesWithText(gone, substring = true, ignoreCase = true, useUnmergedTree = true).fetchSemanticsNodes()
             assertTrue("[$tag] \"$gone\" should be gone from Tools", left.isEmpty())
         }
-        tap("Convert"); expect("Kilograms", "Pounds"); shot("03_tools_convert")
+        // the tools sit in four groups picked from one glass bar
+        expect("Time", "Organise", "Camera", "Utilities", "Stopwatch", "World")
+        tap("Utilities"); tap("Convert"); expect("Kilograms", "Pounds"); shot("03_tools_convert")
         tap("Temperature"); expect("Gas mark"); shot("04_tools_convert_temperature")
-        tap("List"); expect("Sourdough loaf", "Cheddar"); shot("06_tools_list")
+        tap("Organise"); tap("List"); expect("Sourdough loaf", "Cheddar"); shot("06_tools_list")
+        // cast, sending files, FM radio and the ring light are gone
+        tap("Utilities")
+        listOf("Cast", "Send files", "FM radio", "Ring light").forEach { gone ->
+            val left = rule.onAllNodesWithText(gone, useUnmergedTree = true).fetchSemanticsNodes()
+            assertTrue("[$tag] \"$gone\" should be gone from Tools", left.isEmpty())
+        }
     }
 
     @Test fun newTools() {
         show { Shell(store, act, Module.TOOLS) }
-        tap("Files"); expect("Tablet"); shot("06b_tools_files")
-        tap("Send files"); expect("Add files", "Start"); shot("06c_tools_send_files")
-        tap("FM radio"); shot("06d_tools_fm")
-        tap("Cast"); expect("Look again"); shot("06e_tools_cast")
+        tap("Organise"); tap("Files"); expect("Tablet"); shot("06b_tools_files")
+        tap("Camera"); tap("Doc scan"); shot("06c_tools_docscan")
+        tap("Utilities"); tap("Torch"); settle(400)
+        // the torch takes the whole screen, with one button to close it
+        assertTrue("[$tag] torch fills the screen", rule.onAllNodesWithTag("full_tool").fetchSemanticsNodes().isNotEmpty())
+        shot("06d_tools_torch_full")
+        rule.onNodeWithContentDescription("Close Torch").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick); settle(600)
+        assertTrue("[$tag] torch closed", rule.onAllNodesWithTag("full_tool").fetchSemanticsNodes().isEmpty())
     }
 
     @Test fun alarms() {
@@ -580,13 +593,15 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         // finger on the left edge, then slide down and out: the tab wheel opens and follows
         down(4f, midY); drag(4f, midY, 40f, midY + 160f)
         settle(600)
-        // sliding down and out lands on the last slot, Settings
-        expect("Settings"); shot("17_tab_wheel")
+        // sliding down and out lands on the last slots: Settings, then the pencil past it
+        shot("17_tab_wheel")
         touchT += 600 // held on the slot a moment, as a person choosing does
         up(40f, midY + 160f)
         settle(800)
-        // letting go opens it
-        expect("Wi-Fi", "Bluetooth")
+        // letting go opens Settings, or on the pencil the picker for which screens the wheel shows
+        if (rule.onAllNodesWithText("Side wheel").fetchSemanticsNodes().isNotEmpty()) {
+            expect("Home", "Settings", "Done"); shot("17a_wheel_pages"); tap("Done")
+        } else expect("Wi-Fi", "Bluetooth")
         // a slide up the edge from there picks a slot above
         down(4f, midY); drag(4f, midY, 4f, midY - 220f)
         settle(600)

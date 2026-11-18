@@ -497,7 +497,7 @@ private fun RoundButtons(st: CcState, store: Store, act: MainActivity, onClose: 
     data class B(val g: G, val label: String, val on: Boolean, val accent: Color, val act: () -> Unit)
     val items = buildList {
         add(B(G.LIGHT, "Stay awake", store.deskMode, V.Sun) { store.set("deskMode", !store.deskMode); act.applyPolicies() })
-        if (!store.guest) add(B(G.BELL, "Notifications", com.andysocial.voidos.VoidListener.notices.value.isNotEmpty(), V.Teal) { expand(CcPart.NOTICES) })
+        add(B(G.BELL, "Notifications", com.andysocial.voidos.VoidListener.notices.value.isNotEmpty(), V.Teal) { expand(CcPart.NOTICES) })
         com.andysocial.voidos.Extras.assistantIntent(ctx)?.let { ai ->
             add(B(G.ASSISTANT, "Assistant", false, V.Text) {
                 onClose()
@@ -505,8 +505,8 @@ private fun RoundButtons(st: CcState, store: Store, act: MainActivity, onClose: 
                 runCatching { ctx.startActivity(ai) }
             })
         }
-        if (!store.guest) add(B(G.SYSTEM, "Settings", false, V.Text) { onClose(); onSettings() })
-        if (!store.guest) add(B(G.POWER, "Power", false, V.Text) { expand(CcPart.POWER) })
+        add(B(G.SYSTEM, "Settings", false, V.Text) { onClose(); onSettings() })
+        add(B(G.POWER, "Power", false, V.Text) { expand(CcPart.POWER) })
     }
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         val d = min(min(maxWidth / 2 - 18.dp, maxHeight / 2 - 30.dp), 64.dp)
@@ -1078,8 +1078,6 @@ private fun QuickToggles(onClose: () -> Unit, modifier: Modifier, perRow: Int) {
             if (rec) scope.launch { withContext(Dispatchers.IO) { com.andysocial.voidos.Device.stopRecording() }; rec = false; android.widget.Toast.makeText(ctx, "Recording saved to Movies", android.widget.Toast.LENGTH_SHORT).show() }
             else { onClose(); scope.launch { kotlinx.coroutines.delay(450); rec = withContext(Dispatchers.IO) { com.andysocial.voidos.Device.startRecording() } } }
         }),
-        Triple(G.CAST, "Cast screen", false to { onClose(); openTool(KTab.CAST) }),
-        Triple(G.SEND, "Send files", false to { onClose(); openTool(KTab.SHARE) }),
     )
     Column(modifier) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {

@@ -115,7 +115,6 @@ fun blockReason(ctx: Context, store: Store, pkg: String): String? {
     if (runCatching { pm.isPackageSuspended(pkg) }.getOrDefault(false)) return "paused by Android"
     // the drawer shows only the apps chosen in Manage; the rest stay hidden and can't be opened from VoidOS
     if (pkg !in store.allowed) return HIDDEN
-    if (store.guest && pkg !in store.guestApps) return "off in guest mode"
     return null
 }
 
@@ -310,7 +309,7 @@ fun AppsScreen(store: Store) {
     val q = query.trim()
     val match = if (q.isEmpty()) all else all.filter { it.label.contains(q, ignoreCase = true) }
     // only the apps chosen in Manage that Android will also open; everything else is simply not here
-    val reasons = remember(all, store.allowed, store.guest, store.guestApps, refresh) { all.associate { it.pkg to blockReason(ctx, store, it.pkg) } }
+    val reasons = remember(all, store.allowed, refresh) { all.associate { it.pkg to blockReason(ctx, store, it.pkg) } }
     val open = match.filter { reasons[it.pkg] == null }
     val shownCount = all.count { reasons[it.pkg] == null }
     val favs = store.favs.mapNotNull { f -> all.firstOrNull { it.pkg == f && reasons[it.pkg] == null } }
@@ -341,9 +340,13 @@ fun AppsScreen(store: Store) {
             else {
                 if (q.isEmpty() && quick.isNotEmpty()) {
                     Gap(h = 12.dp)
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        quick.forEach { qk -> QuickTile(qk) { runQuick(ctx, store, qk) } }
-                    }
+                    // the shortcuts as one long glass bar, like the Off / Automatic / Provider picker in Settings:
+                    // equal segments inside the same glass, no separate pills. Icon over name when six share a narrow screen.
+                    val stack = portrait && quick.size > 4
+                    GlassActions(
+                        quick.map { qk -> GlassAction(qk.label, qk.glyph) { runQuick(ctx, store, qk) } },
+                        height = if (stack) 60.dp else 48.dp, stacked = stack,
+                    )
                 }
                 Gap(h = 8.dp)
                 if (open.isEmpty()) {
@@ -395,22 +398,6 @@ fun AppsScreen(store: Store) {
                 RoundIcon(G.CLOSE, "Dismiss", size = 34.dp) { launchMsg.value = null; blocked.value = null }
             }
         }
-    }
-}
-
-@Composable
-private fun QuickTile(q: Quick, onClick: () -> Unit) {
-    Row(
-        Modifier.clip(Pill).background(Color.White.copy(alpha = 0.06f)).tap(onClick).padding(start = 6.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // the same glass drop as the app icons, in the shortcut's colour
-        Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
-            GlassDrop(q.accent, Modifier.size(28.dp)) {}
-            Glyph(q.glyph, Color.White, Modifier.size(14.dp))
-        }
-        Gap(w = 8.dp)
-        VText(q.label, size = Type.body, color = V.Text, maxLines = 1)
     }
 }
 

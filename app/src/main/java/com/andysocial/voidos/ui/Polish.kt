@@ -69,10 +69,13 @@ fun SearchPill(query: String, onChange: (String) -> Unit, modifier: Modifier = M
         Gap(w = 8.dp)
         Box(Modifier.weight(1f)) {
             if (query.isEmpty()) VText(hint, size = Type.body, color = V.Muted)
+            val focus = androidx.compose.ui.platform.LocalFocusManager.current
             BasicTextField(
                 query, onChange, singleLine = true,
                 textStyle = TextStyle(color = V.Text, fontSize = 15.sp, fontFamily = Sans),
                 cursorBrush = SolidColor(V.Teal), modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { focus.clearFocus() }, onDone = { focus.clearFocus() }),
             )
         }
         if (query.isNotEmpty()) Box(Modifier.size(28.dp).tap { onChange("") }, contentAlignment = Alignment.Center) {

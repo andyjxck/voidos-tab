@@ -28,6 +28,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        TapSound.init(this)
         live = java.lang.ref.WeakReference(this)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         Policy.applyAll(this)
@@ -122,6 +123,7 @@ class MainActivity : ComponentActivity() {
             swallowTouch = true
         }
         Idle.touch()
+        TapSound.onTouch(ev, !swallowTouch && VoidApp.instance.store.tapSound, android.view.ViewConfiguration.get(this).scaledTouchSlop.toFloat())
         if (swallowTouch) {
             if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) swallowTouch = false
             return true
@@ -147,7 +149,7 @@ class MainActivity : ComponentActivity() {
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 val on = EdgeSwipe.enabled && sink != null
-                val a = edge.down(ev.x, ev.y, width, t, on)
+                val a = edge.down(ev.x, ev.y, width, t, on, EdgeSwipe.rightEnabled)
                 EdgeSwipe.lastDown.value = ev.x to ev.y
                 val d = minOf(ev.x, width - ev.x) / resources.displayMetrics.density
                 if (d <= EdgeSwipe.SOFT_DP * 2 || !on) {

@@ -104,7 +104,7 @@ fun SystemScreen(store: Store, act: MainActivity) {
                 when (tab) {
                     Tab.WIFI -> WifiPane(act)
                     Tab.BT -> BtPane()
-                    Tab.DISPLAY -> { DisplayPane(store, act); DolbyRow(store) }
+                    Tab.DISPLAY -> DisplayPane(store, act)
                     Tab.HUB -> HubPane(store, act)
                     Tab.QUIET -> QuietPane(act)
                     Tab.TIME -> TimePane(store, act)
@@ -113,7 +113,7 @@ fun SystemScreen(store: Store, act: MainActivity) {
                     Tab.NET -> { NetworkPane(); Gap(h = 24.dp); NetworkExtras() }
                     Tab.STORAGE -> { StoragePane(store); Gap(h = 24.dp); StorageExtras(); Gap(h = 24.dp); AppsExtras(store) }
                     Tab.ANDROID -> SystemSettingsPane(store, act)
-                    Tab.VOID -> { VoidPane(store, act); Gap(h = 24.dp); GuestAndKids(store) }
+                    Tab.VOID -> VoidPane(store, act)
                     Tab.ABOUT -> AboutTabletPane(store, act)
                 }
             }

@@ -187,7 +187,19 @@ internal fun octRadius(a: Float, t: Double): Float {
 
 /** The system's thin and regular sans as Android typefaces, for text centred by its ink rather than its line box. */
 @Composable
-fun rememberFace(name: String): Typeface = remember(name) { Typeface.create(name, Typeface.NORMAL) }
+fun rememberFace(name: String): Typeface {
+    // the canvas-drawn clocks use the same Inter as the rest of VoidOS
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    return remember(name) {
+        val res = when (name) {
+            "sans-serif-thin" -> com.andysocial.voidos.R.font.inter_thin
+            "sans-serif-light" -> com.andysocial.voidos.R.font.inter_light
+            "sans-serif-medium" -> com.andysocial.voidos.R.font.inter_semibold
+            else -> com.andysocial.voidos.R.font.inter_regular
+        }
+        runCatching { androidx.core.content.res.ResourcesCompat.getFont(ctx, res) }.getOrNull() ?: Typeface.create(name, Typeface.NORMAL)
+    }
+}
 
 /**
  * Text sized to its ink and drawn dead centre in it. SansMedium's digits sit left
@@ -250,8 +262,19 @@ private fun Dial(store: Store, now: Long, onOpen: (Module) -> Unit, scale: Float
             },
             below = {
                 Spacer(Modifier.height(10.dp))
-                if (running.isNotEmpty()) TimerPills(running, now, timePx / 400f, onOpen)
-                NextAlarm(now, store.use24h, timePx / 400f, top = running.isNotEmpty(), onOpen)
+                val px = timePx / 400f
+                // other places first, side by side, then what's running: timers, the stopwatch, the next alarm
+                val zone = java.util.TimeZone.getDefault()
+                val away = store.worldClocks.filter { (_, z) -> java.util.TimeZone.getTimeZone(z).getOffset(now) != zone.getOffset(now) }.take(2)
+                if (away.isNotEmpty()) { WorldTimes(away, now, store.use24h, px, onOpen); Spacer(Modifier.height(with(d) { (14 * px).toDp() })) }
+                val sw = Stopwatch.running || Stopwatch.elapsed(now) > 0L
+                if (running.isNotEmpty() || sw) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(with(d) { (10 * px).toDp() }), verticalAlignment = Alignment.CenterVertically) {
+                        if (running.isNotEmpty()) TimerPills(running, now, px, onOpen)
+                        if (sw) StopwatchPill(now, px, onOpen)
+                    }
+                }
+                NextAlarm(now, store.use24h, px, top = running.isNotEmpty() || sw, onOpen)
             },
         )
     }
@@ -291,15 +314,49 @@ private fun NextAlarm(now: Long, use24h: Boolean, px: Float, top: Boolean, onOpe
     val next = com.andysocial.voidos.AlarmMath.soonest(com.andysocial.voidos.Alarms.list.value, now, com.andysocial.voidos.Alarms.zone) ?: return
     if (next.second - now > 24 * 3_600_000L) return
     val d = LocalDensity.current
-    val fs = with(d) { (15 * px * 1.1f).toSp() }
+    val fs = with(d) { (24 * px).toSp() }
     Row(
-        Modifier.padding(top = if (top) 10.dp else 0.dp).clip(RoundedCornerShape(50)).tap { onOpen(Module.TOOLS) }
-            .padding(horizontal = 12.dp, vertical = 6.dp).testTag("next_alarm"),
+        Modifier.padding(top = if (top) 12.dp else 0.dp).clip(RoundedCornerShape(50)).tap { onOpen(Module.TOOLS) }
+            .padding(horizontal = 14.dp, vertical = 8.dp).testTag("next_alarm"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Glyph(G.BELL, V.Muted, Modifier.size(with(d) { (16 * px).toDp() }))
-        Gap(w = 8.dp)
-        VText(SimpleDateFormat(if (use24h) "HH:mm" else "h:mm a", Locale.UK).format(Date(next.second)), size = fs, color = V.Muted, maxLines = 1)
+        Glyph(G.BELL, V.Text, Modifier.size(with(d) { (24 * px).toDp() }))
+        Gap(w = 10.dp)
+        VText(SimpleDateFormat(if (use24h) "HH:mm" else "h:mm a", Locale.UK).format(Date(next.second)), size = fs, color = V.Text, font = SansLight, maxLines = 1)
+    }
+}
+
+/** The stopwatch while it runs (or sits paused with time on it), in the same glass as the timers. */
+@Composable
+private fun StopwatchPill(now: Long, px: Float, onOpen: (Module) -> Unit) {
+    val d = LocalDensity.current
+    val fs = with(d) { (30 * px).toSp() }
+    Row(
+        Modifier.glass(RoundedCornerShape(50), 0.8f).tap { onOpen(Module.TOOLS) }
+            .padding(horizontal = with(d) { (22 * px).toDp() }, vertical = with(d) { (11 * px).toDp() }).testTag("stopwatch_pill"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Glyph(G.STOPWATCH, if (Stopwatch.running) V.Teal else V.Muted, Modifier.size(with(d) { (26 * px).toDp() }))
+        Gap(w = 10.dp)
+        VText(stopwatchText(Stopwatch.elapsed(now)).substringBefore('.'), size = fs, color = V.White, font = SansLight, maxLines = 1)
+    }
+}
+
+/** Up to two other places from World clock, side by side under the time: the place, then its time. */
+@Composable
+private fun WorldTimes(clocks: List<Pair<String, String>>, now: Long, use24h: Boolean, px: Float, onOpen: (Module) -> Unit) {
+    val d = LocalDensity.current
+    Row(horizontalArrangement = Arrangement.spacedBy(with(d) { (44 * px).toDp() }), verticalAlignment = Alignment.Top, modifier = Modifier.testTag("world_times")) {
+        clocks.forEach { (name, zone) ->
+            val f = SimpleDateFormat(if (use24h) "HH:mm" else "h:mm a", Locale.UK).apply { timeZone = java.util.TimeZone.getTimeZone(zone) }
+            Column(
+                Modifier.clip(RoundedCornerShape(24.dp)).tap { onOpen(Module.TOOLS) }.padding(horizontal = 10.dp, vertical = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                VText(name.take(16), size = with(d) { (20 * px).toSp() }, color = V.Muted, maxLines = 1)
+                VText(f.format(Date(now)), size = with(d) { (40 * px).toSp() }, color = V.White, font = SansLight, maxLines = 1)
+            }
+        }
     }
 }
 
@@ -307,16 +364,16 @@ private fun NextAlarm(now: Long, use24h: Boolean, px: Float, top: Boolean, onOpe
 @Composable
 private fun TimerPills(running: List<KTimer>, now: Long, px: Float, onOpen: (Module) -> Unit) {
     val d = LocalDensity.current
-    val fs = with(d) { (15 * px * 1.25f).toSp() }
-    Row(horizontalArrangement = Arrangement.spacedBy(with(d) { (8 * px).toDp() }), verticalAlignment = Alignment.CenterVertically) {
+    val fs = with(d) { (30 * px).toSp() }
+    Row(horizontalArrangement = Arrangement.spacedBy(with(d) { (10 * px).toDp() }), verticalAlignment = Alignment.CenterVertically) {
         running.take(2).forEach { t ->
             val soon = t.remaining(now) < 60_000
             Row(
                 Modifier.glass(RoundedCornerShape(50), 0.8f)
-                    .tap { onOpen(Module.TOOLS) }.padding(horizontal = with(d) { (16 * px).toDp() }, vertical = with(d) { (7 * px).toDp() }),
+                    .tap { onOpen(Module.TOOLS) }.padding(horizontal = with(d) { (22 * px).toDp() }, vertical = with(d) { (11 * px).toDp() }),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(if (soon) V.Coral else V.Teal))
+                Box(Modifier.size(10.dp).clip(RoundedCornerShape(50)).background(if (soon) V.Coral else V.Teal))
                 Gap(w = 8.dp)
                 VText(t.label.take(14), size = fs * 0.85f, color = V.Muted, maxLines = 1)
                 Gap(w = 8.dp)
@@ -340,12 +397,10 @@ private fun FaceEditButton(editing: Boolean, onClick: () -> Unit) {
 private fun WidgetMenu(store: Store, modifier: Modifier, onDone: () -> Unit) {
     VPanel(modifier.width(260.dp), padding = 14.dp) {
         Label("Add to face")
-        Gap(h = 4.dp)
-        VText("Hold a widget or the clock to move it. Pinch to stretch it, twist to turn it.", size = Type.caption, color = V.Muted, lineHeight = 17.sp)
         Gap(h = 8.dp)
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             fun on(kind: String, ref: Long = 0L) = store.widgets.any { it.kind == kind && it.ref == ref }
-            @Composable fun row(label: String, g: G, accent: Color, kind: String, ref: Long = 0L) {
+            @Composable fun row(label: String, g: G, accent: Color, kind: String, ref: Long = 0L, extra: (@Composable () -> Unit)? = null) {
                 val has = on(kind, ref)
                 Row(
                     Modifier.fillMaxWidth().clip(OctS).background(if (has) accent.copy(alpha = 0.12f) else V.Panel2)
@@ -355,6 +410,7 @@ private fun WidgetMenu(store: Store, modifier: Modifier, onDone: () -> Unit) {
                 ) {
                     Glyph(g, accent, Modifier.size(20.dp)); Gap(w = 8.dp)
                     VText(label, size = Type.label, color = V.Text, font = Sans, maxLines = 1, modifier = Modifier.weight(1f))
+                    if (has && extra != null) { extra(); Gap(w = 10.dp) }
                     if (has) Glyph(G.CHECK, accent, Modifier.size(18.dp))
                 }
             }
@@ -369,17 +425,19 @@ private fun WidgetMenu(store: Store, modifier: Modifier, onDone: () -> Unit) {
             row("Forecast", G.WEATHER, V.Teal, "forecast")
             row("Focus", G.FOCUS_MODE, V.Purple, "focus")
             store.notes.take(8).forEach { n ->
-                row(n.text.lineSequence().firstOrNull()?.ifBlank { null } ?: if (n.ink.isNotEmpty()) "Drawing" else "Empty note", G.NOTES, V.Yellow, "note", n.id)
+                val c = V.Lap[n.colour.mod(V.Lap.size)]
+                // a note on the face: its colour dot sits by the tick, tap the dot to change the colour
+                row(n.text.lineSequence().firstOrNull()?.ifBlank { null } ?: if (n.ink.isNotEmpty()) "Drawing" else "Empty note", G.NOTES, c, "note", n.id) {
+                    Box(
+                        Modifier.size(28.dp).clip(CircleShape).tap { store.setNoteColour(n.id, (n.colour + 1).mod(V.Lap.size)) }
+                            .semantics { contentDescription = "Note colour" },
+                        contentAlignment = Alignment.Center,
+                    ) { Box(Modifier.size(14.dp).clip(CircleShape).background(c)) }
+                }
             }
         }
         Gap(h = 8.dp)
-        GlassActions(
-            listOf(
-                GlassAction("Centre clock", enabled = store.clock != ClockPlace()) { store.resetClock() },
-                GlassAction("Done", onClick = onDone),
-            ),
-            height = 46.dp,
-        )
+        GlassActions(listOf(GlassAction("Done", onClick = onDone)), height = 46.dp)
     }
 }
 
@@ -464,7 +522,7 @@ private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module)
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                     if (w == null) VText("--", size = Type.large, color = V.Muted)
                     else Column {
-                        Glyph(wxGlyph(w.code, w.isDay), wxColour(w.code, w.isDay), Modifier.size(40.dp))
+                        WxIcon(w.code, w.isDay, Modifier.size(54.dp))
                         Gap(h = 4.dp)
                         VText(t(w.temp), size = 34.sp, color = V.White, font = SansLight, maxLines = 1)
                     }
@@ -555,7 +613,7 @@ private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module)
                     days.forEachIndexed { i, d ->
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             VText(if (i == 0) "Today" else java.time.LocalDate.now().plusDays(i.toLong()).format(java.time.format.DateTimeFormatter.ofPattern("EEE", java.util.Locale.UK)), size = Type.caption, color = V.Muted)
-                            Glyph(wxGlyph(d.code, true), wxColour(d.code, true), Modifier.size(24.dp).padding(vertical = 2.dp))
+                            WxIcon(d.code, true, Modifier.size(32.dp))
                             VText(t(d.max), size = Type.body, color = V.White)
                         }
                     }

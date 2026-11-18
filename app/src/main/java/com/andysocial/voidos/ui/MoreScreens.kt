@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -119,20 +120,22 @@ fun openFile(ctx: Context, store: Store, f: File) {
 }
 
 /**
- * Files: the tablet's storage, a microSD card and USB drives, as a plain list.
- * Tap a folder to go in, a file to open it. Hold to pick files, then send them
- * to a phone (Share) or delete them.
+ * Files: folders on the left, what's in the chosen folder on the right, side by side.
+ * Tap a folder to show it beside the list; a folder on the right goes one level in.
+ * Tap a file to open it. Hold files to pick them, then delete them.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FilesPane(store: Store, pickOnly: Boolean = false, onSend: (List<File>) -> Unit) {
     val ctx = LocalContext.current
     val roots = remember { storageRoots() }
-    var dir by remember { mutableStateOf(roots.first().second) }
+    var dir by remember { mutableStateOf(roots.first().second) }       // whose folders are on the left
+    var open by remember { mutableStateOf<File?>(null) }                // whose contents are on the right (null: dir's own files)
     var refresh by remember { mutableIntStateOf(0) }
     val picked = remember { mutableStateListOf<File>() }
     var confirmDelete by remember { mutableStateOf(false) }
     var listing by remember { mutableStateOf<List<File>>(emptyList()) }
+    var inside by remember { mutableStateOf<List<File>>(emptyList()) }
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             if (ctx.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
@@ -141,53 +144,60 @@ fun FilesPane(store: Store, pickOnly: Boolean = false, onSend: (List<File>) -> U
             }
         }
     }
-    LaunchedEffect(dir, refresh) {
-        listing = withContext(Dispatchers.IO) {
-            val l = dir.listFiles()?.toList()
-            // a card or drive Android won't let apps read directly: ask root for the names
-            l ?: Su.run("ls -1a ${Su.q(dir.absolutePath)}").text.lines().filter { it.isNotBlank() && it != "." && it != ".." }.map { File(dir, it) }
-        }.filter { !it.name.startsWith(".") }.sortedWith(compareBy<File>({ !it.isDirectory }, { it.name.lowercase() }))
+    fun list(d: File): List<File> {
+        val l = d.listFiles()?.toList()
+        // a card or drive Android won't let apps read directly: ask root for the names
+        return (l ?: Su.run("ls -1a ${Su.q(d.absolutePath)}").text.lines().filter { it.isNotBlank() && it != "." && it != ".." }.map { File(d, it) })
+            .filter { !it.name.startsWith(".") }.sortedWith(compareBy<File>({ !it.isDirectory }, { it.name.lowercase() }))
     }
+    LaunchedEffect(dir, refresh) { listing = withContext(Dispatchers.IO) { list(dir) } }
+    LaunchedEffect(open, dir, refresh) { inside = withContext(Dispatchers.IO) { list(open ?: dir) } }
+    val root = roots.firstOrNull { dir.absolutePath.startsWith(it.second.absolutePath) }
+    fun goIn(f: File) { dir = f.parentFile ?: f; open = f; picked.clear() }
+
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Grid.s), verticalAlignment = Alignment.CenterVertically) {
-            val root = roots.firstOrNull { dir.absolutePath.startsWith(it.second.absolutePath) }
-            if (root != null && dir != root.second) RoundIcon(G.BACK, "Up", size = 40.dp) { dir.parentFile?.let { dir = it } }
-            roots.forEach { (name, f) ->
-                val on = root?.second == f
-                VText(name, size = Type.body, color = if (on) V.Bg else V.Text, font = if (on) SansMedium else Sans,
-                    modifier = Modifier.clip(Pill).background(if (on) V.Teal else Color.White.copy(alpha = 0.06f)).tap { dir = f; picked.clear() }
-                        .padding(horizontal = Grid.l, vertical = Grid.s))
+        if (roots.size > 1) {
+            GlassSegments(roots.map { it.second.absolutePath to it.first.substringBefore(" (") }, root?.second?.absolutePath ?: "", Modifier.widthIn(max = 520.dp), height = 42.dp) { k ->
+                dir = File(k); open = null; picked.clear()
             }
+            Gap(h = Grid.m)
         }
-        Gap(h = Grid.s)
-        val rel = roots.firstOrNull { dir.absolutePath.startsWith(it.second.absolutePath) }?.let { dir.absolutePath.removePrefix(it.second.absolutePath).trim('/') }.orEmpty()
-        if (rel.isNotEmpty()) VText(rel.replace("/", "  ›  "), size = Type.label, color = V.Muted, maxLines = 1)
-        Gap(h = Grid.s)
-        if (listing.isEmpty()) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { Note("Nothing in here") }
-        else LazyColumn(Modifier.weight(1f)) {
-            items(listing, key = { it.absolutePath }) { f ->
-                val sel = f in picked
-                Row(
-                    Modifier.fillMaxWidth().clip(Radius.Card).background(if (sel) V.Teal.copy(alpha = 0.16f) else Color.Transparent)
-                        .combinedClickable(
+        Row(Modifier.weight(1f).fillMaxWidth()) {
+            // left: the folders here, with a way back up
+            LazyColumn(Modifier.weight(0.38f).fillMaxHeight().glass(Radius.Panel, 0.5f).padding(vertical = Grid.s)) {
+                if (root != null && dir != root.second) item("up") {
+                    FileRow(G.BACK, dir.parentFile?.takeIf { it.absolutePath != root.second.parentFile?.absolutePath }?.name?.takeIf { dir.parentFile != root.second } ?: root.first.substringBefore(" ("), null, false, false,
+                        onClick = { val up = dir.parentFile; if (up != null) { open = dir; dir = up; picked.clear() } })
+                }
+                val folders = listing.filter { it.isDirectory }
+                if (folders.isEmpty()) item("none") { Box(Modifier.fillMaxWidth().padding(Grid.l), contentAlignment = Alignment.Center) { Note("No folders") } }
+                items(folders, key = { "d" + it.absolutePath }) { f ->
+                    FileRow(G.FOLDER, f.name, null, on = f == open, sel = false, onClick = { open = if (open == f) null else f; picked.clear() })
+                }
+            }
+            Gap(w = Grid.m)
+            // right: what's in the chosen folder
+            Column(Modifier.weight(0.62f).fillMaxHeight()) {
+                VText(if (open == null && dir == root?.second) root.first.substringBefore(" (") else (open ?: dir).name, size = Type.title, font = SansMedium, color = V.White, maxLines = 1)
+                Gap(h = Grid.s)
+                if (inside.isEmpty()) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { Note("Nothing in here") }
+                else LazyColumn(Modifier.weight(1f)) {
+                    items(inside, key = { it.absolutePath }) { f ->
+                        val sel = f in picked
+                        FileRow(
+                            if (f.isDirectory) G.FOLDER else iconFor(f), f.name,
+                            if (f.isDirectory) null else Share.size(f.length()) + "  ·  " + SimpleDateFormat("d MMM yyyy", Locale.UK).format(Date(f.lastModified())),
+                            on = false, sel = sel,
                             onClick = {
                                 when {
-                                    picked.isNotEmpty() || pickOnly -> if (f.isDirectory) dir = f else if (sel) picked.remove(f) else picked.add(f)
-                                    f.isDirectory -> dir = f
+                                    f.isDirectory -> goIn(f)
+                                    picked.isNotEmpty() || pickOnly -> if (sel) picked.remove(f) else picked.add(f)
                                     else -> openFile(ctx, store, f)
                                 }
                             },
-                            onLongClick = { if (!f.isDirectory) { if (sel) picked.remove(f) else picked.add(f) } },
-                        ).padding(horizontal = Grid.m, vertical = Grid.m),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Glyph(if (f.isDirectory) G.FOLDER else iconFor(f), if (f.isDirectory) V.Teal else V.Muted, Modifier.size(24.dp))
-                    Gap(w = Grid.m)
-                    Column(Modifier.weight(1f)) {
-                        VText(f.name, size = Type.body, color = V.Text, maxLines = 1)
-                        if (!f.isDirectory) VText(Share.size(f.length()) + "  ·  " + SimpleDateFormat("d MMM yyyy", Locale.UK).format(Date(f.lastModified())), size = Type.label, color = V.Muted, maxLines = 1)
+                            onLong = { if (!f.isDirectory) { if (sel) picked.remove(f) else picked.add(f) } },
+                        )
                     }
-                    if (sel) Glyph(G.CHECK, V.Teal, Modifier.size(20.dp))
                 }
             }
         }
@@ -195,17 +205,36 @@ fun FilesPane(store: Store, pickOnly: Boolean = false, onSend: (List<File>) -> U
             Gap(h = Grid.s)
             if (confirmDelete) GlassActions(listOf(
                 GlassAction("Delete ${picked.size}", warn = true) {
-                    val list = picked.toList(); picked.clear(); confirmDelete = false
-                    bgRun { list.forEach { if (!it.deleteRecursively()) Su.run("rm -rf ${Su.q(it.absolutePath)}") }; refresh++ }
+                    val l = picked.toList(); picked.clear(); confirmDelete = false
+                    bgRun { l.forEach { if (!it.deleteRecursively()) Su.run("rm -rf ${Su.q(it.absolutePath)}") }; refresh++ }
                 },
                 GlassAction("Keep") { confirmDelete = false },
             ), Modifier.widthIn(max = 520.dp))
             else GlassActions(listOfNotNull(
-                GlassAction(if (pickOnly) "Add ${picked.size}" else "Send ${picked.size} to a phone", G.SEND) { onSend(picked.toList()); picked.clear() },
-                if (pickOnly) null else GlassAction("Delete", G.TRASH, warn = true) { confirmDelete = true },
+                if (pickOnly) GlassAction("Add ${picked.size}", G.CHECK) { onSend(picked.toList()); picked.clear() } else null,
+                if (pickOnly) null else GlassAction("Delete ${picked.size}", G.TRASH, warn = true) { confirmDelete = true },
                 GlassAction("Clear") { picked.clear() },
             ), Modifier.widthIn(max = 620.dp))
         }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun FileRow(g: G, name: String, sub: String?, on: Boolean, sel: Boolean, onClick: () -> Unit, onLong: (() -> Unit)? = null) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = Grid.s).clip(Radius.Card)
+            .background(if (sel) V.Teal.copy(alpha = 0.16f) else if (on) Color.White.copy(alpha = 0.08f) else Color.Transparent)
+            .combinedClickable(onClick = onClick, onLongClick = onLong).padding(horizontal = Grid.m, vertical = Grid.m),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Glyph(g, if (g == G.FOLDER) V.Teal else V.Muted, Modifier.size(24.dp))
+        Gap(w = Grid.m)
+        Column(Modifier.weight(1f)) {
+            VText(name, size = Type.body, color = if (on) V.White else V.Text, font = if (on) SansMedium else Sans, maxLines = 1)
+            if (sub != null) VText(sub, size = Type.label, color = V.Muted, maxLines = 1)
+        }
+        if (sel) Glyph(G.CHECK, V.Teal, Modifier.size(20.dp))
     }
 }
 
@@ -567,27 +596,6 @@ fun BatteryUseList() {
     }
 }
 
-// =================================================================== Guest, Kids Space, assistant
-
-/** Lock mode extras: guest mode and Kids Space. */
-@Composable
-fun GuestAndKids(store: Store) {
-    val ctx = LocalContext.current
-    var apps by remember { mutableStateOf<List<AppEntry>>(emptyList()) }
-    LaunchedEffect(Unit) { apps = withContext(Dispatchers.IO) { AppsRepo.all(ctx).filter { it.pkg in store.allowed } } }
-    SetSection("Guest")
-    SettingRow("Guest mode", "Only the apps below open. Notes, Settings and notifications are hidden. Your PIN turns it off.") {
-        VToggle(store.guest) { store.set("guest", it) }
-    }
-    if (!store.guest) apps.forEach { e -> SettingRow("  " + e.label) { VToggle(e.pkg in store.guestApps) { store.setGuestApp(e.pkg, it) } } }
-    SetSection("Kids")
-    val kids = remember { Extras.installed(ctx, Extras.KIDS) }
-    SettingRow("Kids Space", if (kids) "Google's space for children" else "Not on this tablet") {
-        VButton("Open", accent = V.Muted, enabled = kids) { Extras.openSystemApp(ctx, store, Extras.KIDS) }
-    }
-}
-
-
 // =================================================================== USB sheet
 
 /** When a computer is plugged in: choose what USB does, right there. */
@@ -635,19 +643,6 @@ fun eventText(e: Extras.Event, use24h: Boolean, now: Long = System.currentTimeMi
     val dayWord = when (that) { today -> "Today"; tomorrow -> "Tomorrow"; else -> SimpleDateFormat("EEE d MMM", Locale.UK).format(Date(e.begin)) }
     val time = if (e.allDay) "" else " " + SimpleDateFormat(if (use24h) "HH:mm" else "h:mm a", Locale.UK).format(Date(e.begin))
     return "$dayWord$time  ·  ${e.title}"
-}
-
-/**
- * What guest mode shows in place of Notes and Settings, and when guest mode is
- * asked to turn off: the PIN pad. The right PIN ends guest mode.
- */
-@Composable
-fun GuestGate(store: Store, onDone: () -> Unit = {}) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        GlassPinPad(title = "Guest mode", subtitle = "Enter your PIN to leave it", length = store.pinLength(), check = { store.checkPin(it) }) {
-            store.set("guest", false); onDone()
-        }
-    }
 }
 
 /** Dolby Atmos, when the tablet has Lenovo's Dolby app: opened from Display & sound. */

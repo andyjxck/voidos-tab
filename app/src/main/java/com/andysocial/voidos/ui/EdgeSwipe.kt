@@ -33,6 +33,9 @@ object EdgeSwipe {
     /** True while the wheels may open: the main screens are up, nothing on top, no wheel pinned open. */
     @Volatile var enabled = false
 
+    /** False while the app wheel (right) has no apps in it: a swipe from the right edge then just turns the page. */
+    @Volatile var rightEnabled = true
+
     /** The wheels on screen, fed in window pixels. */
     @Volatile var sink: Sink? = null
 
@@ -122,12 +125,14 @@ class EdgeRouter(private val density: Float) {
     /** Whether a gesture is currently owned by the wheel. */
     val owned get() = s == S.OURS
 
-    fun down(x: Float, y: Float, width: Float, t: Long, enabled: Boolean): EdgeAction {
+    fun down(x: Float, y: Float, width: Float, t: Long, enabled: Boolean, rightOn: Boolean = true): EdgeAction {
         downX = x; downY = y; downT = t
         if (!enabled || width <= 0f) { s = S.IGNORE; return EdgeAction.PASS }
         val fromLeft = x
         val fromRight = width - x
         left = fromLeft <= fromRight
+        // an empty app wheel has nothing to show: the swipe belongs to the page
+        if (!left && !rightOn) { s = S.IGNORE; return EdgeAction.PASS }
         val d = minOf(fromLeft, fromRight)
         s = when {
             d <= hardPx -> S.OURS

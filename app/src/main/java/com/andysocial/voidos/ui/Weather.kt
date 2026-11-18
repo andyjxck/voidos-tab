@@ -1,5 +1,7 @@
 package com.andysocial.voidos.ui
 
+import com.andysocial.voidos.R
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -48,6 +50,20 @@ import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlin.math.roundToInt
+import kotlin.math.abs
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 
 data class Hour(val label: String, val temp: Double, val code: Int, val rain: Int)
 data class Day(val label: String, val code: Int, val max: Double, val min: Double, val rain: Int)
@@ -88,12 +104,29 @@ object WeatherRepo {
         }
     }
 
+    private fun fresh(wx: Wx) = System.currentTimeMillis() - wx.fetched < 30 * 60_000
+
+    /** The last forecast saved for exactly this place, or null. Never another place's. */
+    private fun cached(store: Store, place: String): Wx? {
+        val raw = store.weatherCacheFor(place)
+            ?: store.weatherCache()?.takeIf { runCatching { JSONObject(it).optString("place") }.getOrNull() == place }
+            ?: return null
+        return runCatching { val o = JSONObject(raw); parse(o.getString("raw"), o.getLong("t")) }.getOrNull()
+    }
+
     suspend fun refresh(store: Store, force: Boolean = false) {
         loadCache(store)
         val place = "${store.lat},${store.lon}"
+        if (place != forPlace) {
+            // a different place: drop the last place's weather at once. Its own saved forecast
+            // shows straight away only while it's fresh; otherwise the page says it's loading.
+            val c = cached(store, place)
+            forPlace = place; error.value = null
+            if (c != null && fresh(c)) { state.value = c; offline.value = false } else { state.value = null; offline.value = false }
+        }
         val cur = state.value
-        if (!force && !offline.value && cur != null && place == forPlace && System.currentTimeMillis() - cur.fetched < 30 * 60_000) return
-        withContext(Dispatchers.IO) {
+        if (!force && !offline.value && cur != null && fresh(cur)) return
+        val got = withContext(Dispatchers.IO) {
             runCatching {
                 val url = "https://api.open-meteo.com/v1/forecast?latitude=${store.lat}&longitude=${store.lon}" +
                     "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,is_day" +
@@ -103,15 +136,21 @@ object WeatherRepo {
                 val raw = get(url)
                 val now = System.currentTimeMillis()
                 val wx = parse(raw, now)
-                store.setWeatherCache(JSONObject().put("raw", raw).put("t", now).put("place", place).toString())
+                val saved = JSONObject().put("raw", raw).put("t", now).put("place", place).toString()
+                store.setWeatherCache(saved)
+                store.setWeatherCacheFor(place, saved)
                 wx
-            }.onSuccess { state.value = it; error.value = null; offline.value = false; forPlace = place }
-                .onFailure {
-                    // keep whatever forecast we have; just say it's old
-                    offline.value = state.value != null
-                    error.value = "No connection"
-                }
+            }
         }
+        // swiped on to another place while this was loading: this answer isn't for the page any more
+        if ("${store.lat},${store.lon}" != place || forPlace != place) return
+        got.onSuccess { state.value = it; error.value = null; offline.value = false }
+            .onFailure {
+                // keep this place's last forecast if there is one; just say it's old
+                if (state.value == null) state.value = cached(store, place)
+                offline.value = state.value != null
+                error.value = "No connection"
+            }
     }
 
     /** Open-Meteo's answer -> [Wx]. Public so the offline cache and the tests read it the same way. */
@@ -195,6 +234,37 @@ fun OfflineBadge(wx: Wx?, modifier: Modifier = Modifier) {
     }
 }
 
+/** WMO weather code -> a full-colour weather picture (Meteocons by Bas Milius, MIT; tools/meteocons). */
+fun wxArt(code: Int, day: Boolean = true): Int {
+    val d = day
+    return when (code) {
+        0 -> if (d) R.drawable.wx_clear_day else R.drawable.wx_clear_night
+        1, 2 -> if (d) R.drawable.wx_partly_cloudy_day else R.drawable.wx_partly_cloudy_night
+        3 -> if (d) R.drawable.wx_overcast_day else R.drawable.wx_overcast_night
+        45, 48 -> if (d) R.drawable.wx_fog_day else R.drawable.wx_fog_night
+        51, 53, 55 -> R.drawable.wx_drizzle
+        56, 57, 66, 67 -> R.drawable.wx_sleet
+        61, 63 -> R.drawable.wx_rain
+        65, 82 -> R.drawable.wx_extreme_rain
+        71, 73, 77 -> R.drawable.wx_snow
+        75 -> R.drawable.wx_extreme_snow
+        80, 81 -> if (d) R.drawable.wx_partly_cloudy_day_rain else R.drawable.wx_partly_cloudy_night_rain
+        85, 86 -> if (d) R.drawable.wx_partly_cloudy_day_snow else R.drawable.wx_partly_cloudy_night_snow
+        95 -> if (d) R.drawable.wx_thunderstorms_day else R.drawable.wx_thunderstorms_night
+        96, 99 -> if (d) R.drawable.wx_thunderstorms_day_rain else R.drawable.wx_thunderstorms_night_rain
+        else -> R.drawable.wx_cloudy
+    }
+}
+
+/** The weather picture for a code, in its own colours. The art has a margin of its own, so it's drawn a little larger than a glyph. */
+@Composable
+fun WxIcon(code: Int, day: Boolean = true, modifier: Modifier = Modifier.size(40.dp)) {
+    androidx.compose.foundation.Image(
+        androidx.compose.ui.res.painterResource(wxArt(code, day)), contentDescription = wxWords(code),
+        modifier = modifier, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+    )
+}
+
 /** WMO weather code -> glyph + words. */
 fun wxGlyph(code: Int, day: Boolean = true): G = when (code) {
     0, 1 -> if (day) G.SUN else G.MOON
@@ -224,6 +294,90 @@ fun wxColour(code: Int, day: Boolean = true): Color = when (wxGlyph(code, day)) 
 
 fun t(d: Double) = "${d.roundToInt()}°"
 
+/**
+ * Swiping up on the Weather page moves to the next place: Here first, then the
+ * places you've kept, in the order of the bar, and round to the start again.
+ * The rules are kept apart from the screen so the tests can check them.
+ */
+object PlaceSwipe {
+    const val HERE = "here"
+
+    fun order(places: List<String>): List<String> = listOf(HERE) + places
+
+    fun current(autoPlace: Boolean, city: String, places: List<String>): String =
+        if (autoPlace) HERE else places.firstOrNull { it.substringBefore('|') == city } ?: HERE
+
+    /** The place after [cur], back to the first after the last; null when there's nowhere else to go. */
+    fun next(order: List<String>, cur: String): String? {
+        if (order.size < 2) return null
+        val i = order.indexOf(cur).coerceAtLeast(0)
+        return order[(i + 1) % order.size]
+    }
+
+    enum class Call { WAIT, CLAIM, PASS }
+
+    /**
+     * After the finger has moved ([dx], [dy] from where it went down): keep waiting, take the
+     * gesture (a clear push upwards), or leave it to the page swipe and everything else.
+     */
+    fun call(dx: Float, dy: Float, slop: Float): Call = when {
+        dx * dx + dy * dy < slop * slop -> Call.WAIT
+        dy < 0 && -dy > abs(dx) * 1.5f -> Call.CLAIM
+        else -> Call.PASS
+    }
+
+    /** On lift: far enough up, or a quick flick up part of the way. */
+    fun commits(dy: Float, vy: Float, distance: Float, flingSpeed: Float): Boolean =
+        -dy >= distance || (vy <= -flingSpeed && -dy >= distance / 3)
+
+    /** A touch that starts on the bottom edge belongs to the app switcher, never to this. */
+    fun fromBottomEdge(rootY: Float, rootHeight: Float, guard: Float): Boolean =
+        rootHeight > 0 && rootY > rootHeight - guard
+}
+
+/** Swipe up anywhere on the page (not from the bottom edge) to call [onEnd] with whether it counted. */
+private fun Modifier.placeSwipe(
+    enabled: Boolean,
+    rootTop: () -> Float,
+    rootHeight: () -> Float,
+    onDrag: (Float) -> Unit,
+    onEnd: (Boolean) -> Unit,
+): Modifier = pointerInput(enabled) {
+    if (!enabled) return@pointerInput
+    val slop = viewConfiguration.touchSlop
+    val distance = 72.dp.toPx()
+    val fling = 900.dp.toPx()
+    val guard = 28.dp.toPx()
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        if (PlaceSwipe.fromBottomEdge(down.position.y + rootTop(), rootHeight(), guard)) return@awaitEachGesture
+        val vt = VelocityTracker()
+        vt.addPosition(down.uptimeMillis, down.position)
+        var claimed = false
+        while (true) {
+            val ev = awaitPointerEvent()
+            val ch = ev.changes.firstOrNull { it.id == down.id }
+            if (ch == null || ev.changes.count { it.pressed } > 1) { if (claimed) onEnd(false); break }
+            val d = ch.position - down.position
+            if (!ch.pressed) {
+                // a lift we've been consuming isn't consumed by anyone else; one that is was a cancel
+                if (claimed) onEnd(!ch.isConsumed && PlaceSwipe.commits(d.y, vt.calculateVelocity().y, distance, fling))
+                break
+            }
+            vt.addPosition(ch.uptimeMillis, ch.position)
+            if (!claimed) {
+                if (ch.isConsumed) break // something inside took it first
+                when (PlaceSwipe.call(d.x, d.y, slop)) {
+                    PlaceSwipe.Call.CLAIM -> claimed = true
+                    PlaceSwipe.Call.PASS -> break
+                    PlaceSwipe.Call.WAIT -> {}
+                }
+            }
+            if (claimed) { ch.consume(); onDrag(d.y) }
+        }
+    }
+}
+
 @Composable
 fun WeatherScreen(store: Store) {
     val wx by WeatherRepo.state
@@ -240,9 +394,56 @@ fun WeatherScreen(store: Store) {
         else Locator.locate(ctx, store)
     }
     LaunchedEffect(store.lat, store.lon) { WeatherRepo.refresh(store) }
+    // a place picked before places could be kept becomes the first kept place
+    LaunchedEffect(Unit) { if (!store.autoPlace && store.places.isEmpty() && store.city.isNotBlank()) store.addPlace(store.city, store.lat, store.lon) }
     var editing by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var findErr by remember { mutableStateOf<String?>(null) }
+
+    // move to a place from the bar or the swipe: Here goes back to where the tablet last was
+    // straight away, and the forecast follows the place (refresh runs when lat/lon change)
+    fun select(k: String) {
+        if (k == PlaceSwipe.HERE) {
+            store.chooseAutoPlace(true)
+            store.herePlace()?.split('|')?.let { (n, la, lo) ->
+                val a = la.toFloatOrNull(); val o = lo.toFloatOrNull()
+                if (a != null && o != null) store.setPlace(n, a, o)
+            }
+        } else {
+            val (n, la, lo) = k.split('|')
+            store.chooseAutoPlace(false); store.setPlace(n, la.toFloat(), lo.toFloat())
+        }
+    }
+    val order = PlaceSwipe.order(store.places)
+    val canSwipe = !editing && order.size >= 2
+    val drag = remember { Animatable(0f) }
+    val view = LocalView.current
+    val density = LocalDensity.current
+    var rootTop by remember { mutableStateOf(0f) }
+    val hop = with(density) { 56.dp.toPx() }
+    val swipe = Modifier
+        .onGloballyPositioned { rootTop = it.positionInRoot().y }
+        .placeSwipe(
+            enabled = canSwipe,
+            rootTop = { rootTop },
+            rootHeight = { view.rootView.height.toFloat() },
+            onDrag = { dy -> scope.launch { drag.snapTo((dy * 0.35f).coerceIn(-hop, 0f)) } },
+            onEnd = { go ->
+                scope.launch {
+                    val next = PlaceSwipe.next(PlaceSwipe.order(store.places), PlaceSwipe.current(store.autoPlace, store.city, store.places))
+                    if (go && next != null) {
+                        drag.animateTo(-hop, tween(110))
+                        select(next)
+                        drag.snapTo(hop)
+                        drag.animateTo(0f, spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow))
+                    } else drag.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium))
+                }
+            },
+        )
+        .graphicsLayer {
+            translationY = drag.value
+            alpha = 1f - (abs(drag.value) / (hop * 2.5f)).coerceIn(0f, 0.4f)
+        }
 
     val portrait = LocalPortrait.current
     val now: @Composable (Modifier) -> Unit = { mod ->
@@ -250,15 +451,31 @@ fun WeatherScreen(store: Store) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (store.autoPlace) { Glyph(G.GLOBE, V.Muted, Modifier.size(16.dp)); Gap(w = 8.dp) }
                 VText(store.city, size = Type.headline, color = V.Text, modifier = Modifier.weight(1f), maxLines = 1)
-                VButton(if (editing) "Cancel" else "Place", accent = V.Muted) { editing = !editing; findErr = null }
+                VButton(if (editing) "Done" else "Places", accent = V.Muted) { editing = !editing; findErr = null }
+            }
+            // more than one place: one glass bar to switch between them
+            if (!editing && store.places.isNotEmpty()) {
+                Gap(h = 10.dp)
+                val opts = listOf("here" to "Here") + store.places.map { it to it.substringBefore('|') }
+                val cur = PlaceSwipe.current(store.autoPlace, store.city, store.places)
+                GlassSegments(opts, cur, Modifier.fillMaxWidth(), height = 40.dp) { k -> select(k) }
             }
             if (off || (wx == null && err != null)) { Gap(h = 8.dp); OfflineBadge(wx) }
             if (editing) {
                 Gap(h = 12.dp)
                 PlaceSearch(query, { query = it }) { r ->
                     store.chooseAutoPlace(false)
+                    store.addPlace(r.name, r.lat, r.lon)
                     store.setPlace(r.name, r.lat, r.lon); editing = false; query = ""
                     scope.launch { WeatherRepo.refresh(store, force = true) }
+                }
+                // the places you've kept: tap the cross to drop one
+                store.places.forEach { e ->
+                    Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Glyph(G.PIN, V.Muted, Modifier.size(18.dp)); Gap(w = 10.dp)
+                        VText(e.substringBefore('|'), size = Type.body, color = V.Text, modifier = Modifier.weight(1f), maxLines = 1)
+                        RoundIcon(G.CLOSE, "Remove ${e.substringBefore('|')}", size = 34.dp) { store.removePlace(e) }
+                    }
                 }
                 findErr?.let { Gap(h = 8.dp); VText(it, size = Type.caption, color = V.Coral, font = Sans) }
                 if (!store.autoPlace) {
@@ -276,7 +493,7 @@ fun WeatherScreen(store: Store) {
                 // portrait: glyph and temperature on the left, the numbers on the right
                 Gap(h = 8.dp)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Glyph(wxGlyph(w.code, w.isDay), wxColour(w.code, w.isDay), Modifier.size(84.dp), weight = 3f)
+                    WxIcon(w.code, w.isDay, Modifier.size(112.dp))
                     Gap(w = 16.dp)
                     Column {
                         VText(t(w.temp), size = 72.sp, color = V.White, font = SansLight)
@@ -285,7 +502,7 @@ fun WeatherScreen(store: Store) {
                     Box(Modifier.weight(1f))
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            Stat("Feels", t(w.feels)); Stat("Wind", "${w.wind.roundToInt()} km/h"); Stat("Humid", "${w.humidity}%")
+                            Stat("Feels", t(w.feels)); Stat("Wind", "${w.wind.roundToInt()} km/h"); Stat("Humidity", "${w.humidity}%")
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) { Stat("Sunrise", w.sunrise); Stat("Sunset", w.sunset) }
                     }
@@ -294,13 +511,13 @@ fun WeatherScreen(store: Store) {
                 Label("Open-Meteo", color = V.Tick)
             } else if (!portrait) {
                 Gap(h = 24.dp)
-                Glyph(wxGlyph(w.code, w.isDay), wxColour(w.code, w.isDay), Modifier.size(110.dp), weight = 3f)
+                WxIcon(w.code, w.isDay, Modifier.size(150.dp))
                 Gap(h = 8.dp)
                 VText(t(w.temp), size = 96.sp, color = V.White, font = SansLight)
                 VText(wxWords(w.code), size = Type.headline, color = wxColour(w.code, w.isDay))
                 Gap(h = 20.dp)
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                    Stat("Feels", t(w.feels)); Stat("Wind", "${w.wind.roundToInt()} km/h"); Stat("Humid", "${w.humidity}%")
+                    Stat("Feels", t(w.feels)); Stat("Wind", "${w.wind.roundToInt()} km/h"); Stat("Humidity", "${w.humidity}%")
                 }
                 Gap(h = 16.dp)
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) { Stat("Sunrise", w.sunrise); Stat("Sunset", w.sunset) }
@@ -325,7 +542,7 @@ fun WeatherScreen(store: Store) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         VText(d.label, size = Type.caption, color = V.Muted)
                         Gap(h = 8.dp)
-                        Glyph(wxGlyph(d.code), wxColour(d.code), Modifier.size(38.dp))
+                        WxIcon(d.code, true, Modifier.size(52.dp))
                         Gap(h = 8.dp)
                         VText(t(d.max), size = Type.title, color = V.White, font = SansLight)
                         VText(t(d.min), size = Type.body, color = V.Muted, font = SansLight)
@@ -337,13 +554,13 @@ fun WeatherScreen(store: Store) {
     }
 
     if (portrait) {
-        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(Modifier.fillMaxSize().then(swipe), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             now(Modifier.fillMaxWidth())
             graph(Modifier.fillMaxWidth().weight(1f))
             days()
         }
     } else {
-        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(Modifier.fillMaxSize().then(swipe), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             now(Modifier.width(380.dp).fillMaxHeight())
             Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 graph(Modifier.fillMaxWidth().weight(1f))

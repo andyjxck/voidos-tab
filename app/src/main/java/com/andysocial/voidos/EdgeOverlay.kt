@@ -505,7 +505,7 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     private fun OverlayWheels(onClosed: () -> Unit) {
         val ctx = this
         val st = store
-        val pages = Module.entries
+        val pages = Module.entries.filter { it.name !in st.wheelHidden }
         val apps = remember { st.recentApps.filter { blockReason(ctx, st, it) == null }.take(7) }
         val all = remember { AppsRepo.all(ctx) }
         CompositionLocalProvider(LocalRoom provides Rooms.overlay) {

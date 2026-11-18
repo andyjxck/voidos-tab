@@ -48,14 +48,17 @@ fun calm(c: Color): Color = when (c) {
 
 private fun sys(name: String) = FontFamily(Typeface(android.graphics.Typeface.create(name, android.graphics.Typeface.NORMAL)))
 
-/** The system sans (Roboto on the tablet): body text. */
-val Sans: FontFamily = FontFamily.SansSerif
+// Inter (Rasmus Andersson, SIL Open Font License), built into the app so every screen uses it.
+private fun inter(res: Int) = FontFamily(androidx.compose.ui.text.font.Font(res))
+
+/** Body text. */
+val Sans: FontFamily = inter(com.andysocial.voidos.R.font.inter_regular)
 
 /** Medium weight: titles, buttons, labels. */
-val SansMedium: FontFamily = sys("sans-serif-medium")
+val SansMedium: FontFamily = inter(com.andysocial.voidos.R.font.inter_semibold)
 
 /** Light weight: numbers and large readouts. */
-val SansLight: FontFamily = sys("sans-serif-light")
+val SansLight: FontFamily = inter(com.andysocial.voidos.R.font.inter_light)
 
 /** Thin weight: the big clock. */
-val SansThin: FontFamily = sys("sans-serif-thin")
+val SansThin: FontFamily = inter(com.andysocial.voidos.R.font.inter_thin)

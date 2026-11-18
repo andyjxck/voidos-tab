@@ -108,13 +108,13 @@ fun DrawScope.paintAurora(w: Float, h: Float, m: Mood, t: Long, pagerPos: Float,
 /** How a piece of glass is cut. */
 class GlassLook(
     /** How smoked the body is: 0 clear, 1 dark. */
-    val smoke: Float = 0.8f,
+    val smoke: Float = 0.64f,
     /** How far it floats off the page: the shadow under it. */
     val depth: Float = 1f,
     /** How strongly the corners and the gloss catch the light. */
-    val shine: Float = 1f,
+    val shine: Float = 1.35f,
     /** How much the glass magnifies the light behind it. */
-    val magnify: Float = 1.12f,
+    val magnify: Float = 1.2f,
     /** A colour the glass is stained with (a chosen segment, a lit switch), if any. */
     val stain: Color? = null,
     val stainAlpha: Float = 0.3f,
@@ -251,11 +251,12 @@ private fun Path.asAndroidPathCompat(): android.graphics.Path = this.asAndroidPa
 
 /** Floating glass: bars, buttons, sheets. */
 fun Modifier.glass(shape: Shape, alpha: Float = 0.86f): Modifier =
-    liquidGlass(shape, GlassLook(smoke = alpha, depth = 1f, shine = 1f))
+    // void glass: clearer, glossier and more lens-like than before
+    liquidGlass(shape, GlassLook(smoke = alpha * 0.76f, depth = 1.1f, shine = 1.4f, magnify = 1.22f))
 
 /** Glass that sits on the page: cards and lists. Floats less than [glass]. */
 fun Modifier.pane(shape: Shape = Oct, lift: Float = 1f): Modifier =
-    liquidGlass(shape, GlassLook(smoke = 0.78f * lift, depth = 0.55f, shine = 0.9f))
+    liquidGlass(shape, GlassLook(smoke = 0.62f * lift, depth = 0.6f, shine = 1.25f, magnify = 1.18f))
 
 /** A drop of stained glass: the chosen segment, a lit switch. Brighter and more magnifying. */
 fun Modifier.droplet(shape: Shape, stain: Color, strength: Float = 1f): Modifier =
