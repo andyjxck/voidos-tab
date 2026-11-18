@@ -57,7 +57,7 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToLong
 
-enum class KTab(val label: String, val glyph: G) { TIMERS("Timers", G.TIMER), CONVERT("Convert", G.CONVERT), LIST("List", G.LIST) }
+enum class KTab(val label: String, val glyph: G) { TIMERS("Timers", G.TIMER), ALARMS("Alarms", G.BELL), CONVERT("Convert", G.CONVERT), LIST("List", G.LIST) }
 
 /** Tools: timers first, then the unit converter and the list. (This was the Kitchen screen.) */
 @Composable
@@ -69,6 +69,7 @@ fun ToolsScreen(store: Store) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (tab) {
                 KTab.TIMERS -> TimersPane()
+                KTab.ALARMS -> AlarmsPane()
                 KTab.CONVERT -> ConvertPane()
                 KTab.LIST -> ShoppingPane(store)
             }

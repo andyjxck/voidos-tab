@@ -328,6 +328,28 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         tap("List"); expect("Sourdough loaf", "Cheddar"); shot("06_tools_list")
     }
 
+    @Test fun alarms() {
+        Alarms.list.value.forEach { Alarms.remove(act, it.id) }
+        Alarms.put(act, Alarm(id = 1, hour = 6, minute = 45, days = AlarmMath.WEEKDAYS, label = "Gym", sound = "rooster", rampSec = 60))
+        Alarms.put(act, Alarm(id = 2, hour = 9, minute = 30, days = AlarmMath.WEEKENDS, sound = "sunrise"))
+        show { Shell(store, act, Module.TOOLS) }
+        tap("Alarms"); expect("Next alarm", "Gym", "Weekdays", "Rooster, gradual", "Sunrise", "Skip next"); shot("05_tools_alarms")
+        rule.onNodeWithTag("alarm_1").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick); settle(800)
+        expect("Edit alarm", "Repeat", "Weekdays", "Gradual volume", "Snooze", "Delete alarm"); shot("05b_alarm_edit")
+        rule.onNodeWithTag("alarm_sound").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick); settle(800)
+        expect("Gentle", "Classic", "Loud", "Funny", "Builds up", "Screaming goat"); shot("05c_alarm_sounds")
+        tap("Cancel")
+        rule.onNodeWithTag("alarm_add").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick); settle(800)
+        expect("New alarm", "Save"); shot("05d_alarm_new")
+        tap("Cancel")
+        // ringing, over VoidOS
+        Alarms.ringing.value = Ringing(Alarms.get(1)!!, System.currentTimeMillis())
+        show { Box(Modifier.fillMaxSize()) { Shell(store, act, Module.TOOLS); com.andysocial.voidos.ui.AlarmOverlay() } }
+        expect("Gym", "Snooze", "9 minutes", "Stop"); shot("05e_alarm_ringing")
+        Alarms.ringing.value = null
+        Alarms.list.value.forEach { Alarms.remove(act, it.id) }
+    }
+
     @Test fun sky() { show { Shell(store, act, Module.WEATHER) }; shot("07_sky") }
     private fun tapDesc(d: String) { rule.onAllNodesWithContentDescription(d)[0].performClick(); settle() }
     private fun typeInto(i: Int, text: String) { rule.onAllNodes(hasSetTextAction())[i].performTextInput(text); settle() }

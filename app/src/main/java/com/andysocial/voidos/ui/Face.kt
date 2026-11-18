@@ -240,7 +240,10 @@ private fun Dial(store: Store, now: Long, onOpen: (Module) -> Unit, scale: Float
                 // no AM/PM: the time alone, as big as it can be
                 InkText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), timePx, V.White, thin, -0.02f, modifier = Modifier.testTag("time"))
             },
-            below = { if (running.isNotEmpty()) TimerPills(running, now, timePx / 400f, onOpen) },
+            below = {
+                if (running.isNotEmpty()) TimerPills(running, now, timePx / 400f, onOpen)
+                NextAlarm(now, store.use24h, timePx / 400f, top = running.isNotEmpty(), onOpen)
+            },
         )
     }
 }
@@ -270,6 +273,24 @@ private fun CentredStack(gap: Dp, above: @Composable () -> Unit, centre: @Compos
             pa.place(cx - pa.width / 2, top - g - pa.height)
             pb.place(cx - pb.width / 2, top + pc.height + g)
         }
+    }
+}
+
+/** The next alarm, when one rings in the next 24 hours: a quiet bell and its time. Tap to open Tools. */
+@Composable
+private fun NextAlarm(now: Long, use24h: Boolean, px: Float, top: Boolean, onOpen: (Module) -> Unit) {
+    val next = com.andysocial.voidos.AlarmMath.soonest(com.andysocial.voidos.Alarms.list.value, now, com.andysocial.voidos.Alarms.zone) ?: return
+    if (next.second - now > 24 * 3_600_000L) return
+    val d = LocalDensity.current
+    val fs = with(d) { (15 * px * 1.1f).toSp() }
+    Row(
+        Modifier.padding(top = if (top) 10.dp else 0.dp).clip(RoundedCornerShape(50)).tap { onOpen(Module.TOOLS) }
+            .padding(horizontal = 12.dp, vertical = 6.dp).testTag("next_alarm"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Glyph(G.BELL, V.Muted, Modifier.size(with(d) { (16 * px).toDp() }))
+        Gap(w = 8.dp)
+        VText(SimpleDateFormat(if (use24h) "HH:mm" else "h:mm a", Locale.UK).format(Date(next.second)), size = fs, color = V.Muted, maxLines = 1)
     }
 }
 

@@ -121,7 +121,7 @@ fun VoidRoot(store: Store, act: MainActivity) {
                 }
             }
             if (booting) BootAnim { VoidApp.booted = true; booting = false }
-            else TimerAlert()
+            else { TimerAlert(); AlarmOverlay() }
         }
     }
 }

@@ -19,6 +19,8 @@ class VoidApp : Application() {
         booted = last != -1L && kotlin.math.abs(last - bootId) <= 1
         prefs.edit().putLong("bootId", bootId).apply()
         KTimers.load(this)
+        Alarms.load(this)
+        Alarms.rescheduleAll(this)
         // the VoidOS lock screen comes up every time the screen goes off
         val f = android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_OFF)
         registerReceiver(object : android.content.BroadcastReceiver() {

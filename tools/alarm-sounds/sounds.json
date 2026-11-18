@@ -1,0 +1,397 @@
+[
+ {
+  "key": "dawn_chorus",
+  "name": "Dawn chorus",
+  "category": "gentle",
+  "seconds": 36.27,
+  "loop_from": 0.0,
+  "bytes": 272698,
+  "lufs": -19.8,
+  "note": "",
+  "sources": [
+   {
+    "id": 390563,
+    "title": "Morning-Birds.mp3 by dadshb1489",
+    "url": "https://freesound.org/people/dadshb1489/sounds/390563/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   }
+  ]
+ },
+ {
+  "key": "singing_bowl",
+  "name": "Singing bowl",
+  "category": "gentle",
+  "seconds": 26.5,
+  "loop_from": 0.0,
+  "bytes": 165226,
+  "lufs": -20.0,
+  "note": "",
+  "sources": [
+   {
+    "id": 400819,
+    "title": "Tibetan singing bowl by enhuber",
+    "url": "https://freesound.org/people/enhuber/sounds/400819/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   }
+  ]
+ },
+ {
+  "key": "music_box",
+  "name": "Music box",
+  "category": "gentle",
+  "seconds": 28.6,
+  "loop_from": 0.0,
+  "bytes": 225539,
+  "lufs": -20.0,
+  "note": "",
+  "sources": [
+   {
+    "id": 210799,
+    "title": "gentle music box by Yuval",
+    "url": "https://freesound.org/people/Yuval/sounds/210799/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   }
+  ]
+ },
+ {
+  "key": "wind_chimes",
+  "name": "Wind chimes",
+  "category": "gentle",
+  "seconds": 45.0,
+  "loop_from": 0.0,
+  "bytes": 335263,
+  "lufs": -19.7,
+  "note": "",
+  "sources": [
+   {
+    "id": 437337,
+    "title": "Wind chimes 1 by giddster",
+    "url": "https://freesound.org/people/giddster/sounds/437337/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   }
+  ]
+ },
+ {
+  "key": "twin_bell",
+  "name": "Twin bell clock",
+  "category": "normal",
+  "seconds": 29.05,
+  "loop_from": 0.0,
+  "bytes": 328358,
+  "lufs": -13.9,
+  "note": "",
+  "sources": [
+   {
+    "id": 743963,
+    "title": "Twin Bell Alarm Clock Continuous Ringing by cryptidcat",
+    "url": "https://freesound.org/people/cryptidcat/sounds/743963/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   }
+  ]
+ },
+ {
+  "key": "digital",
+  "name": "Digital clock",
+  "category": "normal",
+  "seconds": 12.0,
+  "loop_from": 0.0,
+  "bytes": 92923,
+  "lufs": -14.1,
+  "note": "",
+  "sources": [
+   {
+    "id": 434055,
+    "title": "Digital Alarm Clock Sound Effect by israra",
+    "url": "https://freesound.org/people/israra/sounds/434055/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   }
+  ]
+ },
+ {
+  "key": "rotary_phone",
+  "name": "Rotary phone",
+  "category": "normal",
+  "seconds": 24.0,
+  "loop_from": 0.0,
+  "bytes": 183807,
+  "lufs": -13.9,
+  "note": "",
+  "sources": [
+   {
+    "id": 456433,
+    "title": "Old Rotary Phone Ringing - Western Electric Bell 500 phone by mycompasstv",
+    "url": "https://freesound.org/people/mycompasstv/sounds/456433/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   }
+  ]
+ },
+ {
+  "key": "cuckoo",
+  "name": "Cuckoo clock",
+  "category": "normal",
+  "seconds": 12.2,
+  "loop_from": 0.0,
+  "bytes": 75749,
+  "lufs": -14.3,
+  "note": "",
+  "sources": [
+   {
+    "id": 128177,
+    "title": "Cuckoo Clock.wav by DiArchangeli",
+    "url": "https://freesound.org/people/DiArchangeli/sounds/128177/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   }
+  ]
+ },
+ {
+  "key": "school_bell",
+  "name": "School bell",
+  "category": "loud",
+  "seconds": 4.0,
+  "loop_from": 0.0,
+  "bytes": 26361,
+  "lufs": -8.9,
+  "note": "",
+  "sources": [
+   {
+    "id": 378394,
+    "title": "School bell.wav by deleted_user_7020630",
+    "url": "https://freesound.org/people/deleted_user_7020630/sounds/378394/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   }
+  ]
+ },
+ {
+  "key": "fog_horn",
+  "name": "Fog horn",
+  "category": "loud",
+  "seconds": 4.8,
+  "loop_from": 0.0,
+  "bytes": 27522,
+  "lufs": -9.1,
+  "note": "",
+  "sources": [
+   {
+    "id": 437683,
+    "title": "Loud fog horn by SamsterBirdies",
+    "url": "https://freesound.org/people/SamsterBirdies/sounds/437683/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   }
+  ]
+ },
+ {
+  "key": "air_raid",
+  "name": "Air raid siren",
+  "category": "loud",
+  "seconds": 40.0,
+  "loop_from": 0.0,
+  "bytes": 247830,
+  "lufs": -9.2,
+  "note": "",
+  "sources": [
+   {
+    "id": 412171,
+    "title": "Air Raid Siren Alarm by Poligonstudio",
+    "url": "https://freesound.org/people/Poligonstudio/sounds/412171/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   }
+  ]
+ },
+ {
+  "key": "air_horn",
+  "name": "Air horn",
+  "category": "loud",
+  "seconds": 6.65,
+  "loop_from": 0.0,
+  "bytes": 32519,
+  "lufs": -9.3,
+  "note": "",
+  "sources": [
+   {
+    "id": 414208,
+    "title": "Airhorn by jacksonacademyashmore",
+    "url": "https://freesound.org/people/jacksonacademyashmore/sounds/414208/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   }
+  ]
+ },
+ {
+  "key": "rooster",
+  "name": "Rooster",
+  "category": "funny",
+  "seconds": 4.2,
+  "loop_from": 0.0,
+  "bytes": 17700,
+  "lufs": -13.3,
+  "note": "",
+  "sources": [
+   {
+    "id": 435508,
+    "title": "Rooster Crow 1 by BenjaminNelan",
+    "url": "https://freesound.org/people/BenjaminNelan/sounds/435508/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   }
+  ]
+ },
+ {
+  "key": "goat",
+  "name": "Screaming goat",
+  "category": "funny",
+  "seconds": 9.0,
+  "loop_from": 0.0,
+  "bytes": 65270,
+  "lufs": -12.8,
+  "note": "bleats from a longer farm recording",
+  "sources": [
+   {
+    "id": 750725,
+    "title": "Goat in heat by Sadiquecat",
+    "url": "https://freesound.org/people/Sadiquecat/sounds/750725/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   }
+  ]
+ },
+ {
+  "key": "ducks",
+  "name": "Duck parade",
+  "category": "funny",
+  "seconds": 9.15,
+  "loop_from": 0.0,
+  "bytes": 54142,
+  "lufs": -13.3,
+  "note": "",
+  "sources": [
+   {
+    "id": 418509,
+    "title": "single quack from a duck by Mikes-MultiMedia",
+    "url": "https://freesound.org/people/Mikes-MultiMedia/sounds/418509/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   },
+   {
+    "id": 348791,
+    "title": "Toy Ducks Quacking by nebyoolae",
+    "url": "https://freesound.org/people/nebyoolae/sounds/348791/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   }
+  ]
+ },
+ {
+  "key": "bugle",
+  "name": "Bugle call",
+  "category": "funny",
+  "seconds": 16.2,
+  "loop_from": 0.0,
+  "bytes": 111478,
+  "lufs": -13.3,
+  "note": "",
+  "sources": [
+   {
+    "id": 438633,
+    "title": "G39-16-Bugle Call.wav by craigsmith",
+    "url": "https://freesound.org/people/craigsmith/sounds/438633/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   }
+  ]
+ },
+ {
+  "key": "slide_whistle",
+  "name": "Slide whistle",
+  "category": "funny",
+  "seconds": 20.8,
+  "loop_from": 0.0,
+  "bytes": 153062,
+  "lufs": -13.2,
+  "note": "",
+  "sources": [
+   {
+    "id": 202753,
+    "title": "Slide Whistle by sheepfilms",
+    "url": "https://freesound.org/people/sheepfilms/sounds/202753/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   }
+  ]
+ },
+ {
+  "key": "sunrise",
+  "name": "Sunrise",
+  "category": "progressive",
+  "seconds": 97.05,
+  "loop_from": 68.0,
+  "bytes": 828675,
+  "lufs": -11.2,
+  "note": "mix of four CC0 recordings: birds, then wind chimes, then the music box, then the twin bell clock",
+  "sources": [
+   {
+    "id": 390563,
+    "title": "Morning-Birds.mp3 by dadshb1489",
+    "url": "https://freesound.org/people/dadshb1489/sounds/390563/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   },
+   {
+    "id": 437337,
+    "title": "Wind chimes 1 by giddster",
+    "url": "https://freesound.org/people/giddster/sounds/437337/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   },
+   {
+    "id": 210799,
+    "title": "gentle music box by Yuval",
+    "url": "https://freesound.org/people/Yuval/sounds/210799/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   },
+   {
+    "id": 743963,
+    "title": "Twin Bell Alarm Clock Continuous Ringing by cryptidcat",
+    "url": "https://freesound.org/people/cryptidcat/sounds/743963/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   }
+  ]
+ },
+ {
+  "key": "escalation",
+  "name": "Escalation",
+  "category": "progressive",
+  "seconds": 36.48,
+  "loop_from": 29.834,
+  "bytes": 178703,
+  "lufs": -10.8,
+  "note": "duck, rooster, bugle, then the air horn on repeat",
+  "sources": [
+   {
+    "id": 418509,
+    "title": "single quack from a duck by Mikes-MultiMedia",
+    "url": "https://freesound.org/people/Mikes-MultiMedia/sounds/418509/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   },
+   {
+    "id": 435508,
+    "title": "Rooster Crow 1 by BenjaminNelan",
+    "url": "https://freesound.org/people/BenjaminNelan/sounds/435508/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   },
+   {
+    "id": 438633,
+    "title": "G39-16-Bugle Call.wav by craigsmith",
+    "url": "https://freesound.org/people/craigsmith/sounds/438633/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   },
+   {
+    "id": 414208,
+    "title": "Airhorn by jacksonacademyashmore",
+    "url": "https://freesound.org/people/jacksonacademyashmore/sounds/414208/",
+    "licence": "CC0 1.0 (public domain dedication)"
+   }
+  ]
+ },
+ {
+  "key": "pulse",
+  "name": "Pulse",
+  "category": "progressive",
+  "seconds": 54.05,
+  "loop_from": 48.051,
+  "bytes": 63403,
+  "lufs": -10.7,
+  "note": "synthesised for VoidOS: soft slow beeps that speed up and get louder, then the classic four-beep pattern",
+  "sources": []
+ }
+]
