@@ -12,7 +12,11 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.andysocial.voidos.ui.EdgeAction
+import com.andysocial.voidos.ui.EdgeRouter
+import com.andysocial.voidos.ui.EdgeSwipe
 import com.andysocial.voidos.ui.Idle
+import com.andysocial.voidos.ui.edgeExclusion
 import com.andysocial.voidos.ui.VoidRoot
 
 class MainActivity : ComponentActivity() {
@@ -26,6 +30,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         Policy.applyAll(this)
+        excludeEdges()
         setContent {
             LaunchedEffect(Unit) {
                 snapshotFlow { VoidApp.releaseSignal.value }.collect { if (it > 0) leaveLockTask() }
@@ -66,7 +71,67 @@ class MainActivity : ComponentActivity() {
             if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) swallowTouch = false
             return true
         }
+        if (routeEdge(ev)) return true
         return super.dispatchTouchEvent(ev)
+    }
+
+    // ------------------------------------------------------------ edge wheels
+
+    private val edge by lazy { EdgeRouter(resources.displayMetrics.density) }
+
+    /**
+     * Swipes from the side edges open the wheels. This runs before the screen sees the
+     * touch, so nothing on the page (the pager, a widget, a list) can take it first.
+     * Returns true when the wheel has the event.
+     */
+    private fun routeEdge(ev: MotionEvent): Boolean {
+        val sink = EdgeSwipe.sink
+        val width = window.decorView.width.toFloat()
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                val a = edge.down(ev.x, ev.y, width, ev.eventTime, EdgeSwipe.enabled && sink != null)
+                if (a == EdgeAction.CONSUME) sink?.begin(edge.left, ev.x, ev.y)
+                return a == EdgeAction.CONSUME
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val wasOurs = edge.owned
+                return when (edge.move(ev.x, ev.y, ev.eventTime)) {
+                    EdgeAction.CLAIM -> {
+                        // the screen already saw the press: take it back, then the wheel has it
+                        val cancel = MotionEvent.obtain(ev).apply { action = MotionEvent.ACTION_CANCEL }
+                        super.dispatchTouchEvent(cancel)
+                        cancel.recycle()
+                        sink?.begin(edge.left, edge.startX, edge.startY)
+                        sink?.move(ev.x, ev.y)
+                        true
+                    }
+                    EdgeAction.CONSUME -> { if (wasOurs) sink?.move(ev.x, ev.y); true }
+                    EdgeAction.PASS -> false
+                }
+            }
+            MotionEvent.ACTION_UP -> {
+                val ours = edge.up() == EdgeAction.CONSUME
+                if (ours) sink?.end(ev.x, ev.y)
+                return ours
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                val ours = edge.up(cancelled = true) == EdgeAction.CONSUME
+                if (ours) sink?.cancel()
+                return ours
+            }
+            else -> return edge.owned // extra fingers during a wheel gesture stay with the wheel
+        }
+    }
+
+    /** Ask Android 10's gesture navigation to leave the middle of both side edges to VoidOS. */
+    private fun excludeEdges() {
+        val v = window.decorView
+        v.addOnLayoutChangeListener { _, l, t, r, b, ol, ot, or_, ob ->
+            if (r - l != or_ - ol || b - t != ob - ot) {
+                v.systemGestureExclusionRects = edgeExclusion(r - l, b - t, resources.displayMetrics.density)
+                    .map { android.graphics.Rect(it[0], it[1], it[2], it[3]) }
+            }
+        }
     }
 
     // ------------------------------------------------------------ bars & lock

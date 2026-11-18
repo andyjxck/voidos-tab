@@ -13,7 +13,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.runtime.rememberCoroutineScope
@@ -46,6 +45,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -86,6 +86,11 @@ object Idle {
         last = System.currentTimeMillis()
         if (ambient.value) ambient.value = false
     }
+}
+
+/** The screen the shell is on, for anything outside it that needs to know (and the tests). */
+object ShellNow {
+    val module = mutableStateOf(Module.FACE)
 }
 
 enum class Module(val label: String, val glyph: G, val accent: Color) {
@@ -131,6 +136,7 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
     val pager = rememberPagerState(initialPage = pages.indexOf(start)) { pages.size }
     val scope = rememberCoroutineScope()
     val module = pages[pager.currentPage]
+    SideEffect { ShellNow.module.value = module }
     var escape by EscapeDoor.asked
     var control by remember { mutableStateOf(false) }
     val ambient by Idle.ambient
@@ -211,7 +217,8 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
         },
         onApp = { pkg -> if (!launchApp(ctx, store, pkg)) store.forgetRecent(pkg) },
         onAllApps = { go(Module.APPS, animate = false) },
-        enabled = !escape && !control,
+        // anything over the screens (lock, ringing timer, control centre, the way out, the ambient clock) keeps the edges
+        enabled = !escape && !control && !ambient && !(LockState.locked.value && store.voidLock) && KTimers.ringing.value.isEmpty(),
     )
 
     ControlCentre(control, store, act, onClose = { control = false }, onSettings = { go(Module.SYSTEM, animate = false) })
@@ -288,7 +295,6 @@ fun StatusStrip(store: Store, module: Module, modifier: Modifier = Modifier, onP
     }
     Box(
         Modifier.fillMaxWidth().height(44.dp)
-            .systemGestureExclusion()
             .pointerInput(Unit) {
                 var dy = 0f
                 detectVerticalDragGestures(onDragStart = { dy = 0f }) { ch, d ->

@@ -17,8 +17,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +41,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -104,12 +108,16 @@ fun EdgeWheels(
         val w = constraints.maxWidth.toFloat()
         val h = constraints.maxHeight.toFloat()
         val items = if (side == Edge.RIGHT) apps else tabs
-        val n = items.size.coerceAtLeast(1)
-        val step = Math.toRadians(minOf(20.0, 112.0 / (n - 1).coerceAtLeast(1))).toFloat()
-        val start = -step * (n - 1) / 2f
+        // per edge, so a gesture that opens one wheel and moves in the same instant uses that wheel's slots
+        fun nOf(e: Edge?) = (if (e == Edge.RIGHT) apps else tabs).size.coerceAtLeast(1)
+        fun stepOf(e: Edge?) = Math.toRadians(minOf(20.0, 112.0 / (nOf(e) - 1).coerceAtLeast(1))).toFloat()
+        fun startOf(e: Edge?) = -stepOf(e) * (nOf(e) - 1) / 2f
+        val n = nOf(side)
+        val step = stepOf(side)
+        val start = startOf(side)
 
         fun centre(e: Edge) = Offset(if (e == Edge.LEFT) -px(Geo.inset) else w + px(Geo.inset), anchorY)
-        fun slotAngle(i: Int) = start + i * step
+        fun slotAngle(i: Int, e: Edge? = side) = startOf(e) + i * stepOf(e)
         /** Where a point on the wheel at [a] radians and radius [r] lands on screen. */
         fun at(e: Edge, a: Float, r: Float): Offset {
             val c = centre(e)
@@ -119,14 +127,14 @@ fun EdgeWheels(
         fun indexAt(e: Edge, p: Offset): Int {
             val c = centre(e)
             val a = atan2(p.y - c.y, if (e == Edge.LEFT) p.x - c.x else c.x - p.x)
-            return ((a - start) / step).roundToInt().coerceIn(0, n - 1)
+            return ((a - startOf(e)) / stepOf(e)).roundToInt().coerceIn(0, nOf(e) - 1)
         }
         fun hubAt(e: Edge): Offset = Offset(if (e == Edge.LEFT) px(Geo.hub + 8f) else w - px(Geo.hub + 8f), anchorY)
 
         fun moveTo(i: Int?) {
             if (i == sel) return
             sel = i
-            if (i != null) scope.launch { angle.animateTo(slotAngle(i), spring(dampingRatio = 0.58f, stiffness = 520f)) }
+            if (i != null) scope.launch { angle.animateTo(slotAngle(i, side), spring(dampingRatio = 0.58f, stiffness = 520f)) }
         }
         fun openAt(e: Edge, y: Float) {
             val list = if (e == Edge.RIGHT) apps else tabs
@@ -135,7 +143,7 @@ fun EdgeWheels(
             side = e; sticky = false
             val cur = if (e == Edge.LEFT) list.indexOfFirst { it.key == currentTab }.takeIf { it >= 0 } else null
             sel = cur
-            scope.launch { angle.snapTo(slotAngle(cur ?: ((list.size - 1) / 2))) }
+            scope.launch { angle.snapTo(slotAngle(cur ?: ((list.size - 1) / 2), e)) }
             scope.launch { appear.snapTo(0f); appear.animateTo(1f, spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMediumLow)) }
         }
         fun close() {
@@ -266,49 +274,56 @@ fun EdgeWheels(
             }
         }
 
-        // ---- the edge strips that open a wheel
-        // kept in the tree while a wheel is open: removing them would cancel the drag that opened it
-        if (enabled && (open == null || !sticky)) {
+        // ---- the edges: MainActivity routes edge touches here before the page sees them (see EdgeSwipe)
+        var origin by remember { mutableStateOf(Offset.Zero) }
+        var startPt by remember { mutableStateOf(Offset.Zero) }
+        var lastPt by remember { mutableStateOf(Offset.Zero) }
+        var moved by remember { mutableStateOf(false) }
+        val sink = object : EdgeSwipe.Sink {
+            override fun begin(left: Boolean, x: Float, y: Float) {
+                val e = if (left) Edge.LEFT else Edge.RIGHT
+                startPt = Offset(x, y) - origin
+                lastPt = startPt
+                moved = false
+                openAt(e, startPt.y)
+            }
+            override fun move(x: Float, y: Float) {
+                val e = side ?: return
+                lastPt = Offset(x, y) - origin
+                if (!moved && hypot(lastPt.x - startPt.x, lastPt.y - startPt.y) > px(14f)) moved = true
+                if (moved) moveTo(indexAt(e, lastPt))
+            }
+            override fun end(x: Float, y: Float) {
+                val e = side ?: return
+                move(x, y)
+                val onHub = hypot(lastPt.x - hubAt(e).x, lastPt.y - hubAt(e).y) < px(Geo.hub)
+                when {
+                    !moved -> sticky = true
+                    onHub -> close()
+                    sel != null && (if (e == Edge.RIGHT) apps else tabs).isNotEmpty() -> pick(e, sel!!)
+                    else -> close()
+                }
+            }
+            override fun cancel() { if (side != null && !sticky) close() }
+        }
+        // a pinned-open wheel takes its taps itself (the overlay above), so the edges stand down meanwhile
+        SideEffect {
+            EdgeSwipe.sink = sink
+            EdgeSwipe.enabled = enabled && !(side != null && sticky)
+        }
+        DisposableEffect(Unit) {
+            onDispose { if (EdgeSwipe.sink === sink) EdgeSwipe.sink = null; EdgeSwipe.enabled = false }
+        }
+        if (!enabled && side != null) LaunchedEffect(Unit) { close() }
+        Box(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInWindow() })
+
+        // a faint glass handle on each edge so it reads as something you can pull
+        if (enabled && side == null) {
             listOf(Edge.LEFT, Edge.RIGHT).forEach { e ->
                 Box(
                     Modifier.align(if (e == Edge.LEFT) Alignment.CenterStart else Alignment.CenterEnd)
-                        .width(Geo.zone.dp).fillMaxHeight(0.86f)
-                        .systemGestureExclusion()
-                        .pointerInput(e, w, h) {
-                            val top = (h - size.height) / 2f
-                            awaitEachGesture {
-                                val down = awaitFirstDown()
-                                down.consume()
-                                val toRoot = { o: Offset -> Offset(if (e == Edge.LEFT) o.x else w - size.width + o.x, top + o.y) }
-                                val start0 = toRoot(down.position)
-                                openAt(e, start0.y)
-                                var moved = false
-                                var last = start0
-                                while (true) {
-                                    val ev = awaitPointerEvent()
-                                    val ch = ev.changes.first()
-                                    ch.consume()
-                                    last = toRoot(ch.position)
-                                    if (!moved && hypot(last.x - start0.x, last.y - start0.y) > px(14f)) moved = true
-                                    if (moved) moveTo(indexAt(e, last))
-                                    if (!ch.pressed) break
-                                }
-                                val onHub = hypot(last.x - hubAt(e).x, last.y - hubAt(e).y) < px(Geo.hub)
-                                when {
-                                    !moved -> sticky = true
-                                    onHub -> close()
-                                    sel != null && (if (e == Edge.RIGHT) apps else tabs).isNotEmpty() -> pick(e, sel!!)
-                                    else -> close()
-                                }
-                            }
-                        },
-                ) {
-                    // a faint glass handle so the edge reads as something you can pull
-                    if (open == null) Box(
-                        Modifier.align(if (e == Edge.LEFT) Alignment.CenterStart else Alignment.CenterEnd)
-                            .padding(horizontal = 5.dp).size(4.dp, 54.dp).clip(Pill).background(V.White.copy(alpha = 0.16f))
-                    )
-                }
+                        .padding(horizontal = 5.dp).size(4.dp, 54.dp).clip(Pill).background(V.White.copy(alpha = 0.16f))
+                )
             }
         }
     }

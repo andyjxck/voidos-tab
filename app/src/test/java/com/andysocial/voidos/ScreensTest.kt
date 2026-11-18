@@ -385,29 +385,105 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         shot("16_control_centre")
     }
 
+    // ---- edge wheels: touches go in through the activity, exactly as on the tablet,
+    // so the test covers the routing that decides an edge swipe before the page sees it
+
+    private var touchBase = 0L
+    private var touchT = 0L
+    private fun ev(action: Int, x: Float, y: Float) {
+        if (action == android.view.MotionEvent.ACTION_DOWN) { touchBase = android.os.SystemClock.uptimeMillis(); touchT = touchBase }
+        else touchT += 16
+        rule.runOnUiThread {
+            val e = android.view.MotionEvent.obtain(touchBase, touchT, action, x, y, 0)
+            act.dispatchTouchEvent(e)
+            e.recycle()
+        }
+    }
+    private fun down(x: Float, y: Float) = ev(android.view.MotionEvent.ACTION_DOWN, x, y)
+    private fun move(x: Float, y: Float) = ev(android.view.MotionEvent.ACTION_MOVE, x, y)
+    private fun up(x: Float, y: Float) = ev(android.view.MotionEvent.ACTION_UP, x, y)
+    /** A drag in small steps, the way a finger reports it. */
+    private fun drag(x0: Float, y0: Float, x1: Float, y1: Float, steps: Int = 8) {
+        for (k in 1..steps) move(x0 + (x1 - x0) * k / steps, y0 + (y1 - y0) * k / steps)
+    }
+    private val winW get() = act.window.decorView.width.toFloat()
+    private val winH get() = act.window.decorView.height.toFloat()
+    private val dens get() = act.resources.displayMetrics.density
+
     @Test fun wheel() {
         show { Shell(store, act, Module.FACE) }
-        // finger on the left edge, then slide down: the tab wheel opens and follows
-        rule.onRoot().performTouchInput { down(Offset(6f, height * 0.5f)); moveTo(Offset(40f, height * 0.5f + 160f)) }
+        settle(300)
+        val midY = winH * 0.5f
+        // finger on the left edge, then slide down and out: the tab wheel opens and follows
+        down(4f, midY); drag(4f, midY, 40f, midY + 160f)
         settle(600)
         // sliding down and out lands on the last slot, Settings
         expect("Settings"); shot("17_tab_wheel")
-        rule.onRoot().performTouchInput { up() }
+        up(40f, midY + 160f)
         settle(800)
         // letting go opens it
         expect("Wi-Fi", "Bluetooth")
         // a slide up the edge from there picks a slot above
-        rule.onRoot().performTouchInput { down(Offset(6f, height * 0.5f)); moveTo(Offset(6f, height * 0.5f - 220f)) }
+        down(4f, midY); drag(4f, midY, 4f, midY - 220f)
         settle(600)
         shot("17b_tab_wheel_up")
-        rule.onRoot().performTouchInput { up() }
+        up(4f, midY - 220f)
         settle(800)
         // right edge: the app wheel, which lists apps opened from VoidOS
-        rule.onRoot().performTouchInput { down(Offset(width - 6f, height * 0.5f)); moveTo(Offset(width - 60f, height * 0.5f)) }
+        down(winW - 4f, midY); drag(winW - 4f, midY, winW - 60f, midY)
         settle(600)
         shot("18_app_wheel")
-        rule.onRoot().performTouchInput { up() }
+        up(winW - 60f, midY)
         settle(800)
+    }
+
+    /** A swipe whose first point lands a little way in from the bezel still opens the wheel, and the page doesn't turn. */
+    @Test fun edgeFlickFromBezel() {
+        show { Shell(store, act, Module.TOOLS) }
+        settle(300)
+        val midY = winH * 0.5f
+        val x0 = 50f * dens // past the hard strip, inside the soft one
+        down(x0, midY); drag(x0, midY, x0 + 140f * dens, midY + 10f, steps = 4)
+        settle(600)
+        // the tab wheel is open, its highlight on the middle slot, level with the finger
+        expect("Notes"); shot("17c_flick_from_bezel")
+        up(x0 + 140f * dens, midY + 10f)
+        settle(800)
+        // letting go picks Notes; had the pager got the swipe it would have gone back to Home
+        assertEquals(Module.NOTES, com.andysocial.voidos.ui.ShellNow.module.value)
+    }
+
+    /** A slow drag that starts in the soft strip is still a page swipe, not the wheel. */
+    @Test fun edgeSlowDragTurnsPage() {
+        show { Shell(store, act, Module.TOOLS) }
+        settle(300)
+        val midY = winH * 0.5f
+        val x0 = winW - 50f * dens
+        down(x0, midY)
+        // slow (well past the flick window), then away from the edge
+        touchT += 400
+        drag(x0, midY, x0 - winW * 0.6f, midY, steps = 12)
+        up(x0 - winW * 0.6f, midY)
+        settle(1200)
+        // no wheel came up; the pager moved on from Tools to the next screen
+        rule.onAllNodesWithText("Apps you open from VoidOS", substring = true).assertCountEquals(0)
+        assertEquals(Module.WEATHER, com.andysocial.voidos.ui.ShellNow.module.value)
+    }
+
+    /** Nothing opens from the edges while the lock screen is up. */
+    @Test fun edgeQuietWhenLocked() {
+        store.set("voidLock", true)
+        com.andysocial.voidos.ui.LockState.locked.value = true
+        show {
+            Box(Modifier.fillMaxSize()) {
+                Shell(store, act, Module.FACE)
+                LockScreen(store) {}
+            }
+        }
+        settle(300)
+        assertTrue("edges should be off under the lock screen", !com.andysocial.voidos.ui.EdgeSwipe.enabled)
+        com.andysocial.voidos.ui.LockState.locked.value = false
+        store.set("voidLock", false)
     }
 
     @Test fun escape() {

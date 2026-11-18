@@ -1,6 +1,9 @@
 package com.andysocial.voidos
 
 import com.andysocial.voidos.ui.accentFor
+import com.andysocial.voidos.ui.EdgeAction
+import com.andysocial.voidos.ui.EdgeRouter
+import com.andysocial.voidos.ui.edgeExclusion
 import com.andysocial.voidos.ui.categories
 import com.andysocial.voidos.ui.cupGrams
 import com.andysocial.voidos.ui.fmtDur
@@ -281,5 +284,71 @@ class LogicTest {
         assertEquals("45m ago", wxAge(0L, 45 * 60_000L))
         assertEquals("3h ago", wxAge(0L, 3 * 3_600_000L))
         assertEquals("2d ago", wxAge(0L, 50 * 3_600_000L))
+    }
+
+    // ---- edge wheels: which touches the wheel takes (tvdpi, 1.33 px per dp, 1280 px wide)
+
+    private val d = 1.33f
+    private val wide = 1280f
+
+    @Test fun edgeHardStripIsTheWheelsAtOnce() {
+        val r = EdgeRouter(d)
+        assertEquals(EdgeAction.CONSUME, r.down(3f, 400f, wide, 0, enabled = true))
+        assertTrue(r.left)
+        assertEquals(EdgeAction.CONSUME, r.move(60f, 420f, 16))
+        assertEquals(EdgeAction.CONSUME, r.up())
+        // the right side too, and the far edge of the strip still counts
+        assertEquals(EdgeAction.CONSUME, r.down(wide - 34f * d + 1f, 400f, wide, 0, enabled = true))
+        assertFalse(r.left)
+        r.up()
+    }
+
+    @Test fun edgeSoftStripNeedsAQuickInwardFlick() {
+        val r = EdgeRouter(d)
+        val x = 50f * d
+        // the press itself goes to the page, in case it's a tap or a page swipe
+        assertEquals(EdgeAction.PASS, r.down(x, 400f, wide, 0, enabled = true))
+        assertEquals(EdgeAction.PASS, r.move(x + 4f, 401f, 8)) // under the slop: still undecided
+        assertEquals(EdgeAction.CLAIM, r.move(x + 40f, 405f, 40)) // quick, flat, inwards: the wheel's
+        assertTrue(r.owned)
+        assertEquals(EdgeAction.CONSUME, r.move(x + 90f, 420f, 56))
+        assertEquals(EdgeAction.CONSUME, r.up())
+    }
+
+    @Test fun edgeSoftStripLetsOtherGesturesThrough() {
+        val r = EdgeRouter(d)
+        val x = 50f * d
+        // slow
+        r.down(x, 400f, wide, 0, enabled = true)
+        assertEquals(EdgeAction.PASS, r.move(x + 40f, 400f, 600))
+        assertEquals(EdgeAction.PASS, r.move(x + 200f, 400f, 700))
+        assertEquals(EdgeAction.PASS, r.up())
+        // outwards, towards the bezel
+        r.down(x, 400f, wide, 0, enabled = true)
+        assertEquals(EdgeAction.PASS, r.move(x - 30f, 400f, 30))
+        r.up()
+        // mostly vertical (scrolling a list near the edge)
+        r.down(x, 400f, wide, 0, enabled = true)
+        assertEquals(EdgeAction.PASS, r.move(x + 15f, 460f, 30))
+        r.up()
+    }
+
+    @Test fun edgeMiddleAndDisabledPassThrough() {
+        val r = EdgeRouter(d)
+        assertEquals(EdgeAction.PASS, r.down(640f, 400f, wide, 0, enabled = true))
+        assertEquals(EdgeAction.PASS, r.move(700f, 400f, 10))
+        assertEquals(EdgeAction.PASS, r.up())
+        // lock screen, control centre and so on switch the edges off
+        assertEquals(EdgeAction.PASS, r.down(2f, 400f, wide, 0, enabled = false))
+        assertEquals(EdgeAction.PASS, r.move(80f, 400f, 10))
+        assertEquals(EdgeAction.PASS, r.up())
+    }
+
+    @Test fun edgeExclusionFitsAndroidsLimit() {
+        // Android 10 honours at most 200 dp per side edge; ask for exactly that, centred
+        val rects = edgeExclusion(800, 1280, d)
+        assertEquals(2, rects.size)
+        rects.forEach { assertEquals((200 * d).toInt(), it[3] - it[1]); assertTrue(kotlin.math.abs((1280 - it[3]) - it[1]) <= 1) }
+        assertEquals(0, rects[0][0]); assertEquals(800, rects[1][2])
     }
 }
