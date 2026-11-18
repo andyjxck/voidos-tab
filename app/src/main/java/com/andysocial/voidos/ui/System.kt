@@ -71,6 +71,8 @@ import com.andysocial.voidos.BuildConfig
 import com.andysocial.voidos.MainActivity
 import com.andysocial.voidos.Policy
 import com.andysocial.voidos.Store
+import com.andysocial.voidos.Stealth
+import com.andysocial.voidos.Su
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
@@ -465,11 +467,15 @@ private fun VoidPane(store: Store, act: MainActivity) {
     fun toggle(key: String, v: Boolean) { store.set(key, v); act.applyPolicies() }
 
     Head("VoidOS rules")
-    SettingRow("Lock mode") {
+    // once lock mode is on it can't be switched off here: only the hidden escape (taps + PIN) can
+    if (!(store.kiosk && owner)) SettingRow("Lock mode") {
         VToggle(store.kiosk, V.Coral, enabled = owner) { toggle("kiosk", it) }
     }
     SettingRow("Hide Android") {
         VToggle(store.hideBars, enabled = true) { toggle("hideBars", it) }
+    }
+    if (Stealth.restartNeeded.value) SettingRow("Restart to remove the bottom bar") {
+        VButton("Restart", accent = V.Teal, filled = true) { Thread { Su.run("svc power reboot || reboot") }.start() }
     }
     SettingRow("No lock screen") {
         VToggle(store.noLockScreen, enabled = owner) { toggle("noLockScreen", it) }

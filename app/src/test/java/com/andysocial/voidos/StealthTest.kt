@@ -32,6 +32,26 @@ class StealthTest {
         assertFalse(on.any { it.contains("pm disable") })
     }
 
+    @Test fun hidingAlsoSkipsTheFullScreenBubble() {
+        val on = Stealth.commands(true, settings, recents, "com.andysocial.voidos")
+        assertTrue(on.first().contains("immersive.preconfirms=*"))
+    }
+
+    @Test fun noBarModuleTellsAndroidThereAreHardwareKeys() {
+        val on = Stealth.noBarCommands(true)
+        assertTrue(on.any { it == "echo qemu.hw.mainkeys=1 > ${Stealth.NOBAR_DIR}/system.prop" })
+        assertTrue(on.any { it.contains("module.prop") && it.contains("id=voidos_nobar") })
+        // a module left switched off or marked for removal in Magisk is switched back on
+        assertTrue(on.any { it.startsWith("rm -f") && it.contains("/disable") && it.contains("/remove") })
+        assertTrue(Stealth.NOBAR_DIR.startsWith("/data/adb/modules/"))
+    }
+
+    @Test fun noBarModuleComesOutCompletely() {
+        val off = Stealth.noBarCommands(false)
+        assertEquals("rm -rf ${Stealth.NOBAR_DIR}", off.first())
+        assertFalse(off.any { it.contains("mainkeys 1") })
+    }
+
     @Test fun switcherOrder() {
         val o = Switcher.order(listOf("a", "self", "b", "x"), listOf("c", "a"), setOf("a", "b", "c", "self"), "self")
         assertEquals(listOf("a", "b", "c"), o)

@@ -46,6 +46,7 @@ import com.andysocial.voidos.ui.Shell
 import com.andysocial.voidos.ui.V
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Assert.assertEquals
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.click
 import org.junit.Assert.assertTrue
@@ -251,6 +252,22 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         show { Shell(store, act, Module.FACE) }
         expect("Cheddar", "Bins out Thursday", store.city.uppercase()); shot("01b_face_widgets")
         store.saveWidgets(emptyList())
+    }
+
+    /** With the alarm widget on the face, the next alarm isn't repeated under the time. */
+    @Test fun alarmNotTwice() {
+        Alarms.list.value.forEach { Alarms.remove(act, it.id) }
+        val t = java.time.LocalTime.now().plusHours(2)
+        Alarms.put(act, Alarm(id = 5, hour = t.hour, minute = t.minute, label = "Soon"))
+        fun underTime() = rule.onAllNodes(hasTestTag("next_alarm"), useUnmergedTree = true).fetchSemanticsNodes().size
+        store.saveWidgets(emptyList())
+        show { Shell(store, act, Module.FACE) }
+        assertEquals("[$tag] next alarm should show under the time", 1, underTime())
+        rule.runOnUiThread { store.addWidget("alarm") }
+        settle(400)
+        assertEquals("[$tag] alarm shown twice", 0, underTime())
+        store.saveWidgets(emptyList())
+        Alarms.remove(act, 5)
     }
 
     /** Hold to drag, pinch to stretch on one axis, twist to turn: on a widget and on the clock. */
@@ -521,6 +538,13 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         }
         expect("Stay awake", "Settings", "Not playing")
         rule.onAllNodesWithText("Leave VoidOS", substring = true).assertCountEquals(0)
+        // removed at the user's request: no loose Cast or Send files buttons
+        listOf("Cast screen", "Send files", "FM radio").forEach {
+            assertTrue("[$tag] control centre shouldn't have $it", !described(it))
+        }
+        listOf("Notifications", "Power", "Airplane mode", "Record screen").forEach {
+            assertTrue("[$tag] control centre should have $it", described(it))
+        }
         shot("16_control_centre"); fitsOnScreen("16_control_centre")
         // holding Wi-Fi opens the network list, like an iPad
         rule.onAllNodes(hasContentDescription("Wi-Fi"), useUnmergedTree = true).onFirst().performTouchInput { longClick() }

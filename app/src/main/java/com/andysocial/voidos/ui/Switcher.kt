@@ -35,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -59,6 +60,13 @@ import kotlin.math.roundToInt
  */
 object Switcher {
     val shown = mutableStateOf(false)
+
+    /**
+     * Opened from the bottom edge over another app. With Android's navigation bar gone there's
+     * no back or home button, so the switcher is how you leave an app: tap outside the cards to
+     * go back to it, Back to step back inside it, Home to stay in VoidOS.
+     */
+    val fromApp = mutableStateOf(false)
 
     /**
      * The apps used lately, newest first: what Android recorded coming to the front over the last
@@ -104,18 +112,18 @@ fun AppSwitcher(store: Store) {
             apps.clear(); apps.addAll(list)
         }
     }
-    BackHandler(enabled = shown) { shown = false }
+    BackHandler(enabled = shown) { dismiss(ctx, back = false) }
     AnimatedVisibility(shown, enter = fadeIn(Motion.quick()), exit = fadeOut(Motion.quick())) {
         Box(
             Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f))
-                .clickable(interactionSource = null, indication = null) { shown = false }
+                .clickable(interactionSource = null, indication = null) { dismiss(ctx, back = false) }
                 .semantics { contentDescription = "App switcher" },
             contentAlignment = Alignment.Center,
         ) {
-            if (apps.isEmpty()) {
-                VText("No recent apps", size = Type.body, color = V.Muted)
-            } else {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                if (apps.isEmpty()) {
+                    VText("No recent apps", size = Type.body, color = V.Muted)
+                } else {
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 48.dp),
                         horizontalArrangement = Arrangement.spacedBy(Grid.l),
@@ -131,18 +139,49 @@ fun AppSwitcher(store: Store) {
                             )
                         }
                     }
-                    androidx.compose.foundation.layout.Spacer(Modifier.height(Grid.xl))
-                    Box(
-                        Modifier.glass(Pill, 0.7f).clickable {
-                            val gone = apps.toList(); apps.clear(); gone.forEach { store.forgetRecent(it) }
-                            scope.launch(Dispatchers.IO) { gone.forEach { Switcher.close(it) } }
-                            shown = false
-                        }.padding(horizontal = Grid.l, vertical = Grid.s),
-                    ) { VText("Close all", size = Type.label, color = V.Text) }
+                }
+                androidx.compose.foundation.layout.Spacer(Modifier.height(Grid.xl))
+                // one glass pill, segments inside it: Back · Home over an app, then Close all
+                val segs = buildList {
+                    if (Switcher.fromApp.value) {
+                        add("Back" to { dismiss(ctx, back = true) })
+                        add("Home" to { Switcher.fromApp.value = false; shown = false })
+                    }
+                    if (apps.isNotEmpty()) add("Close all" to {
+                        val gone = apps.toList(); apps.clear(); gone.forEach { store.forgetRecent(it) }
+                        scope.launch(Dispatchers.IO) { gone.forEach { Switcher.close(it) } }
+                        Switcher.fromApp.value = false; shown = false
+                    })
+                }
+                if (segs.isNotEmpty()) androidx.compose.foundation.layout.Row(
+                    Modifier.glass(Pill, 0.7f).padding(Grid.xs),
+                ) {
+                    segs.forEach { (label, act) ->
+                        Box(
+                            Modifier.clip(Pill).clickable(onClick = act)
+                                .padding(horizontal = Grid.l, vertical = Grid.s)
+                                .semantics { contentDescription = label },
+                            contentAlignment = Alignment.Center,
+                        ) { VText(label, size = Type.label, color = V.Text) }
+                    }
                 }
             }
         }
     }
+}
+
+/**
+ * Closes the switcher. Opened over another app, it goes back to that app (VoidOS steps behind
+ * it), and with [back] it then sends that app one Back press (root), standing in for the
+ * navigation bar's back button.
+ */
+private fun dismiss(ctx: Context, back: Boolean) {
+    val overApp = Switcher.fromApp.value
+    Switcher.fromApp.value = false
+    Switcher.shown.value = false
+    if (!overApp) return
+    (ctx as? android.app.Activity)?.moveTaskToBack(true)
+    if (back) Thread { Thread.sleep(350); Su.run("input keyevent 4") }.start()
 }
 
 @Composable

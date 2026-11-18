@@ -77,7 +77,10 @@ object EdgeOverlay {
     /** Starts or stops the overlay to match the setting and the permission. Call it whenever either may have changed. */
     fun sync(ctx: Context, store: Store) {
         val app = ctx.applicationContext
-        if (!store.edgeInApps) { app.stopService(Intent(app, EdgeOverlayService::class.java)); return }
+        // with Hide Android on there's no navigation bar, so the bottom-edge swipe is the only way
+        // out of another app: keep the overlay running for it even when the wheels are off in apps
+        if (!store.edgeInApps && !store.hideBars) { app.stopService(Intent(app, EdgeOverlayService::class.java)); return }
+        wheelsInApps = store.edgeInApps
         if (canDraw(app)) {
             runCatching {
                 val i = Intent(app, EdgeOverlayService::class.java)
@@ -85,6 +88,9 @@ object EdgeOverlay {
             }.onFailure { EdgeSwipe.log("overlay: could not start (${it.message})") }
         } else askRootOnce(app, store)
     }
+
+    /** Whether the side wheels and the control centre strip show over apps (the bottom strip always does). */
+    @Volatile var wheelsInApps = true
 
     fun hostShown(shown: Boolean) {
         hostInFront = shown
@@ -146,13 +152,18 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
         startForeground(NOTE_ID, note())
         EdgeOverlay.service = this
-        addStrips()
-        addTop()
+        if (EdgeOverlay.wheelsInApps) { addStrips(); addTop() }
         addBottom()
         EdgeSwipe.log("overlay: on")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (EdgeOverlay.wheelsInApps && left == null) { addStrips(); if (top == null) addTop() }
+        if (!EdgeOverlay.wheelsInApps) {
+            listOfNotNull(left, right, top).forEach { runCatching { wm.removeView(it) } }
+            left = null; right = null; top = null
+        }
+        if (bottom == null) addBottom()
         refreshStrips()
         return START_STICKY
     }
@@ -255,6 +266,10 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     /** A strip across the middle of the bottom edge: swipe up from it inside any app for VoidOS's app switcher. */
     private fun bottomParams(): WindowManager.LayoutParams = topParams().apply {
+        val dm = resources.displayMetrics
+        // with Android's navigation bar gone this is the whole bottom edge, bar the corners
+        width = (dm.widthPixels * MainActivity.BOTTOM_HALF_WIDTH * 2).toInt()
+        height = (BOTTOM_STRIP_DP * dm.density).toInt()
         gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL; title = "VoidOS edge bottom"
     }
 
@@ -294,6 +309,7 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         runCatching {
             startActivity(
                 Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_SWITCHER, true)
+                    .putExtra(MainActivity.EXTRA_FROM_APP, true)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
             )
         }
@@ -542,6 +558,7 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         const val NOTE_ID = 7301
         /** How wide each invisible edge strip is. */
         const val STRIP_DP = 14f
+        const val BOTTOM_STRIP_DP = 18f
         /** How far a finger must move inwards from a strip before the wheel opens. */
         const val SWIPE_DP = 14f
     }

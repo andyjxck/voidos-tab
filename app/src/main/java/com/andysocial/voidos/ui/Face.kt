@@ -274,7 +274,9 @@ private fun Dial(store: Store, now: Long, onOpen: (Module) -> Unit, scale: Float
                         if (sw) StopwatchPill(now, px, onOpen)
                     }
                 }
-                NextAlarm(now, store.use24h, px, top = running.isNotEmpty() || sw, onOpen)
+                // the alarm widget already shows it: don't say it twice under the time
+                if (store.widgets.none { it.kind == "alarm" })
+                    NextAlarm(now, store.use24h, px, top = running.isNotEmpty() || sw, onOpen)
             },
         )
     }

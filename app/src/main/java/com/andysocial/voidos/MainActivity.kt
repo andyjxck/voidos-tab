@@ -41,7 +41,7 @@ class MainActivity : ComponentActivity() {
         EdgeOverlay.sync(this, store)
         intent?.getStringExtra(EXTRA_MODULE)?.let { com.andysocial.voidos.ui.Idle.openModule.value = it }
         if (intent?.getBooleanExtra(EXTRA_CONTROL, false) == true) com.andysocial.voidos.ui.EdgeSwipe.controlRequest.value = true
-        if (intent?.getBooleanExtra(EXTRA_SWITCHER, false) == true) com.andysocial.voidos.ui.Switcher.shown.value = true
+        if (intent?.getBooleanExtra(EXTRA_SWITCHER, false) == true) openSwitcher(intent)
         setContent {
             LaunchedEffect(Unit) {
                 snapshotFlow { VoidApp.releaseSignal.value }.collect { if (it > 0) leaveLockTask() }
@@ -71,7 +71,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) applyBars()
+        if (hasFocus) { applyBars(); window.decorView.postDelayed({ checkRestart() }, 1500) }
+    }
+
+    /** The no-bar module is in place but Android still has its navigation bar: ask for one restart. */
+    fun checkRestart() {
+        Stealth.restartNeeded.value = store.hideBars && store.setupDone && Stealth.noBarModule && Stealth.navBarPresent(this)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -81,7 +86,13 @@ class MainActivity : ComponentActivity() {
         // a screen picked on the wheel over another app
         intent.getStringExtra(EXTRA_MODULE)?.let { com.andysocial.voidos.ui.Idle.openModule.value = it }
         if (intent.getBooleanExtra(EXTRA_CONTROL, false)) com.andysocial.voidos.ui.EdgeSwipe.controlRequest.value = true
-        if (intent.getBooleanExtra(EXTRA_SWITCHER, false)) com.andysocial.voidos.ui.Switcher.shown.value = true
+        if (intent.getBooleanExtra(EXTRA_SWITCHER, false)) openSwitcher(intent)
+    }
+
+    /** The switcher, opened from the bottom edge; over another app it also offers Back into that app. */
+    private fun openSwitcher(i: Intent) {
+        com.andysocial.voidos.ui.Switcher.fromApp.value = i.getBooleanExtra(EXTRA_FROM_APP, false)
+        com.andysocial.voidos.ui.Switcher.shown.value = true
     }
 
     private var bottomDownY = -1f
@@ -97,7 +108,7 @@ class MainActivity : ComponentActivity() {
         val w = window.decorView.width.toFloat()
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                bottomDownY = if (h > 0 && ev.y > h - 18 * d && kotlin.math.abs(ev.x - w / 2) < w * 0.3f) ev.y else -1f
+                bottomDownY = if (h > 0 && ev.y > h - BOTTOM_DP * d && kotlin.math.abs(ev.x - w / 2) < w * BOTTOM_HALF_WIDTH) ev.y else -1f
                 bottomDownX = ev.x
             }
             MotionEvent.ACTION_MOVE -> if (bottomDownY >= 0) {
@@ -105,6 +116,7 @@ class MainActivity : ComponentActivity() {
                 if (kotlin.math.abs(ev.x - bottomDownX) > 48 * d) bottomDownY = -1f
                 else if (up > 36 * d) {
                     bottomDownY = -1f
+                    com.andysocial.voidos.ui.Switcher.fromApp.value = false
                     com.andysocial.voidos.ui.Switcher.shown.value = true
                     super.dispatchTouchEvent(MotionEvent.obtain(ev).apply { action = MotionEvent.ACTION_CANCEL })
                     swallowTouch = true
@@ -282,8 +294,13 @@ class MainActivity : ComponentActivity() {
         @Volatile var live: java.lang.ref.WeakReference<MainActivity>? = null
         /** Opens the control centre when VoidOS comes back (the fallback when it isn't running behind another app). */
         const val EXTRA_CONTROL = "com.andysocial.voidos.CONTROL"
+        /** How tall the bottom-edge swipe zone is, and how much of the width (each side of the middle) it covers. */
+        const val BOTTOM_DP = 24
+        const val BOTTOM_HALF_WIDTH = 0.4f
+
         /** Open VoidOS's app switcher (from the bottom edge over another app). */
         const val EXTRA_SWITCHER = "com.andysocial.voidos.SWITCHER"
+        const val EXTRA_FROM_APP = "com.andysocial.voidos.FROM_APP"
         /** The screen to open, when the wheel over another app brings VoidOS back. */
         const val EXTRA_MODULE = "com.andysocial.voidos.MODULE"
     }

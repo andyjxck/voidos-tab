@@ -8,7 +8,8 @@ import android.provider.Settings
 
 /**
  * Hide Android. With "Hide Android" on (Settings > Lock mode), VoidOS uses root to:
- *  - keep the navigation and status bars hidden in every app (Android 10's immersive policy),
+ *  - keep the status bar hidden in every app (Android 10's immersive policy),
+ *  - remove the navigation bar altogether with a small Magisk module (see [NOBAR_DIR]),
  *  - switch off the stock Recents screen, so VoidOS's own app switcher is the only one,
  *  - switch off the entry points into Android's Settings app (its launcher icon and the
  *    main Settings screen), so every setting lives in VoidOS,
@@ -21,6 +22,60 @@ import android.provider.Settings
 object Stealth {
     private const val SETTINGS = "com.android.settings"
     private const val K_OFF = "stealthDisabled"
+
+    /** Bars hidden in every app, and no "Viewing full screen" bubble the first time an app goes full screen. */
+    const val POLICY = "immersive.full=*:immersive.preconfirms=*"
+
+    /**
+     * Immersive mode only hides the navigation bar until the next swipe from the bottom edge,
+     * and Android brings it back (black, with back/home/recents) every time. So VoidOS removes
+     * it at the root: a tiny Magisk module of its own sets qemu.hw.mainkeys=1 at boot, which
+     * tells Android 10's window manager the tablet has hardware keys. Android then never makes
+     * a navigation bar at all, in VoidOS or in any other app: no buttons, no black strip, no
+     * inset, and a swipe up from the bottom reveals nothing. VoidOS's own bottom-edge swipe
+     * (its app switcher) is all that's left there. It takes effect from the next restart.
+     * Magisk's safe mode, or deleting this folder, brings the bar back.
+     */
+    const val NOBAR_DIR = "/data/adb/modules/voidos_nobar"
+
+    /** The commands that write (on) or remove (off) the no-navigation-bar module. Pure, for tests. */
+    fun noBarCommands(on: Boolean): List<String> = if (on) listOf(
+        "mkdir -p $NOBAR_DIR",
+        "printf 'id=voidos_nobar\\nname=VoidOS no bars\\nversion=1\\nversionCode=1\\nauthor=VoidOS\\ndescription=No navigation bar\\n' > $NOBAR_DIR/module.prop",
+        "echo qemu.hw.mainkeys=1 > $NOBAR_DIR/system.prop",
+        "rm -f $NOBAR_DIR/remove $NOBAR_DIR/disable",
+        "touch $NOBAR_DIR/skip_mount",
+        "chmod 0644 $NOBAR_DIR/module.prop $NOBAR_DIR/system.prop",
+        "(resetprop qemu.hw.mainkeys 1 || setprop qemu.hw.mainkeys 1) 2>/dev/null",
+    ) else listOf(
+        "rm -rf $NOBAR_DIR",
+        "(resetprop --delete qemu.hw.mainkeys || setprop qemu.hw.mainkeys 0) 2>/dev/null",
+    )
+
+    /** Shell check: prints y when the module is in place and switched on. */
+    const val NOBAR_CHECK = "[ -f $NOBAR_DIR/system.prop ] && [ ! -f $NOBAR_DIR/disable ] && [ ! -f $NOBAR_DIR/remove ] && echo y"
+
+    /**
+     * Whether Android still has a navigation bar right now. The stable insets keep the bar's
+     * room even while immersive mode has it hidden, so they read zero only once it's gone.
+     */
+    fun navBarPresent(a: android.app.Activity): Boolean {
+        val i = a.window?.decorView?.rootWindowInsets ?: return false
+        return maxOf(i.stableInsetBottom, i.stableInsetLeft, i.stableInsetRight) > 0
+    }
+
+    /** The module is written but Android still has its bar: a restart finishes the job. */
+    val restartNeeded = androidx.compose.runtime.mutableStateOf(false)
+    @Volatile var noBarModule = false
+        private set
+
+    /** Writes or removes the no-navigation-bar module when it isn't already the way we want. Blocks on root. */
+    fun syncNoBar(on: Boolean): Boolean {
+        val have = Su.run(NOBAR_CHECK, timeoutS = 8).text.trim().endsWith("y")
+        if (have != on) Su.run(noBarCommands(on).joinToString("; "), timeoutS = 15)
+        noBarModule = if (have != on) Su.run(NOBAR_CHECK, timeoutS = 8).text.trim().endsWith("y") else have
+        return noBarModule
+    }
 
     /** The stock Recents activity Android 10 uses (the launcher's, on most tablets). */
     fun recentsComponent(): String? = runCatching {
@@ -48,7 +103,7 @@ object Stealth {
     fun commands(on: Boolean, entries: List<String>, recents: String?, pkg: String): List<String> {
         val parts = (entries + listOfNotNull(recents?.takeIf { !it.startsWith("$pkg/") })).distinct()
         return if (on) {
-            listOf("settings put global policy_control immersive.full=*") +
+            listOf("settings put global policy_control '$POLICY'") +
                 parts.map { "pm disable ${Su.q(it)}" }
         } else {
             listOf("settings delete global policy_control") +
@@ -90,10 +145,16 @@ object Stealth {
             }
             val policy = runCatching { Settings.Global.getString(c.contentResolver, "policy_control") }.getOrNull().orEmpty()
             val cmds = commands(on, pending.filter { it in entries }, pending.firstOrNull { it !in entries }, c.packageName)
-                .filter { !it.startsWith("settings ") || (on != policy.startsWith("immersive.full=*")) } +
+                .filter { !it.startsWith("settings ") || (on != (policy == POLICY)) } +
                 (if (on && !granted) grantCommands(c.packageName) else emptyList())
             if (cmds.isNotEmpty()) Su.run(cmds.joinToString("; "), timeoutS = 25)
             if (on) granted = true
+            // never take the bar away unless VoidOS's own bottom-edge swipe can draw over other apps
+            runCatching { syncNoBar(on && android.provider.Settings.canDrawOverlays(c)) }
+            if (on) android.os.Handler(android.os.Looper.getMainLooper()).post {
+                runCatching { EdgeOverlay.sync(c, (c.applicationContext as VoidApp).store) }
+            }
+            android.os.Handler(android.os.Looper.getMainLooper()).post { runCatching { MainActivity.live?.get()?.checkRestart() } }
             p.edit().putStringSet(K_OFF, if (on) entries.toSet() else emptySet()).apply()
         } finally { busy = false }
     }

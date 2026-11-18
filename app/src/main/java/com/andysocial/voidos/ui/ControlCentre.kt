@@ -106,6 +106,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.unit.max
 import androidx.compose.ui.unit.min
 
@@ -316,34 +317,66 @@ private fun CcGrid(
         val areaW = if (portrait) min(w - 40.dp, 560.dp) else min(w - 56.dp, 880.dp)
         if (portrait) {
             val side = min((areaW - gap) / 2, 230.dp)
+            val bubble = ccBubbleSize(side)
             Row(Modifier.fillMaxWidth().height(side), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                ConnectModule(st, store, act, Modifier.weight(1f).fillMaxHeight(), expand)
+                ConnectModule(st, store, act, bubble, Modifier.weight(1f).fillMaxHeight(), expand)
                 MediaModule(Modifier.weight(1f).fillMaxHeight()) { expand(CcPart.MEDIA) }
             }
             Spacer(Modifier.height(gap))
-            Row(Modifier.fillMaxWidth().height(side * 1.08f), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                RoundButtons(st, store, act, onClose, onSettings, expand = expand, modifier = Modifier.weight(1f).fillMaxHeight())
+            Row(Modifier.fillMaxWidth().height(side), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                RoundButtons(store, act, onClose, onSettings, bubble, cols = 3, expand = expand, modifier = Modifier.weight(1f).fillMaxHeight())
                 BrightSlider(st, Modifier.width((side - gap) / 2).fillMaxHeight()) { expand(CcPart.BRIGHT) }
                 VolumeSlider(st, Modifier.width((side - gap) / 2).fillMaxHeight()) { expand(CcPart.VOLUME) }
             }
             Spacer(Modifier.height(gap))
-            QuickToggles(onClose, Modifier.fillMaxWidth(), perRow = 5)
+            QuickToggles(onClose, bubble, Modifier.fillMaxWidth())
         } else {
             val rowH = max(200.dp, min(h - 270.dp, 330.dp))
+            // the Wi-Fi square's height sets one bubble size for every switch in the control centre
+            val bubble = ccBubbleSize((rowH - gap) * (1.15f / 2f))
             Row(Modifier.fillMaxWidth().height(rowH), horizontalArrangement = Arrangement.spacedBy(gap)) {
                 Column(Modifier.weight(1.3f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(gap)) {
-                    ConnectModule(st, store, act, Modifier.fillMaxWidth().weight(1.15f), expand)
+                    ConnectModule(st, store, act, bubble, Modifier.fillMaxWidth().weight(1.15f), expand)
                     MediaModule(Modifier.fillMaxWidth().weight(0.85f)) { expand(CcPart.MEDIA) }
                 }
                 BrightSlider(st, Modifier.width(96.dp).fillMaxHeight()) { expand(CcPart.BRIGHT) }
                 VolumeSlider(st, Modifier.width(96.dp).fillMaxHeight()) { expand(CcPart.VOLUME) }
-                RoundButtons(st, store, act, onClose, onSettings, expand = expand, modifier = Modifier.weight(1f).fillMaxHeight())
+                RoundButtons(store, act, onClose, onSettings, bubble, cols = 2, expand = expand, modifier = Modifier.weight(1f).fillMaxHeight())
             }
             Spacer(Modifier.height(gap))
-            QuickToggles(onClose, Modifier.fillMaxWidth(), perRow = 10)
+            QuickToggles(onClose, bubble, Modifier.fillMaxWidth())
         }
     }
 }
+
+/** One size for every round switch: what fits two to a side in a glass square [panel] tall. */
+internal fun ccBubbleSize(panel: Dp): Dp = ((panel - CcPad * 2) / 2 - 14.dp).coerceIn(44.dp, 68.dp)
+
+/** Padding inside every control-centre glass panel. */
+internal val CcPad = 12.dp
+
+/**
+ * A glass panel of round switches, the same treatment as the Wi-Fi square: one rounded pane,
+ * bubbles all one size, laid out [cols] across and spaced evenly both ways.
+ */
+@Composable
+private fun CcCluster(items: List<CcItem>, cols: Int, bubble: Dp, modifier: Modifier) {
+    Column(
+        modifier.ccGlass(RoundedCornerShape(Radius.panel)).padding(CcPad),
+        verticalArrangement = Arrangement.SpaceEvenly,
+    ) {
+        items.chunked(cols.coerceAtLeast(1)).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                row.forEach { CcBubble(it.g, it.label, it.on, it.accent, bubble, it.tap, it.hold ?: it.tap) }
+                // keep a short last row in the same columns as the rows above it
+                repeat(cols - row.size) { Spacer(Modifier.size(bubble)) }
+            }
+        }
+    }
+}
+
+/** One round switch in a [CcCluster]. */
+internal class CcItem(val g: G, val label: String, val on: Boolean, val accent: Color, val hold: (() -> Unit)? = null, val tap: () -> Unit)
 
 @Composable
 private fun CcHeader(store: Store) {
@@ -377,14 +410,14 @@ private fun Modifier.tapOrHold(onTap: (() -> Unit)?, onHold: () -> Unit): Modifi
 
 /** Wi-Fi, Bluetooth, Do Not Disturb and rotation lock: four round switches in one glass square. */
 @Composable
-private fun ConnectModule(st: CcState, store: Store, act: MainActivity, modifier: Modifier, expand: (CcPart) -> Unit) {
+private fun ConnectModule(st: CcState, store: Store, act: MainActivity, bubble: Dp, modifier: Modifier, expand: (CcPart) -> Unit) {
     val pinned = store.rotation != "auto"
     val portrait = LocalPortrait.current
     BoxWithConstraints(
-        modifier.ccGlass(RoundedCornerShape(Radius.panel)).tapOrHold(null) { expand(CcPart.CONNECT) }.padding(12.dp),
+        modifier.ccGlass(RoundedCornerShape(Radius.panel)).tapOrHold(null) { expand(CcPart.CONNECT) }.padding(CcPad),
         contentAlignment = Alignment.Center,
     ) {
-        val d = min(min(maxWidth, maxHeight) / 2 - 14.dp, 68.dp)
+        val d = min(min(maxWidth, maxHeight) / 2 - 6.dp, bubble)
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 CcBubble(G.WIFI, "Wi-Fi", st.wifi, V.Teal, d, { st.switchWifi(!st.wifi) }) { expand(CcPart.WIFI) }
@@ -490,45 +523,24 @@ private fun IconTap(g: G, size: Dp, color: Color = V.Text, onClick: () -> Unit) 
     Box(Modifier.size(size + 22.dp).clip(CircleShape).tap(onClick), contentAlignment = Alignment.Center) { Glyph(g, color, Modifier.size(size)) }
 }
 
-/** Stay awake, screen off, lock and settings: small round glass buttons with their names. */
+/** Stay awake, notifications, assistant, settings and power: round switches in one glass panel, like Wi-Fi's. */
 @Composable
-private fun RoundButtons(st: CcState, store: Store, act: MainActivity, onClose: () -> Unit, onSettings: () -> Unit, modifier: Modifier, expand: (CcPart) -> Unit = {}) {
+private fun RoundButtons(store: Store, act: MainActivity, onClose: () -> Unit, onSettings: () -> Unit, bubble: Dp, cols: Int, modifier: Modifier, expand: (CcPart) -> Unit = {}) {
     val ctx = LocalContext.current
-    data class B(val g: G, val label: String, val on: Boolean, val accent: Color, val act: () -> Unit)
     val items = buildList {
-        add(B(G.LIGHT, "Stay awake", store.deskMode, V.Sun) { store.set("deskMode", !store.deskMode); act.applyPolicies() })
-        add(B(G.BELL, "Notifications", com.andysocial.voidos.VoidListener.notices.value.isNotEmpty(), V.Teal) { expand(CcPart.NOTICES) })
+        add(CcItem(G.LIGHT, "Stay awake", store.deskMode, V.Sun) { store.set("deskMode", !store.deskMode); act.applyPolicies() })
+        add(CcItem(G.BELL, "Notifications", com.andysocial.voidos.VoidListener.notices.value.isNotEmpty(), V.Teal) { expand(CcPart.NOTICES) })
         com.andysocial.voidos.Extras.assistantIntent(ctx)?.let { ai ->
-            add(B(G.ASSISTANT, "Assistant", false, V.Text) {
+            add(CcItem(G.ASSISTANT, "Assistant", false, V.Purple) {
                 onClose()
                 ai.resolveActivity(ctx.packageManager)?.packageName?.let { p -> if (p !in store.allowed) store.setAllowed(p, true); act.applyPolicies() }
                 runCatching { ctx.startActivity(ai) }
             })
         }
-        add(B(G.SYSTEM, "Settings", false, V.Text) { onClose(); onSettings() })
-        add(B(G.POWER, "Power", false, V.Text) { expand(CcPart.POWER) })
+        add(CcItem(G.SYSTEM, "Settings", false, V.Text) { onClose(); onSettings() })
+        add(CcItem(G.POWER, "Power", false, V.Text) { expand(CcPart.POWER) })
     }
-    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
-        val d = min(min(maxWidth / 2 - 18.dp, maxHeight / 2 - 30.dp), 64.dp)
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            items.chunked(2).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    row.forEach { b ->
-                        Column(Modifier.width(d + 22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            val lit by animateFloatAsState(if (b.on) 1f else 0f, label = "lit")
-                            Box(
-                                Modifier.size(d).semantics { contentDescription = b.label; selected = b.on }
-                                    .ccGlass(CircleShape, smoke = 0.72f, stain = b.accent, lit = lit).tap(b.act),
-                                contentAlignment = Alignment.Center,
-                            ) { Glyph(b.g, if (b.on) Color.White else V.Text, Modifier.size(d * 0.38f)) }
-                            Spacer(Modifier.height(5.dp))
-                            VText(b.label, size = Type.caption, color = if (b.on) V.Text else V.Muted, maxLines = 1)
-                        }
-                    }
-                }
-            }
-        }
-    }
+    CcCluster(items, cols, bubble, modifier)
 }
 
 /** The control centre's own slow light, drifting behind the modules. */
@@ -1048,7 +1060,7 @@ private fun mmss(ms: Long): String { val s = (ms.coerceAtLeast(0) / 1000); retur
  * Each reads its state when the control centre opens and flips it through root.
  */
 @Composable
-private fun QuickToggles(onClose: () -> Unit, modifier: Modifier, perRow: Int) {
+private fun QuickToggles(onClose: () -> Unit, bubble: Dp, modifier: Modifier) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var plane by remember { mutableStateOf(com.andysocial.voidos.Device.airplaneOn(ctx)) }
@@ -1080,16 +1092,8 @@ private fun QuickToggles(onClose: () -> Unit, modifier: Modifier, perRow: Int) {
         }),
     )
     Column(modifier) {
-        BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val n = perRow.coerceAtMost(items.size)
-            val gap = 12.dp
-            val d = min(64.dp, (maxWidth - gap * (n - 1)) / n)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally)) {
-                items.take(n).forEach { (g, label, st) ->
-                    CcBubble(g, label, st.first, V.Teal, d, st.second, st.second)
-                }
-            }
-        }
+        // one glass strip, the same pane and bubble size as the Wi-Fi square: no loose buttons
+        CcCluster(items.map { (g, label, st) -> CcItem(g, label, st.first, V.Teal, tap = st.second) }, items.size, bubble, Modifier.fillMaxWidth())
         note?.let { VText(it, size = Type.label, color = V.Coral, modifier = Modifier.padding(top = 8.dp)) }
     }
 }
