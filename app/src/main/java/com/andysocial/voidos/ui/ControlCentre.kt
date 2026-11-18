@@ -110,7 +110,7 @@ import androidx.compose.ui.unit.max
 import androidx.compose.ui.unit.min
 
 /** The parts of the control centre that open up when held. */
-enum class CcPart { CONNECT, WIFI, BT, DND, ROTATE, BRIGHT, VOLUME, MEDIA }
+enum class CcPart { CONNECT, WIFI, BT, DND, ROTATE, BRIGHT, VOLUME, MEDIA, NOTICES }
 
 /**
  * Where the control centre reads the radios from. Tests swap these for fixed
@@ -281,6 +281,7 @@ fun ControlCentre(
                             CcPart.BRIGHT -> BrightPanel(st)
                             CcPart.VOLUME -> VolumePanel(st)
                             CcPart.MEDIA -> MediaPanel()
+                            CcPart.NOTICES -> NoticesPanel { expanded = null; onClose() }
                         }
                     }
                 }
@@ -320,7 +321,7 @@ private fun CcGrid(
             }
             Spacer(Modifier.height(gap))
             Row(Modifier.fillMaxWidth().height(side * 1.08f), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                RoundButtons(st, store, act, onClose, onSettings, Modifier.weight(1f).fillMaxHeight())
+                RoundButtons(st, store, act, onClose, onSettings, expand = expand, modifier = Modifier.weight(1f).fillMaxHeight())
                 BrightSlider(st, Modifier.width((side - gap) / 2).fillMaxHeight()) { expand(CcPart.BRIGHT) }
                 VolumeSlider(st, Modifier.width((side - gap) / 2).fillMaxHeight()) { expand(CcPart.VOLUME) }
             }
@@ -335,7 +336,7 @@ private fun CcGrid(
                 }
                 BrightSlider(st, Modifier.width(96.dp).fillMaxHeight()) { expand(CcPart.BRIGHT) }
                 VolumeSlider(st, Modifier.width(96.dp).fillMaxHeight()) { expand(CcPart.VOLUME) }
-                RoundButtons(st, store, act, onClose, onSettings, Modifier.weight(1f).fillMaxHeight())
+                RoundButtons(st, store, act, onClose, onSettings, expand = expand, modifier = Modifier.weight(1f).fillMaxHeight())
             }
             Spacer(Modifier.height(gap))
             QuickToggles(onClose, Modifier.fillMaxWidth(), perRow = 10)
@@ -490,11 +491,12 @@ private fun IconTap(g: G, size: Dp, color: Color = V.Text, onClick: () -> Unit) 
 
 /** Stay awake, screen off, lock and settings: small round glass buttons with their names. */
 @Composable
-private fun RoundButtons(st: CcState, store: Store, act: MainActivity, onClose: () -> Unit, onSettings: () -> Unit, modifier: Modifier) {
+private fun RoundButtons(st: CcState, store: Store, act: MainActivity, onClose: () -> Unit, onSettings: () -> Unit, modifier: Modifier, expand: (CcPart) -> Unit = {}) {
     val ctx = LocalContext.current
     data class B(val g: G, val label: String, val on: Boolean, val accent: Color, val act: () -> Unit)
     val items = buildList {
         add(B(G.LIGHT, "Stay awake", store.deskMode, V.Sun) { store.set("deskMode", !store.deskMode); act.applyPolicies() })
+        add(B(G.BELL, "Notifications", com.andysocial.voidos.VoidListener.notices.value.isNotEmpty(), V.Teal) { expand(CcPart.NOTICES) })
         add(B(G.SYSTEM, "Settings", false, V.Text) { onClose(); onSettings() })
     }
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
@@ -1085,5 +1087,31 @@ private fun QuickToggles(onClose: () -> Unit, modifier: Modifier, perRow: Int) {
             }
         }
         note?.let { VText(it, size = Type.label, color = V.Coral, modifier = Modifier.padding(top = 8.dp)) }
+    }
+}
+
+
+/** The notification centre: what apps have posted, newest first. Tap one to open it, Clear to dismiss. */
+@Composable
+private fun NoticesPanel(onOpened: () -> Unit) {
+    val list by com.andysocial.voidos.VoidListener.notices
+    VText("Notifications", size = Type.title, color = V.White)
+    Spacer(Modifier.height(Grid.m))
+    if (list.isEmpty()) VText("Nothing new", size = Type.body, color = V.Muted)
+    list.forEach { n ->
+        Column(
+            Modifier.fillMaxWidth().padding(vertical = Grid.xs).ccGlass(RoundedCornerShape(Radius.card), smoke = 0.5f)
+                .tap { com.andysocial.voidos.VoidListener.open(n.key); onOpened() }
+                .padding(horizontal = Grid.l, vertical = Grid.m),
+        ) {
+            VText(n.appName, size = Type.caption, color = V.Muted, maxLines = 1)
+            VText(n.title, size = Type.body, color = V.White, maxLines = 1)
+            if (n.text.isNotBlank()) VText(n.text, size = Type.label, color = V.Text, maxLines = 2)
+        }
+    }
+    if (list.isNotEmpty()) {
+        Spacer(Modifier.height(Grid.m))
+        Box(Modifier.ccGlass(Pill, smoke = 0.6f).tap { com.andysocial.voidos.VoidListener.clearAll() }
+            .padding(horizontal = Grid.l, vertical = Grid.s)) { VText("Clear all", size = Type.label, color = V.Text) }
     }
 }

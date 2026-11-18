@@ -45,6 +45,7 @@ class VoidListener : NotificationListenerService() {
     private val sessionsListener = MediaSessionManager.OnActiveSessionsChangedListener { list -> Now.attach(this, list) }
 
     override fun onListenerConnected() {
+        instance = this
         connected.value = true
         msm = getSystemService(MediaSessionManager::class.java)
         val me = ComponentName(this, VoidListener::class.java)
@@ -57,6 +58,7 @@ class VoidListener : NotificationListenerService() {
 
     override fun onListenerDisconnected() {
         connected.value = false
+        instance = null
         runCatching { msm?.removeOnActiveSessionsChangedListener(sessionsListener) }
     }
 
@@ -82,6 +84,20 @@ class VoidListener : NotificationListenerService() {
     }
 
     companion object {
+        @Volatile private var instance: VoidListener? = null
+
+        /** Opens what a notification points at (as tapping it in Android's shade would). */
+        fun open(key: String) {
+            val l = instance ?: return
+            runCatching {
+                val sbn = l.activeNotifications.firstOrNull { it.key == key } ?: return
+                sbn.notification.contentIntent?.send()
+                if (sbn.notification.flags and android.app.Notification.FLAG_AUTO_CANCEL != 0) l.cancelNotification(key)
+            }
+        }
+
+        fun clearAll() { runCatching { instance?.cancelAllNotifications() } }
+
         val connected = mutableStateOf(false)
         val notices = mutableStateOf<List<Notice>>(emptyList())
 
