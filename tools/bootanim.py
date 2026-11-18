@@ -131,7 +131,17 @@ def build(w, h, out):
     return len(intro), len(loop)
 
 
+if __name__ == "__main__" and "--legacy" not in sys.argv:
+    # the 1.0 animation is retired: the boot animation now comes from
+    # tools/void_balloon.py (its first and last frames are the power-on logo),
+    # so running this by habit rebuilds the right one
+    import void_balloon
+    print("tools/bootanim.py is the old 1.0 animation; running tools/void_balloon.py (use --legacy for the old one)")
+    sys.argv = [sys.argv[0]]
+    void_balloon.main()
+    sys.exit(0)
 if __name__ == "__main__":
+    sys.argv.remove("--legacy")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--size", default="800x1280", help="WIDTHxHEIGHT in the panel's natural orientation")
     ap.add_argument("--out", default=str(vm.ROOT / "root/bootanimation.zip"))

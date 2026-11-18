@@ -85,6 +85,11 @@ exit 0
 CUSTOMIZE = """# Runs inside Magisk's installer.
 ui_print "- VoidOS boot and shutdown animation"
 ui_print "- Reboot to see it. Remove this module in Magisk to undo."
+# the boot animation is shipped once and copied here, so the module stays
+# small enough to send in a chat: Android 10 plays /product/media's copy first
+# when there is one, and the TB-X306F has one
+mkdir -p $MODPATH/system/product/media
+cp -f $MODPATH/system/media/bootanimation.zip $MODPATH/system/product/media/bootanimation.zip
 set_perm_recursive $MODPATH/system 0 0 0755 0644
 """
 
@@ -101,8 +106,8 @@ def build(out: Path):
         z.writestr("customize.sh", CUSTOMIZE)
         z.writestr("system/etc/voidos_boot.txt", VERSION + "\n")
         # bootanimation.zip itself must stay uncompressed inside (it's already stored)
-        for path in ("system/media/bootanimation.zip", "system/product/media/bootanimation.zip"):
-            z.writestr(zipfile.ZipInfo(path), data, compress_type=zipfile.ZIP_STORED)
+        # (customize.sh copies it to system/product/media on the tablet)
+        z.writestr(zipfile.ZipInfo("system/media/bootanimation.zip"), data, compress_type=zipfile.ZIP_STORED)
         # the shutdown animation: the TB-X306F's only one is
         # /system/media/shutdownanimation.zip (its bootanimation binary also
         # looks in /product/media and /oem/media, which have none), so only

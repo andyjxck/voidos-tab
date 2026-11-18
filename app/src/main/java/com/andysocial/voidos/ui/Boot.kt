@@ -55,6 +55,9 @@ fun BootAnim(onDone: () -> Unit) {
             val ww = unit * 0.70f
             val wh = ww / Mark.WORD_ASPECT
             val c = Offset(w / 2, h / 2 - unit * 0.06f)
+            // the wordmark's own box centre (drawVoidWord shifts it left by WORD_OPTICAL_X):
+            // the boot animation swells around this point
+            val m = Offset(c.x - ww * WORD_OPTICAL_X, c.y)
 
             val open = ((s - 1.05f) / 0.6f).coerceIn(0f, 1f)          // opening into the hub
             val openE = open * open * (3 - 2 * open)
@@ -67,7 +70,7 @@ fun BootAnim(onDone: () -> Unit) {
                 for (i in 6 downTo 1) {
                     val rx = ww / 2 * (0.35f + 0.13f * i); val ry = wh / 2 * (0.55f + 0.22f * i)
                     drawOval(V.Teal.copy(alpha = 0.022f * air.coerceAtMost(1f) * (7 - i) / 6f * wordA),
-                        Offset(c.x - rx, c.y - ry), Size(rx * 2, ry * 2))
+                        Offset(m.x - rx, m.y - ry), Size(rx * 2, ry * 2))
                 }
             }
             // swells from the middle like the boot animation, then grows as it opens
@@ -75,7 +78,7 @@ fun BootAnim(onDone: () -> Unit) {
             val sx = (1f + 0.11f * air) * grow
             val sy = (1f + 0.16f * air) * grow
             if (wordA > 0f) {
-                withTransform({ scale(sx, sy, pivot = c) }) {
+                withTransform({ scale(sx, sy, pivot = m) }) {
                     drawVoidWord(c, ww, alpha = wordA)
                 }
             }

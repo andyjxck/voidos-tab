@@ -3,9 +3,11 @@
 Gathers everything for flashing day into root/, next to root/README.md:
 
   root/voidos-tab-<version>.apk   the app (release build, fixed key, testOnly)
-  root/voidos-boot-magisk.zip     Magisk module: the Android boot animation
+  root/voidos-boot-magisk.zip     Magisk module: the boot and shutdown animations
   root/voidos-system-magisk.zip   Magisk module: VoidOS as a system app (optional)
   root/bootanimation.zip          the boot animation on its own
+  root/shutdownanimation.zip      the shutdown animation on its own
+  root/logo-voidos.bin            the TB-X306F power-on logo (tools/mtk_logo.py)
   root/logo-tool/                 the power-on logo tool, runs on its own
                                   (Python 3 + Pillow): mtk_logo.py, voidmark.py,
                                   its logo geometry and font
@@ -13,7 +15,7 @@ Gathers everything for flashing day into root/, next to root/README.md:
 
 Run after the build:
     ./gradlew clean assembleRelease
-    python3 tools/bootanim.py && python3 tools/magisk_module.py
+    python3 tools/void_balloon.py && python3 tools/magisk_module.py
     python3 tools/make_release.py
 """
 import hashlib
@@ -40,9 +42,9 @@ def main():
     apk = ROOT / "app/build/outputs/apk/release/app-release.apk"
     if not apk.exists():
         sys.exit("no release APK: run ./gradlew assembleRelease first")
-    for need in ("bootanimation.zip", "voidos-boot-magisk.zip", "voidos-system-magisk.zip"):
+    for need in ("bootanimation.zip", "shutdownanimation.zip", "voidos-boot-magisk.zip", "voidos-system-magisk.zip"):
         if not (OUT / need).exists():
-            sys.exit(f"root/{need} is missing: run tools/bootanim.py and tools/magisk_module.py")
+            sys.exit(f"root/{need} is missing: run tools/void_balloon.py and tools/magisk_module.py")
     for old in OUT.glob("voidos-tab-*.apk"):
         old.unlink()
     dst = OUT / f"voidos-tab-{v}.apk"
@@ -62,7 +64,10 @@ def main():
         "    python3 mtk_logo.py build logo.stock.bin logo-voidos.bin --preview logo-voidos.png\n"
         "Full steps, checks and how to undo: ../README.md, section 5.\n")
 
-    files = [dst, OUT / "voidos-boot-magisk.zip", OUT / "voidos-system-magisk.zip", OUT / "bootanimation.zip"]
+    files = [dst, OUT / "voidos-boot-magisk.zip", OUT / "voidos-system-magisk.zip", OUT / "bootanimation.zip",
+             OUT / "shutdownanimation.zip"]
+    if (OUT / "logo-voidos.bin").exists():
+        files.append(OUT / "logo-voidos.bin")
     files += sorted(p for p in tool.iterdir())
     lines = [f"{sha(p)}  {p.relative_to(OUT).as_posix()}" for p in files]
     (OUT / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n")

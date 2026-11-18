@@ -4,9 +4,10 @@
 
 | File | What it is | Used in |
 | --- | --- | --- |
-| `voidos-tab-1.5.0.apk` | The VoidOS app, release build (same fixed key as every build, so it installs over any earlier one and keeps device owner) | main README, Install; after unlocking (section 1) |
-| `voidos-boot-magisk.zip` | Magisk module: the Android boot animation | section 3 |
-| `bootanimation.zip` | The boot animation on its own, for a hand copy or your own firmware | section 3 |
+| `voidos-tab-1.6.0.apk` | The VoidOS app, release build (same fixed key as every build, so it installs over any earlier one and keeps device owner) | main README, Install; after unlocking (section 1) |
+| `voidos-boot-magisk.zip` | Magisk module 2.0: the boot animation and the shutdown animation | section 3 |
+| `bootanimation.zip`, `shutdownanimation.zip` | The two animations on their own, for a hand copy or your own firmware | section 3 |
+| `logo-voidos.bin` | The power-on logo for the TB-X306F, build TB-X306F_S120637_230301_BMP, ready to flash | section 5 |
 | `voidos-system-magisk.zip` | Magisk module: VoidOS as a system app (optional) | section 4 |
 | `logo-tool/` | The power-on logo tool, runs on its own with Python 3 + Pillow | section 5 |
 | `SHA256SUMS.txt` | Checksums of all of the above (`sha256sum -c SHA256SUMS.txt`) | before you start |
@@ -22,9 +23,11 @@ steps).
 
 | Stage | Drawn by | Made VoidOS by | Status |
 | --- | --- | --- | --- |
-| 1. Power-on logo (the still "Lenovo" splash) | MediaTek bootloader (LK), from the `logo` partition | `tools/mtk_logo.py` builds a VoidOS `logo.bin` from a dump of **your** partition; you flash it (section 5) | Tool built and tested; flashing is yours |
+| 1. Power-on logo (the still "Lenovo" splash) | MediaTek bootloader (LK), from the `logo` partition | `root/logo-voidos.bin`, built from the stock logo of build S120637_230301 (section 5) | Built and checked; not yet flashed |
 | 1b. "Orange state" warning (only once the bootloader is unlocked, if your firmware shows one) | LK itself, not the logo partition | Nothing here: it would mean patching LK (section 7) | Not done, on purpose |
 | 2. Boot animation | Android's `bootanimation` service | `voidos-boot-magisk.zip` (section 3) | Ready |
+| 2b. Start animation | VoidOS, its first screen | Opens on the boot animation's last frame, balloons into the hub | In the app source; ships with the next app build |
+| Power off | Android's `bootanimation` service, started by MediaTek's shutdown code | `voidos-boot-magisk.zip` replaces `/system/media/shutdownanimation.zip` (section 3) | Ready |
 | 3. Lock screen | VoidOS (Android's keyguard switched off) | No root needed: device owner + "VoidOS lock screen" | Ready |
 | 4. Home screen | VoidOS (device owner, persistent Home) | No root needed | Ready |
 | VoidOS as part of the system | Android package manager | `voidos-system-magisk.zip` (section 4, optional) | Built and checked; not yet run on the tablet |
@@ -123,7 +126,37 @@ unlock and flash steps are different: look up your own model first.**
 4. Open Magisk: it should show it's installed. VoidOS > Settings > Boot & root
    should now say Root (Magisk): Yes and Bootloader: Unlocked.
 
-## 3. Install the boot animation
+## 3. Install the boot and shutdown animations
+
+### How the pictures hand over (no cuts)
+
+`tools/void_balloon.py` draws every stage from the same picture: the still
+"void" wordmark on VoidOS's background (#0B0B0D), at the place and size the
+app draws it (`tools/voidmark.py lockup_geometry`). That picture is
+`root/preview/void_still_800x1280.png`.
+
+1. **Power-on logo** (section 5) shows that still picture.
+2. **Boot animation** starts on that exact frame (checked pixel for pixel),
+   holds it for 0.2 s, then the wordmark balloons up: it swells from the
+   middle, overshoots a little and settles (1.4 s, `part0`). While Android
+   starts it breathes (`part1`, 2 s a breath, seamless loop). Once Android is
+   ready it finishes the breath and lets its air out, ending on the still
+   picture again (0.6 s, `part2`; all parts are `c`, so they always play to
+   the end).
+3. **VoidOS** opens on that same still picture, waits until the boot
+   animation has really gone (`init.svc.bootanim`), then balloons up and opens
+   out into the hub, which is already drawn underneath (1.65 s, tap to skip).
+4. **Power off**: the wordmark takes a small last breath in, then caves in on
+   itself, swirling into the middle, until it's one teal point that blinks
+   out; then black until the screen goes off (1.9 s). MediaTek's shutdown code
+   (`MtkShutdownThread`) waits up to 5 s for it, and the stock Lenovo one ran
+   2.9 s, so it plays in full.
+
+What can't be made seamless: the orange unlocked-bootloader warning before
+the logo (LK, section 7), and a possible blink between the logo and the boot
+animation while Android takes over the screen. If the tablet is held
+sideways, the boot animation is still drawn upright (as the stock one was),
+so VoidOS appears turned. All of this needs checking on the tablet.
 
 **With Magisk (recommended, systemless):**
 
@@ -132,11 +165,16 @@ adb push root/voidos-boot-magisk.zip /sdcard/Download/
 ```
 
 Magisk > Modules > **Install from storage** > `voidos-boot-magisk.zip`,
-then reboot. VoidOS > Settings > Boot & root shows "VoidOS boot module: 1.0"
-once it's in. To undo, remove the module in Magisk and reboot.
+then reboot. VoidOS > Settings > Boot & root shows "VoidOS boot module: 2.0"
+once it's in. To undo, remove the module in Magisk and reboot. Installing 2.0
+over 1.0 replaces it.
 
-The module overlays `/system/media/bootanimation.zip` and
-`/product/media/bootanimation.zip`. If the stock animation still plays, the
+The module overlays `/system/media/bootanimation.zip`,
+`/product/media/bootanimation.zip` (its install script copies the one file
+there, which keeps the module under 10 MB) and
+`/system/media/shutdownanimation.zip`. On the TB-X306F's stock firmware
+those are the only boot and shutdown animations (checked in the firmware's
+`system` and `product` images). If the stock animation still plays, the
 tablet's firmware keeps its animation somewhere else; find it with
 ```
 adb shell ls -l /system/media /product/media /oem/media /vendor/media 2>/dev/null | grep -i boot
@@ -160,19 +198,18 @@ adb shell su -c 'setprop service.bootanim.exit 1; setprop ctl.stop bootanim'
 
 ### Rebuilding the animation
 
-`bootanimation.zip` is 800 x 1280 (the TB-X306F panel in its natural
-portrait orientation), 30 fps: `part0` plays the 2.4 s intro once (the
-wordmark wipes in, the i's dot pops, TAB EDITION fades in), `part1` loops
-until Android finishes booting (the dot slides into the green bar and back,
-then the purple one, like liquid glass). The files are stored without
-compression, which Android requires. For another screen:
+Both animations are 800 x 1280 (the TB-X306F panel in its natural portrait
+orientation, the same as the stock ones), 30 fps, stored without compression
+as Android requires. To rebuild them, the logo and the module:
 ```
-adb shell wm size                                  # e.g. Physical size: 1200x1920
-python3 tools/bootanim.py --size 1200x1920
-python3 tools/magisk_module.py
+python3 tools/void_balloon.py
+python3 tools/mtk_logo.py build <stock logo.bin> root/logo-voidos.bin --indices 0,38 --max-size 13631488 --art root/preview/void_still_800x1280.png
+python3 tools/magisk_module.py boot
+python3 tools/test_void_balloon.py
 ```
-(needs Python 3 and Pillow: `pip install pillow`). Previews of three frames
-are in `root/preview/`.
+(needs Python 3, Pillow and NumPy). `root/preview/boot_sheet.png` and
+`shutdown_sheet.png` show frames from each part. (`tools/bootanim.py` made
+the 1.0 animation and is kept for reference.)
 
 ## 4. VoidOS as a system app (optional)
 
@@ -207,6 +244,34 @@ system copy isn't older than the installed one. The module takes the release
 APK when there is one, else the debug one.
 
 ## 5. Boot logo (the power-on splash)
+
+### TB-X306F, build TB-X306F_S120637_230301_BMP: ready-made
+
+`root/logo-voidos.bin` was built from the `logo-verified.bin` in that build's
+stock firmware. Checked here:
+
+* the 512-byte header is the stock one apart from the size field, and the
+  size field matches the data; 42 pictures as in stock; 40 of them
+  (charging and battery) are byte-for-byte stock
+* pictures 0 and 38 (the two full-screen splashes) decompress to the still
+  VoidOS picture exactly, in the stock pixel format (800 x 1280 BGRA)
+* 925,736 bytes, in a 13,631,488-byte partition
+* the stock file ends in a MediaTek signature (cert1/cert2) that the new one
+  can't carry. This tablet's LK has the policy `logo: sbc+unlock = 0`
+  (no check) as for `boot` (read with lkpatcher `--analyze-policies`), so
+  while the bootloader is unlocked it isn't checked. **Put the stock logo
+  back before you ever relock**, or the tablet won't start (locked policy is 3).
+
+Flash (from the bootloader):
+```
+./adb reboot bootloader
+./fastboot flash logo logo-voidos.bin
+./fastboot reboot
+```
+Undo: `./fastboot flash logo logo-verified.bin` (the stock one from the
+firmware download).
+
+### Any other MediaTek firmware
 
 The still logo LK shows before the boot animation lives in the MediaTek
 `logo` partition: a 512-byte header, a table of offsets and a few dozen
@@ -281,7 +346,7 @@ tablet's bootloader.
 1. Back up and download the RSA firmware (Before you start).
 2. Unlock (section 1, wipes), set VoidOS up again as device owner (main README).
 3. Root (section 2).
-4. Boot animation module (section 3). Reboot, check Boot & root.
+4. Boot and shutdown animation module (section 3). Reboot, check Boot & root.
 5. Boot logo (section 5).
 6. Optional: system app module (section 4).
 

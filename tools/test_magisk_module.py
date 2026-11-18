@@ -51,6 +51,12 @@ class BootModule(Common, unittest.TestCase):
             info = z.getinfo("system/media/bootanimation.zip")
             self.assertEqual(info.compress_type, zipfile.ZIP_STORED)
             self.assertEqual(props(z)["id"], "voidos_boot")
+            # shutdown animation stored too, and the product copy made on install
+            self.assertEqual(z.getinfo("system/media/shutdownanimation.zip").compress_type, zipfile.ZIP_STORED)
+            c = z.read("customize.sh").decode()
+            self.assertIn("cp -f $MODPATH/system/media/bootanimation.zip $MODPATH/system/product/media/bootanimation.zip", c)
+            self.assertLess(c.index("cp -f"), c.index("set_perm_recursive"))
+            self.assertLess(BOOT.stat().st_size, 10_000_000)
 
 
 class SystemModule(Common, unittest.TestCase):
