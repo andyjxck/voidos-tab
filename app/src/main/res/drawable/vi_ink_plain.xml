@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Material Symbols Rounded (Google, Apache 2.0), written by tools/material_icons.py -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="960" android:viewportHeight="960">
+    <group android:translateY="960">
+        <path android:fillColor="#FFFFFFFF" android:pathData="M707.69-100H252.31Q222-100 201-121q-21-21-21-51.31v-615.38Q180-818 201-839q21-21 51.31-21h455.38Q738-860 759-839q21 21 21 51.31v615.38Q780-142 759-121q-21 21-51.31 21Zm-455.38-60h455.38q5.39 0 8.85-3.46t3.46-8.85v-615.38q0-5.39-3.46-8.85t-8.85-3.46H252.31q-5.39 0-8.85 3.46t-3.46 8.85v615.38q0 5.39 3.46 8.85t8.85 3.46ZM240-160v-640 640Z"/>
+    </group>
+</vector>

@@ -1,6 +1,12 @@
 package com.andysocial.voidos.ui
 
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -69,12 +75,6 @@ import com.andysocial.voidos.Stroke
 import kotlinx.coroutines.delay
 import kotlin.math.hypot
 
-/** Pen colours: white, then the six watch colours. */
-private val Inks: List<Color> get() = listOf(V.White) + V.Lap
-
-/** Pen sizes as a fraction of the page width: fine, medium, bold, marker. */
-internal val PenSizes = listOf(0.003f, 0.006f, 0.012f, 0.024f)
-
 internal const val SOLID = 0
 internal const val DOTTED = 1
 internal const val DASHED = 2
@@ -84,8 +84,8 @@ internal const val DASHED = 2
  * and the open page fills the rest; upright, the list fills the screen and a
  * note opens full screen with a way back. The first line of a note is its
  * title. The pen turns the page into a drawing surface with a floating tool
- * capsule (seven colours, four sizes, solid, dotted or dashed lines, eraser,
- * undo, clear). The Home button puts the note on the face as a widget.
+ * pill (undo, redo, pen, highlighter, eraser, colour wheel, any size, brush
+ * menu with line styles, shapes, smoothing and paper, clear; NotesTools.kt). The Home button puts the note on the face as a widget.
  * Everything saves as you go.
  */
 @Composable
@@ -215,14 +215,30 @@ private fun NotePage(
     onBack: (() -> Unit)?, onDeleted: () -> Unit,
 ) {
     val open = store.notes.firstOrNull { it.id == id } ?: return
+    val ctx = LocalContext.current
+    val density = LocalDensity.current
+    val prefs = remember { InkPrefs(ctx) }
     var text by remember(id) { mutableStateOf(open.text) }
     var colour by remember(id) { mutableIntStateOf(open.colour) }
     val ink = remember(id) { mutableStateListOf<Stroke>().also { it.addAll(open.ink) } }
     var inkVersion by remember(id) { mutableIntStateOf(0) }
-    var pen by remember { mutableIntStateOf(0) }
-    var penSize by remember { mutableIntStateOf(1) }
-    var style by remember { mutableIntStateOf(SOLID) }
-    var eraser by remember { mutableStateOf(false) }
+    val history = remember(id) { InkHistory() }
+    // the pen: remembered between notes and restarts
+    var tool by remember { mutableIntStateOf(TOOL_PEN) }
+    var rgb by remember { mutableIntStateOf(prefs.rgb) }
+    var opacity by remember { mutableFloatStateOf(prefs.opacity) }
+    var penSize by remember { mutableFloatStateOf(prefs.penSize) }
+    var hlSize by remember { mutableFloatStateOf(prefs.highlighterSize) }
+    var eraserSize by remember { mutableFloatStateOf(prefs.eraserSize) }
+    var style by remember { mutableIntStateOf(prefs.style.takeIf { it in LineStyles } ?: SOLID) }
+    var shape by remember { mutableIntStateOf(prefs.shape.takeIf { it in Shapes } ?: SHAPE_FREE) }
+    var smooth by remember { mutableStateOf(prefs.smooth) }
+    var recent by remember { mutableStateOf(prefs.recent) }
+    var paper by remember(id) { mutableIntStateOf(prefs.paper(id)) }
+    var panel by remember { mutableStateOf(InkPanel.NONE) }
+    var picking by remember { mutableStateOf(false) }
+    var clearArmed by remember(id) { mutableStateOf(false) }
+    var pageWidthDp by remember { mutableFloatStateOf(600f) }
     val onHome = store.widgets.any { it.kind == "note" && it.ref == id }
 
     // autosave 600 ms after typing or drawing stops
@@ -233,6 +249,23 @@ private fun NotePage(
             store.saveNote(Note(id, text, colour, System.currentTimeMillis(), ink.toList()))
         }
     }
+    // Clear needs a second tap within a moment, and can still be undone
+    LaunchedEffect(clearArmed) { if (clearArmed) { delay(2500); clearArmed = false } }
+    LaunchedEffect(drawing) { if (!drawing) { panel = InkPanel.NONE; picking = false; clearArmed = false } }
+
+    fun edited(e: InkEdit?) { if (e != null) history.record(e); clearArmed = false; inkVersion++ }
+    val size = when (tool) { TOOL_ERASER -> eraserSize; TOOL_HIGHLIGHTER -> hlSize; else -> penSize }
+    fun setSize(v: Float) = when (tool) {
+        TOOL_ERASER -> { eraserSize = v; prefs.eraserSize = v }
+        TOOL_HIGHLIGHTER -> { hlSize = v; prefs.highlighterSize = v }
+        else -> { penSize = v; prefs.penSize = v }
+    }
+    fun setColour(c: Int) {
+        rgb = c or (0xFF shl 24); prefs.rgb = rgb
+        if (tool == TOOL_ERASER) tool = TOOL_PEN
+    }
+    fun keepRecent() { recent = pushRecent(recent, rgb); prefs.recent = recent }
+    fun openPanel(p: InkPanel) { if (panel == InkPanel.COLOUR && p != InkPanel.COLOUR) keepRecent(); panel = p; picking = false }
 
     Column(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -251,7 +284,7 @@ private fun NotePage(
                 else store.addWidget("note", id)
             }
             Gap(w = 8.dp)
-            RoundIcon(G.PEN, if (drawing) "Done drawing" else "Draw", active = drawing) { setDrawing(!drawing); eraser = false }
+            RoundIcon(G.PEN, if (drawing) "Done drawing" else "Draw", active = drawing) { setDrawing(!drawing) }
             Gap(w = 8.dp)
             RoundIcon(G.TRASH, "Delete note", tint = V.Coral) {
                 store.widgets.filter { it.kind == "note" && it.ref == id }.forEach { store.removeWidget(it.id) }
@@ -265,8 +298,15 @@ private fun NotePage(
             size = Type.caption, color = V.Muted, align = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
         )
         Gap(h = 8.dp)
-        Box(Modifier.fillMaxWidth().weight(1f)) {
-            if (text.isEmpty() && !drawing) VText(if (ink.isEmpty()) "Title" else "", size = Type.large, font = SansMedium, color = V.Tick, modifier = Modifier.padding(horizontal = 4.dp))
+        // the page: a soft glass sheet, and nothing draws outside it
+        Box(
+            Modifier.fillMaxWidth().weight(1f).clip(PageShape).background(Color.White.copy(alpha = 0.035f))
+                .onSizeChanged { pageWidthDp = with(density) { it.width.toDp().value } },
+        ) {
+            val lineStep = with(density) { 28.sp.toPx() }
+            val top = with(density) { 10.dp.toPx() }
+            if (paper != PAPER_PLAIN) Canvas(Modifier.fillMaxSize()) { drawPaper(paper, lineStep, top) }
+            if (text.isEmpty() && !drawing) VText(if (ink.isEmpty()) "Title" else "", size = Type.large, font = SansMedium, color = V.Tick, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
             BasicTextField(
                 value = text,
                 onValueChange = { text = it },
@@ -274,96 +314,61 @@ private fun NotePage(
                 textStyle = TextStyle(color = V.Text, fontSize = 18.sp, lineHeight = 28.sp, fontFamily = Sans),
                 visualTransformation = TitleFirstLine,
                 cursorBrush = SolidColor(V.Teal),
-                modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp),
             )
-            InkPage(ink, drawing, Inks[pen].toArgb(), PenSizes[penSize], style, eraser, Modifier.fillMaxSize()) { inkVersion++ }
+            InkPage(
+                ink, drawing, inkArgb(tool, rgb, opacity), size, if (tool == TOOL_HIGHLIGHTER) SOLID else style, tool, shape, smooth, picking,
+                Modifier.fillMaxSize(),
+                onEdit = { edited(it) },
+                onPicked = { c -> picking = false; if (c != null) { setColour(c); keepRecent() }; panel = InkPanel.COLOUR },
+            )
             if (drawing) {
-                PenCapsule(
-                    pen, penSize, style, eraser, ink.isNotEmpty(),
-                    onPen = { pen = it; eraser = false }, onSize = { penSize = it }, onStyle = { style = it; eraser = false },
-                    onEraser = { eraser = !eraser },
-                    onUndo = { if (ink.isNotEmpty()) { ink.removeAt(ink.lastIndex); inkVersion++ } },
-                    onClear = { ink.clear(); inkVersion++ },
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+                val v = inkVersion // history isn't state: read the version so the buttons follow it
+                if (panel != InkPanel.NONE) {
+                    // tap anywhere on the page to put the panel away
+                    Box(Modifier.fillMaxSize().semantics { contentDescription = "Close panel" }.clickable(remember { MutableInteractionSource() }, indication = null) { openPanel(InkPanel.NONE) })
+                    InkCard(Modifier.align(Alignment.BottomCenter).padding(start = 12.dp, end = 12.dp, bottom = 66.dp)) {
+                        when (panel) {
+                            InkPanel.COLOUR -> ColourPanel(rgb, opacity, recent, picking,
+                                onColour = { setColour(it) }, onOpacity = { opacity = it; prefs.opacity = it },
+                                onPick = { keepRecent(); picking = true; panel = InkPanel.NONE }, onDone = { openPanel(InkPanel.NONE) })
+                            InkPanel.SIZE -> SizePanel(tool, size, rgb, opacity, style, pageWidthDp) { setSize(it) }
+                            InkPanel.BRUSH -> BrushPanel(style, shape, smooth, paper,
+                                onStyle = { style = it; prefs.style = it; if (tool == TOOL_ERASER) tool = TOOL_PEN },
+                                onShape = { shape = it; prefs.shape = it; if (tool == TOOL_ERASER) tool = TOOL_PEN },
+                                onSmooth = { smooth = it; prefs.smooth = it },
+                                onPaper = { paper = it; prefs.setPaper(id, it) })
+                            InkPanel.NONE -> {}
+                        }
+                    }
+                }
+                InkBar(
+                    tool, rgb, opacity, size, "%.1f".format(size * pageWidthDp), panel,
+                    canUndo = v >= 0 && history.canUndo(ink), canRedo = history.canRedo, canClear = ink.isNotEmpty(), clearArmed = clearArmed,
+                    onTool = { tool = it; picking = false; clearArmed = false },
+                    onPanel = { openPanel(it) },
+                    onUndo = { if (history.undo(ink)) { clearArmed = false; inkVersion++ } },
+                    onRedo = { if (history.redo(ink)) { clearArmed = false; inkVersion++ } },
+                    onClear = {
+                        if (!clearArmed) clearArmed = true
+                        else { val e = InkEdit.Clear(ink.toList()); e.applyTo(ink); edited(e) }
+                    },
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp, start = 8.dp, end = 8.dp),
                 )
             }
         }
     }
 }
 
-/** The drawing tools in one floating glass capsule: undo, colours, sizes, line styles, eraser, clear. */
-@Composable
-private fun PenCapsule(
-    pen: Int, penSize: Int, style: Int, eraser: Boolean, hasInk: Boolean,
-    onPen: (Int) -> Unit, onSize: (Int) -> Unit, onStyle: (Int) -> Unit, onEraser: () -> Unit, onUndo: () -> Unit, onClear: () -> Unit,
-    modifier: Modifier,
-) {
-    Row(
-        modifier.widthIn(max = 820.dp).liquidGlass(Pill, GlassLook(smoke = 1.1f, depth = 1.2f))
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        PenTool("Undo", false, hasInk, onUndo) { c -> VText("\u21b6", size = Type.title2, color = c) }
-        Hair()
-        Inks.forEachIndexed { i, c ->
-            val on = i == pen && !eraser
-            Box(
-                Modifier.size(36.dp).clip(CircleShape).semantics { contentDescription = "Colour ${i + 1}" }.clickable { onPen(i) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(Modifier.size(if (on) 28.dp else 22.dp).then(if (on) Modifier.glass(CircleShape, 0.4f) else Modifier).padding(if (on) 5.dp else 0.dp).clip(CircleShape).background(Brush.radialGradient(listOf(lerp(c, Color.White, 0.35f), c), center = androidx.compose.ui.geometry.Offset(8f, 8f))))
-            }
-        }
-        Hair()
-        PenSizes.indices.forEach { i ->
-            val on = i == penSize
-            PenTool("Size ${i + 1}", on, true, { onSize(i) }) { c -> Box(Modifier.size((4 + i * 4).dp).clip(CircleShape).background(c)) }
-        }
-        Hair()
-        listOf(SOLID to "Solid", DOTTED to "Dotted", DASHED to "Dashed").forEach { (s, name) ->
-            PenTool(name, s == style && !eraser, true, { onStyle(s) }, wide = true) { c ->
-                Canvas(Modifier.size(width = 26.dp, height = 6.dp)) {
-                    drawLine(c, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), 3.dp.toPx(), StrokeCap.Round, effectFor(s, 3.dp.toPx()))
-                }
-            }
-        }
-        Hair()
-        TextTool("Eraser", eraser, true, onEraser)
-        TextTool("Clear", false, hasInk, onClear, warn = true)
-    }
-}
-
-@Composable
-private fun Hair() = Box(Modifier.width(10.dp).height(22.dp))
-
-@Composable
-private fun PenTool(desc: String, on: Boolean, enabled: Boolean, onClick: () -> Unit, wide: Boolean = false, content: @Composable (Color) -> Unit) {
-    val c = when { !enabled -> V.Tick; on -> V.Teal; else -> V.Text.copy(alpha = 0.8f) }
-    Box(
-        Modifier.size(width = if (wide) 44.dp else 36.dp, height = 36.dp).clip(Pill)
-            .background(if (on) V.Teal.copy(alpha = 0.18f) else Color.Transparent)
-            .semantics { contentDescription = desc }
-            .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { content(c) }
-}
-
-@Composable
-private fun TextTool(label: String, on: Boolean, enabled: Boolean, onClick: () -> Unit, warn: Boolean = false) {
-    val c = when { !enabled -> V.Tick; warn -> V.Coral; on -> V.Teal; else -> V.Text }
-    Box(
-        Modifier.height(36.dp).clip(Pill).background(if (on) V.Teal.copy(alpha = 0.18f) else Color.Transparent)
-            .clickable(enabled = enabled, onClick = onClick).padding(horizontal = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) { VText(label, size = Type.body, color = c, maxLines = 1) }
-}
+private val PageShape = RoundedCornerShape(26.dp)
 
 /** Dotted: round dots one pen-width apart. Dashed: dashes three widths long. */
 internal fun effectFor(style: Int, widthPx: Float): PathEffect? = when (style) {
     DOTTED -> PathEffect.dashPathEffect(floatArrayOf(0.01f, widthPx * 2.2f))
     DASHED -> PathEffect.dashPathEffect(floatArrayOf(widthPx * 3f, widthPx * 2.5f))
+    SPARSE_DOTS -> PathEffect.dashPathEffect(floatArrayOf(0.01f, widthPx * 4.5f))
+    LONG_DASH -> PathEffect.dashPathEffect(floatArrayOf(widthPx * 7f, widthPx * 3f))
+    DASH_DOT -> PathEffect.dashPathEffect(floatArrayOf(widthPx * 4f, widthPx * 2.2f, 0.01f, widthPx * 2.2f))
     else -> null
 }
 
@@ -433,40 +438,78 @@ internal fun strokeDistance(pts: List<Float>, x: Float, y: Float): Float {
     return best
 }
 
-/** The drawing layer. Only takes touches while drawing, so typing still works underneath. */
+/**
+ * The drawing layer. Only takes touches while drawing, so typing still works
+ * underneath. Ink is clipped to the page and every point is kept on it, so a
+ * line dragged past the edge runs along the edge instead of off the note.
+ */
 @Composable
 private fun InkPage(
-    ink: MutableList<Stroke>, active: Boolean, argb: Int, width: Float, style: Int, eraser: Boolean,
-    modifier: Modifier, onChange: () -> Unit,
+    ink: MutableList<Stroke>, active: Boolean, argb: Int, width: Float, style: Int, tool: Int, shape: Int, smooth: Boolean,
+    picking: Boolean, modifier: Modifier, onEdit: (InkEdit?) -> Unit, onPicked: (Int?) -> Unit,
 ) {
     val live = remember { mutableStateListOf<Float>() }
+    var cursor by remember { mutableStateOf<Offset?>(null) }
+    val eraser = tool == TOOL_ERASER
     val input = if (!active) Modifier else Modifier
-        .pointerInput(argb, width, style, eraser) {
+        .pointerInput(argb, width, style, tool, shape, smooth, picking) {
             detectTapGestures { p ->
                 val w = size.width.toFloat()
-                if (eraser) { if (eraseAt(ink, p.x / w, p.y / w, 0.02f)) onChange() }
-                else { ink.add(Stroke(argb, width, SOLID, listOf(p.x / w, p.y / w))); onChange() }
-            }
-        }
-        .pointerInput(argb, width, style, eraser) {
-            detectDragGestures(
-                onDragStart = { p -> val w = size.width.toFloat(); live.clear(); if (eraser) eraseAt(ink, p.x / w, p.y / w, 0.02f) else { live.add(p.x / w); live.add(p.y / w) } },
-                onDragEnd = { if (!eraser && live.size >= 2) ink.add(Stroke(argb, width, style, live.toList())); live.clear(); onChange() },
-                onDragCancel = { live.clear() },
-            ) { ch, _ ->
-                ch.consume()
-                val w = size.width.toFloat()
-                val p = ch.position
-                if (eraser) eraseAt(ink, p.x / w, p.y / w, 0.02f)
-                else {
-                    // skip points closer than half a pen width: smaller files, smoother lines
-                    val n = live.size
-                    if (n < 2 || hypot(p.x / w - live[n - 2], p.y / w - live[n - 1]) > width * 0.5f) { live.add(p.x / w); live.add(p.y / w) }
+                val (x, y) = clampToPage(p.x / w, p.y / w, size.height / w)
+                when {
+                    picking -> onPicked(ink.filter { strokeDistance(it.pts, x, y) < 0.03f + it.width / 2 }
+                        .minByOrNull { strokeDistance(it.pts, x, y) }?.argb)
+                    eraser -> eraseIndexed(ink, x, y, width)?.let { onEdit(it) }
+                    else -> { val s = Stroke(argb, width, SOLID, listOf(x, y)); ink.add(s); onEdit(InkEdit.Add(s)) }
                 }
             }
         }
-    Canvas(modifier.then(input)) {
+        .pointerInput(argb, width, style, tool, shape, smooth, picking) {
+            if (picking) return@pointerInput
+            val erased = ArrayList<InkEdit>()
+            var x0 = 0f; var y0 = 0f
+            detectDragGestures(
+                onDragStart = { p ->
+                    val w = size.width.toFloat()
+                    val (x, y) = clampToPage(p.x / w, p.y / w, size.height / w)
+                    live.clear(); erased.clear(); x0 = x; y0 = y
+                    if (eraser) { cursor = p; eraseIndexed(ink, x, y, width)?.let { erased.add(it) } }
+                    else { live.add(x); live.add(y) }
+                },
+                onDragEnd = {
+                    cursor = null
+                    if (eraser) { if (erased.isNotEmpty()) onEdit(InkEdit.Batch(erased.toList())) }
+                    else if (live.size >= 2) {
+                        val pts = if (shape == SHAPE_FREE && smooth) smoothPoints(live.toList()) else live.toList()
+                        val s = Stroke(argb, width, style, pts); ink.add(s); onEdit(InkEdit.Add(s))
+                    }
+                    live.clear(); erased.clear()
+                },
+                onDragCancel = {
+                    cursor = null; live.clear()
+                    if (erased.isNotEmpty()) onEdit(InkEdit.Batch(erased.toList())); erased.clear()
+                },
+            ) { ch, _ ->
+                ch.consume()
+                val w = size.width.toFloat()
+                val (x, y) = clampToPage(ch.position.x / w, ch.position.y / w, size.height / w)
+                when {
+                    eraser -> { cursor = Offset(x * w, y * w); eraseIndexed(ink, x, y, width)?.let { erased.add(it) } }
+                    shape != SHAPE_FREE -> { live.clear(); live.addAll(shapePoints(shape, x0, y0, x, y)) }
+                    else -> {
+                        // skip points closer than half a pen width: smaller files, smoother lines
+                        val n = live.size
+                        if (n < 2 || hypot(x - live[n - 2], y - live[n - 1]) > width * 0.5f) { live.add(x); live.add(y) }
+                    }
+                }
+            }
+        }
+    Canvas(modifier.clipToBounds().then(input)) {
         drawInk(ink)
         if (live.size >= 2) drawInk(listOf(Stroke(argb, width, style, live.toList())))
+        cursor?.let { c ->
+            drawCircle(Color.Black.copy(alpha = 0.35f), width * size.width, c, style = PenStroke(3.dp.toPx()))
+            drawCircle(Color.White.copy(alpha = 0.8f), width * size.width, c, style = PenStroke(1.5.dp.toPx()))
+        }
     }
 }
