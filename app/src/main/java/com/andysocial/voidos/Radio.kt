@@ -168,12 +168,32 @@ object Radio {
             if (existing != null) runCatching { w.removeNetwork(existing.networkId) }
             id = runCatching { w.addNetwork(config(net.ssid, net.sec, password)) }.getOrDefault(-1)
         }
-        if (id == -1) return "Android wouldn't let VoidOS add this network."
+        if (id == -1) {
+            // root fallback: hand the network straight to wpa_supplicant
+            if (!rootJoin(net, password)) return "Android wouldn't let VoidOS add this network."
+            return if (settle(15_000) { connectedSsid(ctx) == net.ssid }) null
+            else if (net.locked) "Couldn't join. Check the password." else "Couldn't join this network."
+        }
         runCatching { w.enableNetwork(id, true) }
         runCatching { w.reconnect() }
         return if (settle(15_000) { connectedSsid(ctx) == net.ssid }) null
         else if (net.locked) "Couldn't join. Check the password." else "Couldn't join this network."
     }
+
+    /** The wpa_cli lines that add and select a network as root. Pure, unit-tested. */
+    fun wpaScript(net: Net, password: String): String {
+        val c = "wpa_cli -i wlan0"
+        val ssid = Su.q("\"" + net.ssid + "\"")
+        val auth = when (net.sec) {
+            Sec.OPEN -> "$c set_network \$n key_mgmt NONE"
+            Sec.WEP -> "$c set_network \$n key_mgmt NONE && $c set_network \$n wep_key0 " + Su.q("\"" + password + "\"")
+            Sec.WPA -> "$c set_network \$n psk " + Su.q("\"" + password + "\"")
+            Sec.SAE -> "$c set_network \$n key_mgmt SAE && $c set_network \$n sae_password " + Su.q("\"" + password + "\"")
+        }
+        return "n=\$($c add_network | tail -n 1) && $c set_network \$n ssid $ssid && $auth && $c select_network \$n && $c save_config"
+    }
+
+    private fun rootJoin(net: Net, password: String): Boolean = Su.ok(wpaScript(net, password), 15)
 
     /** Forgets a saved network. Device owner first, then root. */
     @Suppress("DEPRECATION")

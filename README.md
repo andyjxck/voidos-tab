@@ -29,12 +29,12 @@ Getting around (no sidebar):
 - **Swipe left or right** on a screen to move to the next one (Settings > Home & lock screen can turn this off).
 - **Left edge: the tab wheel.** Swipe in from the left edge (or rest a finger on it) and a glass wheel of every screen opens under it. Slide down, up or out to pick; let go to open it. A tap on the edge leaves the wheel open so you can tap a screen instead.
 - **Right edge: the app wheel.** The same for apps you've opened from VoidOS. Its centre opens Apps. It only works while VoidOS is on screen: once another app is in front, Android gives the edges to that app. Edge touches are decided in `MainActivity` before the page sees them (`ui/EdgeSwipe.kt`): the outer 34 dp always opens a wheel, and a quick inward flick that starts up to 64 dp in does too; a slow drag there is still a page swipe.
-- **Top edge: the control centre.** Pull down from the status line, or tap it: brightness (and auto), volume, Wi-Fi, Bluetooth, do not disturb, rotation lock, stay awake, screen off, what's playing, Settings and Lock. There is no way out of VoidOS in it.
+- **Top edge: the control centre.** Pull down from the status line, or tap it. Built like an iPad's, in glass with no boxes or lines: a connections module (Wi-Fi, Bluetooth, do not disturb, rotation lock), what's playing, tall brightness and volume sliders, and round buttons (stay awake, screen off, Settings, Lock). **Hold a module to open it up:** Wi-Fi lists nearby networks with signal bars and a lock for secured ones, tap one to join (password field), forget saved ones; Bluetooth lists paired and nearby devices to connect, disconnect, pair or forget; brightness, volume, do not disturb, rotation and now playing open bigger controls too. Wi-Fi and Bluetooth switch through device owner first, then root (`svc wifi`, `bluetooth_manager`), so Android 10's "apps can't switch Wi-Fi" rule doesn't stop it. There is no way out of VoidOS in it.
 
 Also: the VoidOS logo (`docs/logo`, drawn in `ui/Logo.kt`; the square root
 and its o on their own are the launcher icon, with a themed monochrome
-version), an in-app start animation once per power-on, the VoidOS lock screen (every time the screen
-goes off; optional PIN), a drifting ambient desk clock, desk mode (screen
+version), an in-app start animation once per power-on, the VoidOS lock screen (at power-on, every time the screen
+goes off and on Lock) with VoidOS's own PIN on a glass keypad instead of Android's (one PIN for unlocking and the way out, stored only as a salted PBKDF2 hash; wrong PINs shake, five in a row waits 30 s and longer after that; Settings > Home & lock screen to turn it off or change it to 4 or 6 digits), a drifting ambient desk clock, desk mode (screen
 stays on while charging), and every screen works in portrait as well as
 landscape (Settings > Display & sound > Rotation, or Rotation lock in the control centre).
 
@@ -46,8 +46,7 @@ and the steps, is in [`root/README.md`](root/README.md).
 
 ## Escape hatch (you can't get locked out)
 
-1. **On the tablet:** there is one hidden way out, with its own fixed code
-   (not the lock screen PIN). It is deliberately not written down here and
+1. **On the tablet:** there is one hidden way out. It asks for the VoidOS PIN. It is deliberately not written down here and
    nothing on screen hints at it. From there: visit Android settings, turn lock
    mode off, or release VoidOS completely (removes device owner).
 2. **From a computer (adb):**
@@ -67,7 +66,7 @@ Device owner can only be set when no account (Google or other) has been added
 to the tablet. If one has, factory reset and skip every account during setup.
 
 ```
-adb install -t root/voidos-tab-1.10.0.apk
+adb install -t root/voidos-tab-1.11.0.apk
 adb shell dpm set-device-owner com.andysocial.voidos/.VoidAdmin
 adb shell am start -n com.andysocial.voidos/.MainActivity
 ```

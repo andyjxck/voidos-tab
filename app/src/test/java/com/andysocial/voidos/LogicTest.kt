@@ -172,13 +172,13 @@ class LogicTest {
         assertEquals("3.0", Startup.versionFrom("id=voidos_boot\nname=VoidOS\nversion=3.0\nversionCode=3"))
         assertNull(Startup.versionFrom(null))
         assertTrue(Startup.outdated("2.0"))
-        assertFalse(Startup.outdated("3.0"))
+        assertTrue(Startup.outdated("3.0"))
         assertFalse(Startup.outdated("3.1"))
-        val lines = Startup.lines(Startup.State(Startup.Logo.VOIDOS, "3.0", true)).toMap()
+        val lines = Startup.lines(Startup.State(Startup.Logo.VOIDOS, "3.1", true)).toMap()
         assertEquals("VoidOS logo", lines["Startup logo"])
         assertEquals("VoidOS animation", lines["Startup animation"])
         assertEquals("VoidOS animation", lines["Shutdown animation"])
-        assertNull(Startup.note(Startup.State(Startup.Logo.VOIDOS, "3.0", true)))
+        assertNull(Startup.note(Startup.State(Startup.Logo.VOIDOS, "3.1", true)))
         val stock = Startup.lines(Startup.State(Startup.Logo.LENOVO, null, false)).toMap()
         assertEquals("Lenovo logo", stock["Startup logo"])
         assertEquals("Lenovo animation", stock["Startup animation"])
@@ -275,6 +275,17 @@ class LogicTest {
         assertTrue(wpa.allowedKeyManagement.get(android.net.wifi.WifiConfiguration.KeyMgmt.WPA_PSK))
         val open = Radio.config("Cafe", Radio.Sec.OPEN, "")
         assertTrue(open.allowedKeyManagement.get(android.net.wifi.WifiConfiguration.KeyMgmt.NONE))
+    }
+
+    @Test fun wifiRootJoinScript() {
+        val wpa = Radio.wpaScript(Radio.Net("Andy's Wi-Fi", 3, Radio.Sec.WPA), "pa ss")
+        assertTrue(wpa, wpa.contains("add_network"))
+        assertTrue(wpa, wpa.contains("ssid '\"Andy'\\''s Wi-Fi\"'"))
+        assertTrue(wpa, wpa.contains("psk '\"pa ss\"'"))
+        assertTrue(wpa, wpa.endsWith("select_network \$n && wpa_cli -i wlan0 save_config"))
+        val open = Radio.wpaScript(Radio.Net("Cafe", 2, Radio.Sec.OPEN), "")
+        assertTrue(open, open.contains("key_mgmt NONE"))
+        assertFalse(open, open.contains("psk"))
     }
 
     @Test fun wifiSwitchFallsBackToRoot() {

@@ -50,8 +50,8 @@ object Startup {
     /** sha256 of the stock S120637_230301 logo's first 914 373 bytes (its header says that's the whole image). */
     const val STOCK_LOGO_SHA = "73b55bdf66637c60a8e71bba11556b2d92f00cf9c78ed8abdfa5c2ff6456f7db"
     const val STOCK_LOGO_LEN = 914_373
-    /** The boot module version that carries the lava lamp and landscape. */
-    const val CURRENT_MODULE = "3.0"
+    /** The newest boot module: balloon intro, then the bouncing dot, landscape versions. */
+    const val CURRENT_MODULE = "3.1"
 
     enum class Logo { VOIDOS, LENOVO, OTHER, UNKNOWN }
 
@@ -95,7 +95,7 @@ object Startup {
         "Startup logo" to when (s.logo) {
             Logo.VOIDOS -> "VoidOS logo"
             Logo.LENOVO -> "Lenovo logo"
-            Logo.OTHER -> "Custom (not Lenovo's)"
+            Logo.OTHER -> "A custom logo"
             Logo.UNKNOWN -> "Couldn't check"
         },
         "Startup animation" to if (s.module != null) "VoidOS animation" else "Lenovo animation",
@@ -104,7 +104,7 @@ object Startup {
 
     /** One sentence under the lines, or null when nothing needs saying. */
     fun note(s: State): String? = when {
-        s.module != null && outdated(s.module) -> "There's a newer startup animation (the lava lamp). Install it from the voidos-tab folder to get it."
+        s.module != null && outdated(s.module) -> "There's a newer startup animation in your voidos-tab folder. Install it to get it."
         s.logo == Logo.UNKNOWN -> "VoidOS couldn't look at the startup logo. If Magisk asks to allow VoidOS, tap Allow."
         else -> null
     }
