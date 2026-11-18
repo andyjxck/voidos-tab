@@ -1,4 +1,3 @@
-1da2c41a0bf6d5f4ea3381635a14c3be4fb9fa5395ccbe7afdcb651aab10a58b  voidos-tab-1.12.0.apk
 ce5b5580699c6d26720a77c2bb1d580e8540c21779ce53f2c2d45dc786b1793b  voidos-boot-magisk.zip
 e6736bc54c1042fefc1905becb923ccc1c28821d911740780941c15e690245ce  voidos-system-magisk.zip
 1f03ca8b0d1874eb8aada8f298f5b92480345b857f812f2d08891c2a6c460805  bootanimation.zip
@@ -9,3 +8,4 @@ bd36e536cc26672bdba652547494a4877f2a446329bb7141840d9cd73bceffc2  logo-tool/kenn
 c77c859eb2f5b54b59dd7c72e67d1f501182e77812048cc7afda11b297f569ca  logo-tool/mtk_logo.py
 ad24ddcd27108b131de027c8020f7a463947680d14d0074b4961fc09b1d28d13  logo-tool/voidmark.py
 c82f88d1816f77aaa102f3eab2b6da85a9831321f7ba46bcaea2d143dc0062c6  logo-tool/voidmark_geometry.json
+a3fe196c7fd227edfd6089d4f0d2a27abc00b3c3ac64a4e7233d256a0aad0246  voidos-tab-1.13.0.apk

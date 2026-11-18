@@ -214,7 +214,7 @@ fun LevelPane() {
     val angle = if (flat) maxOf(abs(pitch), abs(roll)) else abs(((edge + 45 + 360) % 90) - 45)
     val level = angle < 0.6f
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        BoxWithConstraints(Modifier.size(300.dp)) {
+        Box(Modifier.size(300.dp)) {
             Canvas(Modifier.fillMaxSize()) {
                 val c = center; val r = size.minDimension / 2
                 drawCircle(Color.White.copy(alpha = 0.10f), r, c, style = Stroke(2.dp.toPx()))
