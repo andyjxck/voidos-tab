@@ -415,7 +415,7 @@ fun RootPane(store: Store? = null) {
     val sysMod = RootInfo.systemModuleVersion()
     val su = RootInfo.hasSu()
     val owner = com.andysocial.voidos.Policy.isOwner(ctx)
-    Head("Boot + root", "VoidOS draws the lock and home screens itself. The boot animation and VoidOS as a system app need root (Magisk modules); the power-on logo needs the logo partition flashed. root/README.md in the voidos-tab repo has every step. Unlocking the bootloader wipes the tablet.")
+    Head("Boot & root", "VoidOS draws the lock and home screens itself. The boot animation and VoidOS as a system app need root (Magisk modules); the power-on logo needs the logo partition flashed. root/README.md in the voidos-tab repo has every step. Unlocking the bootloader wipes the tablet.")
     Label("What the tablet shows")
     Gap(h = 6.dp)
     BootChain.stages(
