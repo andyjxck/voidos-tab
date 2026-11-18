@@ -39,7 +39,7 @@ class Common:
                 self.assertIn(k, p)
             self.assertRegex(p["id"], r"^[a-zA-Z][a-zA-Z0-9._-]+$")
             self.assertIn("install_module", z.read("META-INF/com/google/android/update-binary").decode())
-            self.assertTrue(all(n.startswith(("META-INF/", "system/", "orient/")) or n in ("module.prop", "customize.sh", "orient.sh") for n in names))
+            self.assertTrue(all(n.startswith(("META-INF/", "system/", "orient/")) or n in ("module.prop", "customize.sh", "orient.sh", "screenoff.sh") for n in names))
             self.assertIsNone(z.testzip())
 
 
@@ -64,6 +64,13 @@ class BootModule(Common, unittest.TestCase):
                     self.assertEqual(z.getinfo(f"orient/{rot}/{n}").compress_type, zipfile.ZIP_STORED)
             self.assertIn("orient.sh", z.namelist())
             self.assertIn("cp -f $MODPATH/system/media/bootanimation.zip $MODPATH/orient/0/bootanimation.zip", c)
+            # the script that turns the screen off as the shutdown fold ends
+            so = z.read("screenoff.sh").decode()
+            self.assertNotIn("@FOLD_MS@", so)
+            import void_balloon as vb
+            self.assertIn(f"FOLD_MS={round(vb.SHUT_SECONDS * 1000)} ", so)
+            self.assertIn("set_perm $MODPATH/screenoff.sh 0 0 0755", c)
+            self.assertIn('sh "$M/screenoff.sh"', z.read("orient.sh").decode())
 
 
 class SystemModule(Common, unittest.TestCase):

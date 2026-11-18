@@ -20,10 +20,12 @@ over to the next on the same frame:
                 out and lands back on the still frame
              -> VoidOS (ui/Boot.kt) opens on that same still frame, waits for
                 the boot animation to be gone, then balloons open into the hub
-  power off  shutdown animation: a small last breath in, then the wordmark
-             caves in on itself, swirling into the middle like it is being
-             pulled into a void, ends as a teal point that blinks out, then
-             black.
+  power off  shutdown animation (6 s): a slow last breath in, then the
+             wordmark folds in on itself, swirling into the middle like it
+             is being pulled into a void, and ends as a small teal ember
+             that keeps breathing (part1) until the screen goes off. The
+             boot module's screenoff.sh turns the backlight down as the
+             ember settles, so it goes out with the screen.
 
 Landscape: Android 10's boot animation always draws in the panel's own
 portrait and cannot read the sensor, so there are also versions for the
@@ -82,11 +84,14 @@ SETTLE = 30               # part2: the dot swings to a stop in its place,
 DRAIN = 24                #        the air goes out,
 OUTRO = SETTLE + DRAIN + 2  #      and it holds on the still frame
 FADE = 6                  # frames the flat still dot takes to turn into the glass dot (and back)
-# shutdown timing
-SHUT_HOLD = 4
-SHUT_BREATH = 9           # a small last breath in
-SHUT_COLLAPSE = 33        # caving in
-SHUT_SPARK = 12           # the point blinks out
+# shutdown timing (part0 6.0 s; it was 1.9 s up to module 3.1)
+SHUT_HOLD = 6             # 0.2 s on the still logo
+SHUT_BREATH = 24          # 0.8 s: a slow last breath in
+SHUT_COLLAPSE = 126       # 4.2 s: folding in on itself
+SHUT_SETTLE = 24          # 0.8 s: the bright point settles into a small teal ember
+EMBER = 48                # part1: the ember breathes (1.6 s loop) until the screen goes off
+EMBER_R = 2.2             # ember radius at rest, in pixels as seen
+EMBER_A = 0.8             # and its brightness
 
 
 def clamp(x, a=0.0, b=1.0):
@@ -457,13 +462,21 @@ def boot_frame(rot, part, f):
     return Image.blend(plain, glass, show) if show > 0 else plain
 
 
-SHUT_PARTS = (("part0", SHUT_HOLD + SHUT_BREATH + SHUT_COLLAPSE + SHUT_SPARK), ("part1", 1))
+SHUT_PARTS = (("part0", SHUT_HOLD + SHUT_BREATH + SHUT_COLLAPSE + SHUT_SETTLE), ("part1", EMBER))
+SHUT_SECONDS = SHUT_PARTS[0][1] / FPS     # what screenoff.sh waits for (tools/magisk_module.py)
+
+
+def ember(t):
+    """The ember of part1 at t 0..1 of its loop: (radius, brightness). It
+    starts and ends exactly where part0 leaves it, so the loop is seamless."""
+    s = math.sin(2 * math.pi * t)
+    return EMBER_R * SS * (1 + 0.14 * s), EMBER_A * (1 + 0.15 * s)
 
 
 def shutdown_frame(rot, part, f):
     w, h = view_size(rot)
     if part == "part1":
-        return render(w, h, fade=0)
+        return render(w, h, fade=0, spark=ember(f / EMBER))
     if f < SHUT_HOLD:
         return render(w, h)
     f -= SHUT_HOLD
@@ -485,9 +498,14 @@ def shutdown_frame(rot, part, f):
             sp = (3 * SS * ease_io((k - 0.75) / 0.25), ease_io((k - 0.75) / 0.25))
         return render(w, h, warp, glow=b, fade=1.0, spark=sp)
     f -= SHUT_COLLAPSE
-    t = (f + 1) / SHUT_SPARK
-    r = 3 * SS * (1 + 0.6 * math.sin(math.pi * min(1, t / 0.4))) * (1 - ease_in(t))
-    return render(w, h, fade=0, spark=(r, 1 - ease_in(t)))
+    # the bright point (3 px, full light) flares once and settles into the ember
+    t = (f + 1) / SHUT_SETTLE
+    r0, a0 = ember(0)
+    flare = math.sin(math.pi * min(1.0, t / 0.45))
+    e = ease_io(t)
+    r = (3 * SS + (r0 - 3 * SS) * e) * (1 + 0.5 * flare * (1 - e))
+    a = 1.0 + (a0 - 1.0) * e
+    return render(w, h, fade=0, spark=(r, a))
 
 
 # ------------------------------------------------------------------ output
@@ -537,7 +555,8 @@ def write_anim(path, kind, rot, pool, keep=False):
         desc = [f"c 1 0 part0 {bg_hex()}", f"c 0 0 part1 {bg_hex()}", f"c 1 0 part2 {bg_hex()}"]
     else:
         # same structure as the stock Lenovo shutdown animation: part0 once,
-        # then part1 (the background) until the tablet is off
+        # then part1 (here the breathing ember, not a black frame) until the
+        # tablet is off
         desc = [f"p 1 0 part0 {bg_hex()}", f"p 0 0 part1 {bg_hex()}"]
     w, h = PANEL
     jobs = [(kind, rot, p, f, keep) for p, n in parts for f in range(n)]

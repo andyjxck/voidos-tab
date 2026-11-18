@@ -35,15 +35,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import voidmark as vm  # noqa: E402
 
-VERSION = "3.1"
-VERSION_CODE = 4
+VERSION = "3.2"
+VERSION_CODE = 5
 
 MODULE_PROP = f"""id=voidos_boot
 name=VoidOS boot and shutdown animation
 version={VERSION}
 versionCode={VERSION_CODE}
 author=andyjxck
-description=VoidOS power-on and power-off animations: the "void" wordmark balloons up and the dot of the i bounces between the two lines at boot and caves in on itself at shutdown, the way round the tablet is held. Systemless: remove the module to restore the stock Lenovo animations.
+description=VoidOS power-on and power-off animations: the "void" wordmark balloons up and the dot of the i bounces between the two lines at boot and slowly folds in on itself at shutdown, going out with the screen, the way round the tablet is held. Systemless: remove the module to restore the stock Lenovo animations.
 """
 
 # The standard Magisk module installer stub (Magisk 20.4+ does the real work).
@@ -99,6 +99,7 @@ echo 0 > $MODPATH/orient/shutdown.now
 set_perm_recursive $MODPATH/system 0 0 0755 0644
 set_perm_recursive $MODPATH/orient 0 0 0755 0644
 set_perm $MODPATH/orient.sh 0 0 0755
+set_perm $MODPATH/screenoff.sh 0 0 0755
 """
 
 # Run by VoidOS (BootOrient.kt) as root when the tablet turns, and at
@@ -126,7 +127,16 @@ put() { # put <name> <version file> <target>...
 }
 BOOT="$M/system/media/bootanimation.zip $M/system/product/media/bootanimation.zip"
 if [ "$2" = boot ]; then
-  # at shutdown: only the boot animation, as the shutdown one is playing
+  # at shutdown: first start screenoff.sh on its own (so the picture goes
+  # out with the screen), then only the boot animation, as the shutdown one
+  # is playing
+  if [ -f "$M/screenoff.sh" ]; then
+    if command -v setsid >/dev/null 2>&1; then
+      ( setsid sh "$M/screenoff.sh" </dev/null >/dev/null 2>&1 & )
+    else
+      ( sh "$M/screenoff.sh" </dev/null >/dev/null 2>&1 & )
+    fi
+  fi
   put bootanimation.zip $M/orient/boot.now $BOOT || exit 1
   exit 0
 fi
@@ -134,6 +144,63 @@ fi
 [ "$(getprop init.svc.bootanim)" = running ] && exit 4
 put bootanimation.zip $M/orient/boot.now $BOOT || exit 1
 put shutdownanimation.zip $M/orient/shutdown.now $M/system/media/shutdownanimation.zip || exit 1
+exit 0
+"""
+
+
+# Started by orient.sh at shutdown (VoidOS runs orient.sh from its
+# ACTION_SHUTDOWN receiver). The shutdown animation is part0 (the fold, its
+# length is filled in from tools/void_balloon.py) and then part1, a small
+# teal ember that breathes until the tablet is off. On the TB-X306F the
+# screen stayed lit (and black) for about ten seconds after the old 1.9 s
+# animation. This waits until the fold has played, counted from when the
+# bootanimation process started, then turns the backlight down over a
+# quarter of a second, so the ember goes out with the screen. If anything is
+# missing (no bootanimation or mtkbootanimation running, no backlight file) it does nothing and
+# the ember simply stays until Android turns the screen off itself.
+# screenoff.offset (milliseconds, may be negative) moves the moment.
+SCREENOFF_SH = r"""#!/system/bin/sh
+M=$(cd "$(dirname "$0")" && pwd)
+FOLD_MS=@FOLD_MS@   # part0 of the shutdown animation
+LOAD_MS=400         # bootanimation opening the zip before the first frame
+HOLD_MS=300         # the ember sits for a moment before the screen goes
+say() { log -t VoidOS "screenoff: $*" 2>/dev/null; }
+command -v getprop >/dev/null 2>&1 || exit 0
+[ -n "$(getprop sys.shutdown.requested)" ] || { say "no shutdown in progress"; exit 0; }
+now_ms() { read -r up _ < /proc/uptime; s=${up%.*}; f=${up#*.}; f=${f#0}; echo $(( s * 1000 + ${f:-0} * 10 )); }
+pid=""
+i=0
+while [ $i -lt 30 ]; do
+  # AOSP's bootanimation, or MediaTek's mtkbootanimation (banim_shut*)
+  pid=$(pidof bootanimation 2>/dev/null)
+  [ -n "$pid" ] || pid=$(pidof mtkbootanimation 2>/dev/null)
+  [ -n "$pid" ] && break
+  sleep 0.1
+  i=$((i + 1))
+done
+[ -n "$pid" ] || { say "no shutdown animation playing"; exit 0; }
+set -- $pid; pid=$1
+read -r st < /proc/$pid/stat || exit 0
+set -- $st; shift 21; start_ms=$(( $1 * 10 ))   # starttime, in 1/100 s
+off=$(cat "$M/screenoff.offset" 2>/dev/null); case "$off" in ''|*[!0-9-]*) off=0 ;; esac
+wait_ms=$(( start_ms + LOAD_MS + FOLD_MS + HOLD_MS + off - $(now_ms) ))
+[ $wait_ms -gt 20000 ] && wait_ms=20000
+[ $wait_ms -gt 0 ] && sleep $(( wait_ms / 1000 )).$(printf %03d $(( wait_ms % 1000 )))
+[ -d /proc/$pid ] || { say "animation already gone"; exit 0; }
+bl=""
+for f in $VOID_TEST_BL /sys/class/leds/lcd-backlight/brightness /sys/class/backlight/*/brightness; do
+  [ -w "$f" ] && { bl=$f; break; }
+done
+[ -n "$bl" ] || { say "no backlight control found"; exit 0; }
+cur=$(cat "$bl" 2>/dev/null); case "$cur" in ''|*[!0-9]*) cur=0 ;; esac
+n=5
+while [ $n -gt 0 ] && [ $cur -gt 0 ]; do
+  n=$((n - 1))
+  echo $(( cur * n / 6 )) > "$bl"
+  sleep 0.05
+done
+echo 0 > "$bl"
+say "backlight off after the fold ($bl)"
 exit 0
 """
 
@@ -162,6 +229,8 @@ def build(out: Path):
         # the landscape versions (tools/void_balloon.py) and the script that
         # swaps them in; the portrait pair is copied to orient/0 on install
         z.writestr("orient.sh", ORIENT_SH)
+        import void_balloon as vb
+        z.writestr("screenoff.sh", SCREENOFF_SH.replace("@FOLD_MS@", str(round(vb.SHUT_SECONDS * 1000))))
         for rot in (90, 270):
             for name in ("bootanimation.zip", "shutdownanimation.zip"):
                 f = vm.ROOT / f"root/orient/{rot}/{name}"

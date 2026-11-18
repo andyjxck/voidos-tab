@@ -5,7 +5,7 @@
 | File | What it is | Used in |
 | --- | --- | --- |
 | `voidos-tab-1.11.0.apk` | The VoidOS app, release build (same fixed key as every build, so it installs over any earlier one and keeps device owner) | main README, Install; after unlocking (section 1) |
-| `voidos-boot-magisk.zip` | Magisk module 3.0: the boot animation and the shutdown animation, in portrait and both ways round in landscape | section 3 |
+| `voidos-boot-magisk.zip` | Magisk module 3.2: the boot animation and the shutdown animation, in portrait and both ways round in landscape | section 3 |
 | `bootanimation.zip`, `shutdownanimation.zip` | The two animations on their own (portrait), for a hand copy or your own firmware; `orient/90` and `orient/270` hold the landscape ones | section 3 |
 | `logo-voidos.bin` | The power-on logo for the TB-X306F, build TB-X306F_S120637_230301_BMP, ready to flash | section 5 |
 | `voidos-system-magisk.zip` | Magisk module: VoidOS as a system app (optional) | section 4 |
@@ -165,11 +165,21 @@ app draws it (`tools/voidmark.py lockup_geometry`). That picture is
 3. **VoidOS** opens on that same still picture, waits until the boot
    animation has really gone (`init.svc.bootanim`), then balloons up and opens
    out into the hub, which is already drawn underneath (1.65 s, tap to skip).
-4. **Power off**: the wordmark takes a small last breath in, then caves in on
-   itself, swirling into the middle, until it's one teal point that blinks
-   out; then black until the screen goes off (1.9 s). MediaTek's shutdown code
-   (`MtkShutdownThread`) waits up to 5 s for it, and the stock Lenovo one ran
-   2.9 s, so it plays in full.
+4. **Power off** (module 3.2): the wordmark takes a slow last breath in, then
+   folds in on itself, swirling into the middle, until it's one teal point
+   (6 s, it was 1.9 s up to 3.1). The point then settles into a small ember
+   that keeps breathing instead of a black frame, so the screen never sits
+   lit and empty. At shutdown `orient.sh` also starts the module's
+   `screenoff.sh`: it counts from when the shutdown animation started, waits
+   for the fold plus 0.3 s, then turns the backlight down over a quarter of
+   a second, so the ember goes out with the screen. If it can't find the
+   animation or the backlight it does nothing, and the ember stays until
+   Android turns the screen off. To move the moment, put a number of
+   milliseconds (negative for earlier) in
+   `/data/adb/modules/voidos_boot/screenoff.offset`. How long MediaTek's
+   shutdown code (`MtkShutdownThread`) lets it run before the power goes
+   needs checking on the tablet: before 3.2 the screen stayed lit about ten
+   seconds after the old 1.9 s animation, so the 6 s fold should fit.
 
 **Landscape.** Android 10's boot animation always draws in the panel's own
 portrait and can't read the sensor, so the module also carries both
@@ -198,7 +208,7 @@ adb push root/voidos-boot-magisk.zip /sdcard/Download/
 
 Magisk > Modules > **Install from storage** > `voidos-boot-magisk.zip`,
 then reboot. VoidOS > Settings > About this tablet shows "Startup animation: VoidOS animation"
-once it's in. To undo, remove the module in Magisk and reboot. Installing 3.0
+once it's in. To undo, remove the module in Magisk and reboot. Installing 3.2
 over an earlier one replaces it.
 
 The module overlays `/system/media/bootanimation.zip`,

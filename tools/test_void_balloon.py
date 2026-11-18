@@ -259,20 +259,27 @@ class Orient(unittest.TestCase):
 
 
 class Shutdown(unittest.TestCase):
-    def test_collapses_to_black(self):
+    def test_folds_slowly_into_an_ember(self):
         z = zipfile.ZipFile(ROOT / "shutdownanimation.zip")
         self.assertEqual(z.read("desc.txt").decode(), DESC_SHUT)
         self.assertTrue(all(i.compress_type == zipfile.ZIP_STORED for i in z.infolist()))
         p = frames(z)
+        self.assertEqual({k: len(v) for k, v in p.items()}, dict(vb.SHUT_PARTS))
+        self.assertGreaterEqual(len(p["part0"]) / vb.FPS, 5.0)   # slow: it was 1.9 s
         still = np.asarray(Image.open(STILL).convert("RGB")).astype(int)
         self.assertEqual(np.abs(px(z, p["part0"][0]) - still).max(), 0)
         bg = np.array(vb.BG)
         ink = [int((np.abs(px(z, n) - bg).sum(2) > 40).sum()) for n in p["part0"]]
         k0 = vb.SHUT_HOLD + vb.SHUT_BREATH
-        # caving in: much less ink half way through the collapse, none at the end
+        # folding in: much less ink half way through, only a small point at the end
         self.assertLess(ink[k0 + vb.SHUT_COLLAPSE // 2], ink[0] * 0.6)
-        self.assertEqual(ink[-1], 0)
-        self.assertEqual(np.abs(px(z, p["part1"][0]) - bg).max(), 0)
+        self.assertGreater(ink[-1], 0)
+        self.assertLess(ink[-1], ink[0] * 0.05)
+        # the ember never goes out on its own, and loops on from where part0 ends
+        ember = [int((np.abs(px(z, n) - bg).sum(2) > 40).sum()) for n in p["part1"]]
+        self.assertGreater(min(ember), 0)
+        self.assertEqual(np.abs(px(z, p["part0"][-1]) - px(z, p["part1"][0])).max(), 0)
+        self.assertLess(np.abs(px(z, p["part1"][-1]) - px(z, p["part1"][0])).max(), 40)
 
 
 class Logo(unittest.TestCase):
