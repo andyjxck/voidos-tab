@@ -64,6 +64,9 @@ import com.andysocial.voidos.MainActivity
 import com.andysocial.voidos.Now
 import com.andysocial.voidos.Policy
 import com.andysocial.voidos.Store
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -75,8 +78,25 @@ import java.time.format.DateTimeFormatter
  */
 fun Modifier.glass(shape: Shape, alpha: Float = 0.86f): Modifier = this
     .clip(shape)
-    .background(Brush.verticalGradient(listOf(Color(0xFF2A2A2E).copy(alpha = alpha), Color(0xFF151517).copy(alpha = alpha))))
-    .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.04f))), shape)
+    .drawBehind { glassFill(alpha, 1f) }
+    .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.06f), Color.White.copy(alpha = 0.10f))), shape)
+
+/**
+ * The glass itself: a dark translucent body lighter at the top, the screen's
+ * colour soaking in from below (light bouncing off the aurora), and a soft
+ * sheen across the top third where it catches the light.
+ */
+fun androidx.compose.ui.graphics.drawscope.DrawScope.glassFill(alpha: Float, lift: Float) {
+    if (size.width <= 0f || size.height <= 0f) return
+    drawRect(Brush.verticalGradient(listOf(Color(0xFF2C2B33).copy(alpha = alpha * lift), Color(0xFF141418).copy(alpha = alpha * lift))))
+    val tint = Ambience.tint()
+    drawRect(Brush.verticalGradient(0.45f to Color.Transparent, 1f to tint.copy(alpha = 0.10f * lift), startY = 0f, endY = size.height))
+    drawRect(
+        Brush.radialGradient(listOf(tint.copy(alpha = 0.08f * lift), Color.Transparent), center = androidx.compose.ui.geometry.Offset(size.width * 0.1f, 0f), radius = maxOf(size.width, size.height) * 0.9f),
+    )
+    val sheen = minOf(size.height * 0.45f, 90.dp.toPx())
+    drawRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.075f * lift), Color.Transparent), startY = 0f, endY = sheen), size = androidx.compose.ui.geometry.Size(size.width, sheen))
+}
 
 /** The tablet switches the control centre drives. Each one fails quietly and reports what it managed. */
 object Tablet {
@@ -168,7 +188,7 @@ fun ControlCentre(
     onSettings: () -> Unit,
 ) {
     AnimatedVisibility(open, enter = fadeIn(), exit = fadeOut()) {
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).tap(onClose))
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.72f), Color.Black.copy(alpha = 0.45f)))).tap(onClose))
     }
     AnimatedVisibility(
         open,
@@ -182,6 +202,7 @@ fun ControlCentre(
                     .widthIn(max = if (LocalPortrait.current) 600.dp else 760.dp)
                     .fillMaxWidth()
                     .glass(RoundedCornerShape(30.dp), alpha = 0.95f)
+                    .ccAurora()
                     .tap { }
                     .pointerInput(Unit) {
                         // flick it back up to close
@@ -226,11 +247,21 @@ private fun ControlBody(store: Store, act: MainActivity, onClose: () -> Unit, on
     LaunchedEffect(tick / 2) { wifi = Tablet.wifiOn(ctx); bt = Tablet.btOn(); dnd = Tablet.dndOn(ctx) }
     LaunchedEffect(note) { if (note != null) { delay(4000); note = null } }
 
-    // ---- header: a thin clock, the date, the battery ----
+    // ---- header: a greeting, a rolling clock with the logo line under it, the battery ----
+    val ticker = rememberTicker()
+    val thin = rememberFace("sans-serif-thin")
+    val dens = androidx.compose.ui.platform.LocalDensity.current
     Row(verticalAlignment = Alignment.Bottom) {
         Column(Modifier.weight(1f)) {
-            VText(now.format(DateTimeFormatter.ofPattern(if (store.use24h) "HH:mm" else "h:mm")), size = 46.sp, font = SansLight, color = V.White, spacing = (-1).sp)
-            VText(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM")), size = 14.sp, color = V.Muted)
+            VText(greeting(System.currentTimeMillis()), size = 13.sp, color = lerp(V.Teal, Color.White, 0.3f), spacing = 0.5.sp)
+            Spacer(Modifier.height(2.dp))
+            RollingText(now.format(DateTimeFormatter.ofPattern(if (store.use24h) "HH:mm" else "h:mm")), with(dens) { 54.sp.toPx() }, thin, tick = ticker)
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SignatureLine(Modifier.size(44.dp, 2.dp), ticker)
+                Spacer(Modifier.width(10.dp))
+                VText(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM")), size = 14.sp, color = V.Muted)
+            }
         }
         val bat = rememberBattery()
         BatteryPill(bat.pct, bat.charging)
@@ -241,19 +272,19 @@ private fun ControlBody(store: Store, act: MainActivity, onClose: () -> Unit, on
     val switches: @Composable (Modifier) -> Unit = { m ->
         Column(m.pane(RoundedCornerShape(26.dp)).padding(vertical = 16.dp, horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                CcBubble("Wi-Fi", if (wifi) "On" else "Off", G.WIFI, wifi) {
+                CcBubble("Wi-Fi", if (wifi) "On" else "Off", G.WIFI, wifi, V.Teal) {
                     if (Tablet.setWifi(ctx, !wifi)) wifi = !wifi else note = "Android didn't let VoidOS switch Wi-Fi. Open Settings > Wi-Fi."
                 }
-                CcBubble("Bluetooth", if (bt) "On" else "Off", G.BT, bt) {
+                CcBubble("Bluetooth", if (bt) "On" else "Off", G.BT, bt, Color(0xFF5A8CF0)) {
                     if (Tablet.setBt(!bt)) bt = !bt else note = "Android didn't let VoidOS switch Bluetooth."
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                CcBubble("Do not disturb", if (dnd) "Alarms only" else "Off", G.MOON, dnd) {
+                CcBubble("Do not disturb", if (dnd) "Alarms only" else "Off", G.MOON, dnd, V.Purple) {
                     if (!Tablet.dndAllowed(ctx)) note = "VoidOS needs Do Not Disturb access first: Settings > Do not disturb."
                     else if (Tablet.setDnd(ctx, !dnd)) dnd = !dnd
                 }
-                CcBubble("Rotation lock", when (store.rotation) { "port" -> "Portrait"; "land" -> "Landscape"; else -> "Off" }, G.ROTATE, pinned) {
+                CcBubble("Rotation lock", when (store.rotation) { "port" -> "Portrait"; "land" -> "Landscape"; else -> "Off" }, G.ROTATE, pinned, V.Coral) {
                     store.setRotation(if (pinned) "auto" else if (portrait) "port" else "land"); act.applyRotation()
                 }
             }
@@ -262,12 +293,12 @@ private fun ControlBody(store: Store, act: MainActivity, onClose: () -> Unit, on
     val sliders: @Composable (Modifier) -> Unit = { m ->
         Row(m, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
-                CcTall(G.SUN, bright, Modifier.weight(1f)) { bright = it; auto = false; Tablet.setBrightness(act, it) }
+                CcTall(G.SUN, bright, Modifier.weight(1f), listOf(Color(0xFFFFF4D6), Color(0xFFFFD27A))) { bright = it; auto = false; Tablet.setBrightness(act, it) }
                 Spacer(Modifier.height(8.dp))
                 AutoChip(auto) { if (Tablet.setAutoBrightness(act, it)) auto = it else note = "Android didn't let VoidOS change auto brightness." }
             }
             Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
-                CcTall(G.VOLUME, vol, Modifier.weight(1f)) { vol = it; Tablet.setVolume(ctx, it) }
+                CcTall(G.VOLUME, vol, Modifier.weight(1f), listOf(lerp(V.Teal, Color.White, 0.55f), V.Teal)) { vol = it; Tablet.setVolume(ctx, it) }
                 Spacer(Modifier.height(8.dp))
                 VText("Volume", size = 12.sp, color = V.Muted, modifier = Modifier.padding(vertical = 7.dp))
             }
@@ -296,32 +327,54 @@ private fun ControlBody(store: Store, act: MainActivity, onClose: () -> Unit, on
     )
 }
 
+/** The control centre's own slow light, purple, teal and coral, drifting inside the glass. */
+@Composable
+private fun Modifier.ccAurora(): Modifier {
+    val tick = rememberTicker(50L)
+    return drawBehind {
+        val k = (phase(tick.value, 30_000L) * 2 * Math.PI).toFloat()
+        val r = maxOf(size.width, size.height)
+        fun blob(c: Color, x: Float, y: Float, rad: Float, a: Float) {
+            val o = androidx.compose.ui.geometry.Offset(x, y)
+            drawCircle(Brush.radialGradient(listOf(c.copy(alpha = a), Color.Transparent), center = o, radius = rad), rad, o)
+        }
+        blob(V.Purple, size.width * (0.12f + 0.06f * kotlin.math.sin(k)), size.height * 0.05f, r * 0.55f, 0.20f)
+        blob(V.Teal, size.width * (0.92f + 0.04f * kotlin.math.cos(k)), size.height * (0.85f + 0.06f * kotlin.math.sin(2 * k)), r * 0.5f, 0.16f)
+        blob(V.Coral, size.width * (0.55f + 0.15f * kotlin.math.sin(k + 2f)), size.height * 0.55f, r * 0.28f, 0.07f)
+    }
+}
+
 /** A round switch with its name under it, the way iPad control centres do it. Teal when on. */
 @Composable
-private fun CcBubble(label: String, state: String, g: G, on: Boolean, onClick: () -> Unit) {
+private fun CcBubble(label: String, state: String, g: G, on: Boolean, accent: Color, onClick: () -> Unit) {
     val src = remember { MutableInteractionSource() }
     Column(
         Modifier.width(96.dp).clickable(interactionSource = src, indication = null, onClick = onClick).semantics { selected = on },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // each switch has its own colour when on, with a glow that spills round it
+        val lit by animateFloatAsState(if (on) 1f else 0f, spring(dampingRatio = 0.6f, stiffness = 300f), label = "lit")
         Box(
-            Modifier.size(58.dp).clip(CircleShape)
-                .background(
-                    if (on) Brush.verticalGradient(listOf(lerp(V.Teal, Color.White, 0.15f), V.Teal))
-                    else Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.14f), Color.White.copy(alpha = 0.06f))),
-                )
-                .border(1.dp, Color.White.copy(alpha = if (on) 0.45f else 0.14f), CircleShape),
+            Modifier.size(58.dp)
+                .drawBehind {
+                    if (lit > 0f) drawCircle(Brush.radialGradient(listOf(accent.copy(alpha = 0.45f * lit), Color.Transparent)), size.minDimension * 0.95f)
+                }
+                .graphicsLayer { val sc = 0.94f + 0.06f * lit; scaleX = sc; scaleY = sc }
+                .clip(CircleShape)
+                .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.14f), Color.White.copy(alpha = 0.06f))))
+                .background(Brush.verticalGradient(listOf(lerp(accent, Color.White, 0.25f), accent)), alpha = lit)
+                .border(1.dp, Color.White.copy(alpha = 0.14f + 0.36f * lit), CircleShape),
             contentAlignment = Alignment.Center,
-        ) { Glyph(g, if (on) V.Bg else V.Text, Modifier.size(24.dp)) }
+        ) { Glyph(g, lerp(V.Text, Color.White, lit), Modifier.size(24.dp)) }
         Spacer(Modifier.height(7.dp))
         VText(label, size = 13.sp, color = V.Text, maxLines = 1)
-        VText(state, size = 11.sp, color = if (on) V.Teal else V.Muted, maxLines = 1)
+        VText(state, size = 11.sp, color = if (on) lerp(accent, Color.White, 0.25f) else V.Muted, maxLines = 1)
     }
 }
 
 /** A tall glass slider: drag up and down. The light fill is the level; the icon sits at its foot. */
 @Composable
-private fun CcTall(g: G, value: Float, modifier: Modifier, onChange: (Float) -> Unit) {
+private fun CcTall(g: G, value: Float, modifier: Modifier, fill: List<Color>, onChange: (Float) -> Unit) {
     val cb by rememberUpdatedState(onChange)
     val v = value.coerceIn(0f, 1f)
     Box(
@@ -331,9 +384,12 @@ private fun CcTall(g: G, value: Float, modifier: Modifier, onChange: (Float) -> 
                 detectVerticalDragGestures { ch, _ -> ch.consume(); cb((1f - ch.position.y / size.height).coerceIn(0f, 1f)) }
             },
     ) {
+        val shown by animateFloatAsState(v.coerceAtLeast(0.08f), spring(dampingRatio = 0.85f, stiffness = 900f), label = "level")
         Box(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(v.coerceAtLeast(0.08f))
-                .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.95f), Color.White.copy(alpha = 0.78f)))),
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(shown)
+                .background(Brush.verticalGradient(fill))
+                // a bright lip on the fill, like liquid catching the light
+                .drawBehind { drawRect(Color.White.copy(alpha = 0.7f), size = androidx.compose.ui.geometry.Size(size.width, 2.dp.toPx())) },
         )
         Glyph(g, if (v > 0.16f) V.Bg else V.Text, Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp).size(24.dp))
     }

@@ -184,7 +184,7 @@ internal fun octRadius(a: Float, t: Double): Float {
 
 /** The system's thin and regular sans as Android typefaces, for text centred by its ink rather than its line box. */
 @Composable
-private fun rememberFace(name: String): Typeface = remember(name) { Typeface.create(name, Typeface.NORMAL) }
+fun rememberFace(name: String): Typeface = remember(name) { Typeface.create(name, Typeface.NORMAL) }
 
 /**
  * Text sized to its ink and drawn dead centre in it. SansMedium's digits sit left
@@ -225,6 +225,7 @@ private fun Dial(store: Store, now: Long, onOpen: (Module) -> Unit, scale: Float
     val thin = rememberFace("sans-serif-thin")
     val regular = rememberFace("sans-serif")
     val d = LocalDensity.current
+    val tick = rememberTicker()
     BoxWithConstraints(modifier.testTag("dial")) {
         val w = with(d) { maxWidth.toPx() }
         val h = with(d) { maxHeight.toPx() }
@@ -237,10 +238,16 @@ private fun Dial(store: Store, now: Long, onOpen: (Module) -> Unit, scale: Float
                 InkText(SimpleDateFormat("EEEE d MMMM", Locale.UK).format(Date(now)), timePx * 0.115f, V.Text.copy(alpha = 0.78f), regular, 0.01f)
             },
             centre = {
-                // no AM/PM: the time alone, as big as it can be
-                InkText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), timePx, V.White, thin, -0.02f, modifier = Modifier.testTag("time"))
+                // no AM/PM: the time alone, as big as it can be. Digits roll when they change,
+                // a light glides across them, and a soft glow breathes behind
+                RollingText(
+                    SimpleDateFormat(fmt, Locale.UK).format(Date(now)), timePx, thin,
+                    Modifier.breathingGlow(tick).testTag("time"), spacingEm = -0.02f, tick = tick,
+                )
             },
             below = {
+                // the logo's colours as one hairline, with a glint that runs along it
+                SignatureLine(Modifier.padding(bottom = 14.dp).size(with(d) { (timePx * 0.42f).toDp() }, 2.dp), tick)
                 if (running.isNotEmpty()) TimerPills(running, now, timePx / 400f, onOpen)
                 NextAlarm(now, store.use24h, timePx / 400f, top = running.isNotEmpty(), onOpen)
             },

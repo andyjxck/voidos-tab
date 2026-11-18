@@ -1,5 +1,9 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.ui.semantics.contentDescription
+
+import androidx.compose.ui.semantics.semantics
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -8,6 +12,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -32,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -146,13 +152,14 @@ fun EdgeWheels(
             scope.launch { angle.snapTo(slotAngle(cur ?: ((list.size - 1) / 2), e)) }
             scope.launch { appear.snapTo(0f); appear.animateTo(1f, spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMediumLow)) }
         }
-        fun close() {
+        fun closeWheel() {
+            EdgeSwipe.log("wheel closed")
             scope.launch { appear.animateTo(0f, tween(140)); side = null; sel = null; sticky = false }
         }
         fun pick(e: Edge, i: Int) {
             val list = if (e == Edge.RIGHT) apps else tabs
             val key = list.getOrNull(i)?.key ?: return
-            close()
+            closeWheel()
             if (e == Edge.LEFT) cbTab(key) else cbApp(key)
         }
 
@@ -172,15 +179,19 @@ fun EdgeWheels(
                 fun deg(a: Float) = Math.toDegrees((if (open == Edge.LEFT) a else (Math.PI - a).toFloat()).toDouble()).toFloat()
                 val startDeg = if (open == Edge.LEFT) deg(a0) else deg(a0 + sweep)
                 val sweepDeg = Math.toDegrees(sweep.toDouble()).toFloat()
-                val band = Path().apply {
-                    arcTo(Rect(c, rOut), startDeg, sweepDeg, true)
-                    arcTo(Rect(c, rIn), startDeg + sweepDeg, -sweepDeg, false)
-                    close()
-                }
+                // THE 1.4.0-1.7.0 WHEEL BUG: a bare close() inside Path().apply { } here called the
+                // wheel's own close() above (Kotlin picks a local function over the Path's member), so the wheel shut
+                // itself on its first frame. The swipe registered; the wheel never stayed.
+                val band = Path()
+                band.arcTo(Rect(c, rOut), startDeg, sweepDeg, true)
+                band.arcTo(Rect(c, rIn), startDeg + sweepDeg, -sweepDeg, false)
+                band.close()
                 drawPath(band, Brush.radialGradient(
                     0f to Color(0xFF2C2C31), 0.75f to Color(0xFF1E1E22), 1f to Color(0xFF161619),
                     center = c, radius = rOut,
                 ), alpha = 0.94f * t)
+                // the screen's light pools in the glass toward the hub
+                drawPath(band, Brush.radialGradient(listOf(Ambience.tint().copy(alpha = 0.20f), Color.Transparent), center = c, radius = rOut * 1.05f), alpha = t)
                 // the rim catches the light: bright along the top of the outer edge, faint on the inner one
                 drawArc(
                     Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.34f), Color.White.copy(alpha = 0.06f)), startY = c.y - rOut, endY = c.y + rOut),
@@ -195,8 +206,9 @@ fun EdgeWheels(
                 if (sel != null) {
                     val b = at(open, angle.value, px(Geo.rItem) * (0.6f + 0.4f * t))
                     val r = px(29f)
-                    drawCircle(Brush.radialGradient(listOf(V.Teal.copy(alpha = 0.30f), V.Teal.copy(alpha = 0.10f)), center = b, radius = r), r, b, alpha = t)
-                    drawCircle(V.Teal.copy(alpha = 0.75f), r, b, style = Stroke(px(1.4f)), alpha = t)
+                    val hl = Ambience.tint()
+                    drawCircle(Brush.radialGradient(listOf(hl.copy(alpha = 0.42f), hl.copy(alpha = 0.10f)), center = b, radius = r * 1.25f), r * 1.25f, b, alpha = t)
+                    drawCircle(hl.copy(alpha = 0.85f), r, b, style = Stroke(px(1.4f)), alpha = t)
                     drawArc(
                         Color.White.copy(alpha = 0.55f), 200f, 70f, false,
                         topLeft = Offset(b.x - r * 0.72f, b.y - r * 0.72f), size = androidx.compose.ui.geometry.Size(r * 1.44f, r * 1.44f),
@@ -210,7 +222,8 @@ fun EdgeWheels(
                 val on = i == sel
                 Box(
                     Modifier.offset { IntOffset((p.x - px(20f)).roundToInt(), (p.y - px(20f)).roundToInt()) }
-                        .size(40.dp).alpha(t).scale(if (on) 1.12f else 1f),
+                        .size(40.dp).alpha(t).scale(if (on) 1.12f else 1f)
+                        .semantics { contentDescription = it.label },
                     contentAlignment = Alignment.Center,
                 ) { it.icon(Modifier.size(if (open == Edge.RIGHT) 36.dp else 26.dp), if (on) V.White else V.Text.copy(alpha = 0.72f)) }
             }
@@ -264,9 +277,9 @@ fun EdgeWheels(
                             }
                             val p = up.position
                             when {
-                                onHub -> { close(); if (open == Edge.RIGHT) cbAll() }
+                                onHub -> { closeWheel(); if (open == Edge.RIGHT) cbAll() }
                                 hypot(p.x - centre(open).x, p.y - centre(open).y) in px(Geo.rIn - 10f)..px(Geo.rOut + 10f) -> pick(open, indexAt(open, p))
-                                else -> close()
+                                else -> closeWheel()
                             }
                         }
                     }
@@ -279,32 +292,53 @@ fun EdgeWheels(
         var startPt by remember { mutableStateOf(Offset.Zero) }
         var lastPt by remember { mutableStateOf(Offset.Zero) }
         var moved by remember { mutableStateOf(false) }
+        var beganAt by remember { mutableStateOf(0L) }
+        var selAt by remember { mutableStateOf(0L) }
         val sink = object : EdgeSwipe.Sink {
-            override fun begin(left: Boolean, x: Float, y: Float) {
+            override fun begin(left: Boolean, x: Float, y: Float, t: Long) {
                 val e = if (left) Edge.LEFT else Edge.RIGHT
                 startPt = Offset(x, y) - origin
                 lastPt = startPt
                 moved = false
+                beganAt = t; selAt = t
                 openAt(e, startPt.y)
+                EdgeSwipe.log("wheel ${e.name.lowercase()} opened at y=${anchorY.toInt()} in ${w.toInt()}x${h.toInt()} (${if (e == Edge.RIGHT) apps.size else tabs.size} slots)")
             }
-            override fun move(x: Float, y: Float) {
+            override fun move(x: Float, y: Float, t: Long) {
                 val e = side ?: return
                 lastPt = Offset(x, y) - origin
                 if (!moved && hypot(lastPt.x - startPt.x, lastPt.y - startPt.y) > px(14f)) moved = true
-                if (moved) moveTo(indexAt(e, lastPt))
-            }
-            override fun end(x: Float, y: Float) {
-                val e = side ?: return
-                move(x, y)
-                val onHub = hypot(lastPt.x - hubAt(e).x, lastPt.y - hubAt(e).y) < px(Geo.hub)
-                when {
-                    !moved -> sticky = true
-                    onHub -> close()
-                    sel != null && (if (e == Edge.RIGHT) apps else tabs).isNotEmpty() -> pick(e, sel!!)
-                    else -> close()
+                if (moved) {
+                    val i = indexAt(e, lastPt)
+                    if (i != sel) selAt = t
+                    moveTo(i)
                 }
             }
-            override fun cancel() { if (side != null && !sticky) close() }
+            override fun end(x: Float, y: Float, t: Long) {
+                val e = side ?: return
+                move(x, y, t)
+                val onHub = hypot(lastPt.x - hubAt(e).x, lastPt.y - hubAt(e).y) < px(Geo.hub)
+                val list = if (e == Edge.RIGHT) apps else tabs
+                val picks = releasePicks(moved, beganAt, selAt, t)
+                when {
+                    // a quick swipe in, or a tap on the edge: the wheel stays open to tap
+                    !picks -> { sticky = true; EdgeSwipe.log("wheel pinned open (${t - beganAt}ms, tap a slot)") }
+                    onHub -> closeWheel()
+                    sel != null && list.isNotEmpty() -> { EdgeSwipe.log("wheel picked ${list.getOrNull(sel!!)?.label}"); pick(e, sel!!) }
+                    else -> closeWheel()
+                }
+            }
+            override fun cancel() { if (side != null && !sticky) closeWheel() }
+        }
+        // the page dots and the edge handles open a wheel pinned, no swipe needed
+        val req by EdgeSwipe.request
+        LaunchedEffect(req) {
+            val r = req ?: return@LaunchedEffect
+            EdgeSwipe.request.value = null
+            if (!enabled || side != null) return@LaunchedEffect
+            openAt(if (r) Edge.LEFT else Edge.RIGHT, h / 2)
+            sticky = true
+            EdgeSwipe.log("wheel ${if (r) "left" else "right"} opened by tap")
         }
         // a pinned-open wheel takes its taps itself (the overlay above), so the edges stand down meanwhile
         SideEffect {
@@ -314,17 +348,63 @@ fun EdgeWheels(
         DisposableEffect(Unit) {
             onDispose { if (EdgeSwipe.sink === sink) EdgeSwipe.sink = null; EdgeSwipe.enabled = false }
         }
-        if (!enabled && side != null) LaunchedEffect(Unit) { close() }
+        if (!enabled && side != null) LaunchedEffect(Unit) { closeWheel() }
         Box(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInWindow() })
 
-        // a faint glass handle on each edge so it reads as something you can pull
+        // a glass handle on each edge: it shows where to pull, and a tap on it opens the wheel
         if (enabled && side == null) {
+            val tick = rememberTicker(50L)
             listOf(Edge.LEFT, Edge.RIGHT).forEach { e ->
                 Box(
                     Modifier.align(if (e == Edge.LEFT) Alignment.CenterStart else Alignment.CenterEnd)
-                        .padding(horizontal = 5.dp).size(4.dp, 54.dp).clip(Pill).background(V.White.copy(alpha = 0.16f))
+                        .size(30.dp, 132.dp)
+                        .pointerInput(e) {
+                            awaitEachGesture {
+                                awaitFirstDown()
+                                if (waitForUpOrCancellation() != null) EdgeSwipe.request.value = e == Edge.LEFT
+                            }
+                        }
+                        .drawBehind {
+                            // breathes softly, lit in the colour of the screen you're on
+                            val br = 0.5f + 0.5f * sin(phase(tick.value, 4_000L) * 2 * Math.PI.toFloat() + if (e == Edge.LEFT) 0f else 1.6f)
+                            val pw = 5.dp.toPx(); val ph = 70.dp.toPx()
+                            val x = if (e == Edge.LEFT) 5.dp.toPx() else size.width - 5.dp.toPx() - pw
+                            val y = (size.height - ph) / 2
+                            val tint = Ambience.tint()
+                            drawRoundRect(
+                                Brush.radialGradient(listOf(tint.copy(alpha = 0.22f + 0.14f * br), Color.Transparent), center = Offset(x + pw / 2, size.height / 2), radius = ph * 0.75f),
+                                topLeft = Offset(0f, 0f), size = size,
+                            )
+                            drawRoundRect(
+                                Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.55f + 0.2f * br), Color.White.copy(alpha = 0.30f)), startY = y, endY = y + ph),
+                                topLeft = Offset(x, y), size = androidx.compose.ui.geometry.Size(pw, ph), cornerRadius = androidx.compose.ui.geometry.CornerRadius(pw / 2),
+                            )
+                        }
                 )
             }
         }
+    }
+}
+
+/** Settings > About > Edge touch debug: the edge zones, the last touch and the router's last decision. */
+@Composable
+fun EdgeDebugOverlay() {
+    if (!EdgeSwipe.debug.value) return
+    val d = LocalDensity.current
+    val last by EdgeSwipe.last
+    val down by EdgeSwipe.lastDown
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    Box(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInWindow() }) {
+        androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+            val hard = with(d) { EdgeSwipe.HARD_DP.dp.toPx() }
+            val soft = with(d) { EdgeSwipe.SOFT_DP.dp.toPx() }
+            listOf(0f to hard, size.width - hard to size.width).forEach { (a, b) -> drawRect(V.Teal.copy(alpha = 0.22f), Offset(a, 0f), androidx.compose.ui.geometry.Size(b - a, size.height)) }
+            listOf(hard to soft, size.width - soft to size.width - hard).forEach { (a, b) -> drawRect(V.Coral.copy(alpha = 0.14f), Offset(a, 0f), androidx.compose.ui.geometry.Size(b - a, size.height)) }
+            down?.let { (x, y) -> drawCircle(V.Yellow, 14f, Offset(x, y) - origin) }
+        }
+        VText(
+            "EDGE DEBUG  $last", size = 13.sp, color = V.White,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 40.dp).background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 10.dp, vertical = 6.dp),
+        )
     }
 }

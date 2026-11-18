@@ -1,5 +1,7 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.ui.draw.drawBehind
+
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.widthIn
@@ -405,12 +407,20 @@ private fun QuickTile(q: Quick, onClick: () -> Unit) {
 private fun AppTile(app: AppEntry, store: Store, starred: Boolean) {
     val ctx = LocalContext.current
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+        Modifier.fillMaxWidth().squish().clip(RoundedCornerShape(18.dp))
             .combinedClickable(onClick = { launchApp(ctx, store, app.pkg) }, onLongClick = { store.toggleFav(app.pkg) })
             .padding(vertical = 8.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(Modifier.size(68.dp), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier.size(68.dp).drawBehind {
+                // a soft pool of light under each icon, so the grid sits on the glass instead of floating
+                val c = androidx.compose.ui.geometry.Offset(size.width / 2, size.height * 0.92f)
+                drawOval(Brush.radialGradient(listOf(Ambience.tint().copy(alpha = 0.22f), Color.Transparent), center = c, radius = size.width * 0.55f),
+                    topLeft = androidx.compose.ui.geometry.Offset(0f, size.height * 0.72f), size = androidx.compose.ui.geometry.Size(size.width, size.height * 0.4f))
+            },
+            contentAlignment = Alignment.Center,
+        ) {
             AppGlyph(app, store.iconStyle, 64.dp)
             if (starred) Box(Modifier.align(Alignment.TopEnd).size(10.dp).clip(CircleShape).background(V.Teal).border(2.dp, V.Bg, CircleShape))
         }
@@ -426,15 +436,13 @@ private fun Dock(apps: List<AppEntry>, store: Store, modifier: Modifier) {
     val ctx = LocalContext.current
     val shape = RoundedCornerShape(30.dp)
     Row(
-        modifier.clip(shape)
-            .background(Brush.verticalGradient(listOf(Color(0xFF2B2B30).copy(alpha = 0.90f), Color(0xFF1B1B1F).copy(alpha = 0.90f))))
-            .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.04f))), shape)
+        modifier.glass(shape, 0.92f)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         apps.forEach { app ->
             Box(
-                Modifier.size(64.dp).clip(RoundedCornerShape(16.dp))
+                Modifier.size(64.dp).squish(0.88f).clip(RoundedCornerShape(16.dp))
                     .semantics { contentDescription = app.label }
                     .combinedClickable(onClick = { launchApp(ctx, store, app.pkg) }, onLongClick = { store.toggleFav(app.pkg) }),
                 contentAlignment = Alignment.Center,

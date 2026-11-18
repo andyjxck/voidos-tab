@@ -50,6 +50,9 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import kotlin.math.PI
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.CircleShape
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -130,35 +133,95 @@ fun LockScreen(store: Store, onUnlock: () -> Unit) {
     }
 }
 
-/** A faint glow behind the clock: dark and calm, kind to an always-on panel. */
+/**
+ * The lock screen's room: the aurora in the logo's purple, teal and coral, and
+ * a slow orb of light behind the clock that drifts and breathes. Still dark
+ * overall, so it's kind to a panel that stays on.
+ */
 @Composable
 private fun LockBackdrop(now: Long) {
-    Canvas(Modifier.fillMaxSize()) {
-        val w = size.width; val h = size.height
-        val c = Offset(w * (if (w > h) 0.27f else 0.5f), h * (if (w > h) 0.5f else 0.28f))
-        drawCircle(androidx.compose.ui.graphics.Brush.radialGradient(listOf(V.Teal.copy(alpha = 0.07f), androidx.compose.ui.graphics.Color.Transparent), center = c, radius = minOf(w, h) * 0.6f), minOf(w, h) * 0.6f, c)
+    val tick = rememberTicker(40L)
+    Box(Modifier.fillMaxSize()) {
+        Aurora(mood = Ambience.LOCK, intensity = 1.25f)
+        Canvas(Modifier.fillMaxSize()) {
+            val w = size.width; val h = size.height
+            val k = (phase(tick.value, 24_000L) * 2 * PI).toFloat()
+            val c = Offset(w * (if (w > h) 0.27f else 0.5f) + 18f * cos(k), h * (if (w > h) 0.5f else 0.26f) + 14f * sin(2 * k))
+            val r = minOf(w, h) * (0.52f + 0.04f * sin(k))
+            drawCircle(Brush.radialGradient(listOf(V.Purple.copy(alpha = 0.20f), V.Teal.copy(alpha = 0.06f), Color.Transparent), center = c, radius = r), r, c)
+            // a thin ring of light around the orb, turning slowly, brightest at one point
+            drawCircle(
+                Brush.sweepGradient(listOf(Color.Transparent, V.Teal.copy(alpha = 0.28f), V.Purple.copy(alpha = 0.18f), Color.Transparent, Color.Transparent), center = c),
+                r * 0.78f, c, style = androidx.compose.ui.graphics.drawscope.Stroke(1.2f),
+                alpha = 1f,
+            )
+        }
     }
 }
 
 @Composable
 private fun LockClock(store: Store, now: Long, big: Boolean, start: Boolean = false) {
-    val cal = Calendar.getInstance().apply { timeInMillis = now }
-    val minute = cal.get(Calendar.MINUTE)
     val wx by WeatherRepo.state
     val bat = rememberBattery()
+    val tick = rememberTicker()
+    val thin = rememberFace("sans-serif-thin")
+    val d = LocalDensity.current
+    val portrait = LocalPortrait.current
     Column(horizontalAlignment = if (start) Alignment.Start else Alignment.CenterHorizontally) {
-        VText(SimpleDateFormat("EEEE d MMMM", Locale.UK).format(Date(now)), size = 20.sp, color = V.Text.copy(alpha = 0.8f))
-        VText(SimpleDateFormat(if (store.use24h) "HH:mm" else "h:mm", Locale.UK).format(Date(now)), size = if (big) 150.sp else 96.sp, color = V.White, font = SansThin)
-        Gap(h = 10.dp)
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        VText(greeting(now) + (if (store.hubName.isNotBlank() && store.hubName != "Home") ", ${store.hubName}" else ""), size = 15.sp, color = lerpTeal(), spacing = 0.4.sp)
+        Gap(h = 4.dp)
+        VText(SimpleDateFormat("EEEE d MMMM", Locale.UK).format(Date(now)), size = 22.sp, color = V.Text.copy(alpha = 0.86f), font = SansLight)
+        Gap(h = 14.dp)
+        RollingText(
+            SimpleDateFormat(if (store.use24h) "HH:mm" else "h:mm", Locale.UK).format(Date(now)),
+            with(d) { (if (big) (if (portrait) 168.sp else 150.sp) else 96.sp).toPx() }, thin,
+            Modifier.breathingGlow(tick, Ambience.LOCK, 1.3f), tick = tick,
+        )
+        Gap(h = 18.dp)
+        SignatureLine(Modifier.size(150.dp, 2.dp), tick)
+        Gap(h = 18.dp)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             wx?.let { w ->
-                Glyph(wxGlyph(w.code, w.isDay), wxColour(w.code, w.isDay), Modifier.size(28.dp))
-                Gap(w = 8.dp)
-                VText("${t(w.temp)}  ${wxWords(w.code)}", size = 15.sp, color = V.Text)
-                Gap(w = 22.dp)
+                Row(Modifier.glass(Pill, 0.7f).padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Glyph(wxGlyph(w.code, w.isDay), wxColour(w.code, w.isDay), Modifier.size(22.dp))
+                    Gap(w = 8.dp)
+                    VText("${t(w.temp)}  ${wxWords(w.code)}", size = 14.sp, color = V.Text)
+                }
             }
-            BatteryGlyph(bat)
-            if (bat.charging) { Gap(w = 8.dp); VText("Charging", size = 15.sp, color = V.Muted) }
+            Row(Modifier.glass(Pill, 0.7f).padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                BatteryGlyph(bat)
+                if (bat.pct >= 0) { Gap(w = 8.dp); VText("${bat.pct}%" + if (bat.charging) "  Charging" else "", size = 14.sp, color = V.Text) }
+            }
+        }
+    }
+}
+
+/** The screen's teal, softened toward white: for small accent words. */
+private fun lerpTeal(): Color = androidx.compose.ui.graphics.lerp(V.Teal, Color.White, 0.25f)
+
+/**
+ * Today at a glance, so the lock screen is never empty: the day's high and low
+ * and the next alarm. Shown when nothing else (music, timers, notifications) is.
+ */
+@Composable
+private fun LockToday(store: Store, now: Long) {
+    val wx by WeatherRepo.state
+    val next = com.andysocial.voidos.AlarmMath.soonest(com.andysocial.voidos.Alarms.list.value, now, com.andysocial.voidos.Alarms.zone)
+    Column(Modifier.fillMaxWidth().glass(Oct, 0.75f).padding(horizontal = 20.dp, vertical = 16.dp)) {
+        VText("Today", size = 13.sp, color = V.Muted, spacing = 0.6.sp)
+        Gap(h = 8.dp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val day = wx?.days?.firstOrNull()
+            Column(Modifier.weight(1f)) {
+                VText(day?.let { "${t(it.max)} / ${t(it.min)}" } ?: "--", size = 24.sp, color = V.White, font = SansLight)
+                VText(day?.let { if (it.rain > 0) "${it.rain}% chance of rain" else wxWords(it.code) } ?: "Weather when online", size = 13.sp, color = V.Muted)
+            }
+            Box(Modifier.size(1.dp, 40.dp).background(V.White.copy(alpha = 0.10f)))
+            Gap(w = 18.dp)
+            Column(Modifier.weight(1f)) {
+                VText(next?.let { SimpleDateFormat(if (store.use24h) "HH:mm" else "h:mm a", Locale.UK).format(Date(it.second)) } ?: "No alarm", size = 24.sp, color = V.White, font = SansLight)
+                VText(if (next != null) "Next alarm" else "Set one in Tools", size = 13.sp, color = V.Muted)
+            }
         }
     }
 }
@@ -168,6 +231,8 @@ private fun LockCards(store: Store, now: Long) {
     val p by Now.playing
     val timers = KTimers.list.value.filter { it.running }.sortedBy { it.endAt }
     val notices by VoidListener.notices
+    val quiet = p?.title.isNullOrBlank() && timers.isEmpty() && !(store.lockNotices && notices.isNotEmpty())
+    if (quiet) LockToday(store, now)
     p?.takeIf { it.title.isNotBlank() }?.let { np ->
         Row(
             Modifier.fillMaxWidth().glass(Oct, 0.8f).padding(12.dp),
@@ -222,11 +287,19 @@ private fun SwipeHint() {
     val now = rememberNow(60)
     val bob = sin((now % 1600) / 1600.0 * 2 * PI).toFloat()
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Glyph(G.CHEV, V.Teal, Modifier.size(26.dp).graphicsLayer { rotationZ = -90f; translationY = bob * 8f })
+        Glyph(G.CHEV, V.White.copy(alpha = 0.8f), Modifier.size(24.dp).graphicsLayer { rotationZ = -90f; translationY = bob * 8f; alpha = 0.55f + 0.45f * (1 - bob) / 2 })
         Gap(h = 4.dp)
-        VText("Swipe up to open", size = 12.sp, color = V.Muted, align = TextAlign.Center)
-        Gap(h = 8.dp)
-        Box(Modifier.width(120.dp).size(120.dp, 4.dp).clip(OctS).background(V.Line))
+        VText("Swipe up to open", size = 12.sp, color = V.Muted, align = TextAlign.Center, spacing = 0.5.sp)
+        Gap(h = 10.dp)
+        // the home bar, with a light that slides along it
+        val tick = rememberTicker(40L)
+        Canvas(Modifier.size(134.dp, 5.dp)) {
+            val cr = androidx.compose.ui.geometry.CornerRadius(size.height / 2)
+            drawRoundRect(Color.White.copy(alpha = 0.32f), cornerRadius = cr)
+            val g = phase(tick.value, 2_400L)
+            val x = -size.width * 0.3f + size.width * 1.6f * g
+            drawRoundRect(Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.9f), Color.Transparent), startX = x - size.width * 0.25f, endX = x + size.width * 0.25f), cornerRadius = cr)
+        }
     }
 }
 
@@ -251,10 +324,10 @@ fun LockPin(store: Store, title: String, onOk: () -> Unit, onCancel: () -> Unit)
         VText(title, size = 16.sp, color = V.Text)
         Gap(h = 14.dp)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            repeat(maxOf(4, entry.length)) { i -> Box(Modifier.size(16.dp).clip(OctS).background(if (i < entry.length) V.Teal else V.Line)) }
+            repeat(maxOf(4, entry.length)) { i -> Box(Modifier.size(14.dp).clip(CircleShape).background(if (i < entry.length) V.White else V.White.copy(alpha = 0.16f))) }
         }
         Gap(h = 6.dp)
-        VText(if (waiting) "TRY AGAIN IN ${(waitUntil - now + 999) / 1000}S" else if (wrong) "WRONG PIN" else " ", size = 11.sp, color = V.Coral)
+        VText(if (waiting) "Try again in ${(waitUntil - now + 999) / 1000}s" else if (wrong) "Wrong PIN" else " ", size = 11.sp, color = V.Coral)
         Gap(h = 10.dp)
         Box(Modifier.width(300.dp).size(300.dp, 340.dp)) {
             NumPad(Modifier.fillMaxSize()) { k ->

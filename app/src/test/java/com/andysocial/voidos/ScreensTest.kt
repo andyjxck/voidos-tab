@@ -21,6 +21,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onAllNodesWithText
@@ -81,6 +82,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         store.set("setupDone", true)
         store.resetClock()
         com.andysocial.voidos.ui.EscapeDoor.reset(); com.andysocial.voidos.ui.EscapeDoor.asked.value = false
+        com.andysocial.voidos.ui.LockState.locked.value = false // the Shell tests start unlocked
         if (store.shopping.isEmpty()) listOf("Semi-skimmed milk", "Bananas", "Sourdough loaf", "Washing-up liquid", "Cheddar").forEach { store.addItem(it) }
         // start from a known board (other test classes share these objects)
         KTimers.silence(act)
@@ -374,7 +376,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         // drawing: the pen tools appear in one capsule
         tapDesc("Draw"); expect("Eraser", "Clear")
         listOf("Undo", "Solid", "Dotted", "Dashed", "Size 1", "Size 4", "Colour 1", "Colour 7").forEach {
-            assertTrue("[$tag] pen tool $it missing", rule.onAllNodesWithContentDescription(it).fetchSemanticsNodes().isNotEmpty())
+            assertTrue("[$tag] pen tool $it missing", rule.onAllNodesWithContentDescription(it, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         }
         shot("08b_notes_draw")
         tapDesc("Done drawing")
@@ -397,7 +399,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         assertTrue("[$tag] the separate On this tablet section should be gone", old.isEmpty())
         // the same controls whatever plays
         listOf("Play", "Previous", "Next", "Back 10 seconds", "Forward 10 seconds").forEach {
-            assertTrue("[$tag] control $it missing", rule.onAllNodesWithContentDescription(it).fetchSemanticsNodes().isNotEmpty())
+            assertTrue("[$tag] control $it missing", rule.onAllNodesWithContentDescription(it, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         }
         // your files are in a sidebar behind Files
         tapDesc("Files"); settle(500); expect("Your music"); shot("09b_media_files")
@@ -489,6 +491,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         settle(600)
         // sliding down and out lands on the last slot, Settings
         expect("Settings"); shot("17_tab_wheel")
+        touchT += 600 // held on the slot a moment, as a person choosing does
         up(40f, midY + 160f)
         settle(800)
         // letting go opens it
@@ -497,6 +500,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         down(4f, midY); drag(4f, midY, 4f, midY - 220f)
         settle(600)
         shot("17b_tab_wheel_up")
+        touchT += 600
         up(4f, midY - 220f)
         settle(800)
         // right edge: the app wheel, which lists apps opened from VoidOS
@@ -515,12 +519,61 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         val x0 = 50f * dens // past the hard strip, inside the soft one
         down(x0, midY); drag(x0, midY, x0 + 140f * dens, midY + 10f, steps = 4)
         settle(600)
-        // the tab wheel is open, its highlight on the middle slot, level with the finger
+        // the tab wheel is open, level with the finger
         expect("Notes"); shot("17c_flick_from_bezel")
         up(x0 + 140f * dens, midY + 10f)
         settle(800)
-        // letting go picks Notes; had the pager got the swipe it would have gone back to Home
+        // a quick flick leaves the wheel open to tap (1.7.0 picked a slot and shut it in a blink,
+        // which on the tablet looked like no wheel at all) and the page hasn't moved
+        assertEquals(Module.TOOLS, com.andysocial.voidos.ui.ShellNow.module.value)
+        listOf("Notes", "Weather", "Settings").forEach { rule.onAllNodesWithContentDescription(it, useUnmergedTree = true).fetchSemanticsNodes().let { n -> assertTrue("$it slot; edge log: ${com.andysocial.voidos.ui.EdgeSwipe.last.value}; descs: ${rule.onAllNodes(androidx.compose.ui.test.SemanticsMatcher("d") { x -> x.config.contains(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription) }, useUnmergedTree = true).fetchSemanticsNodes().map { x -> x.config[androidx.compose.ui.semantics.SemanticsProperties.ContentDescription] }}", n.isNotEmpty()) } }
+        shot("17d_flick_leaves_wheel_open")
+        rule.onAllNodesWithContentDescription("Notes", useUnmergedTree = true)[0].performClick()
+        settle(800)
         assertEquals(Module.NOTES, com.andysocial.voidos.ui.ShellNow.module.value)
+    }
+
+    /**
+     * The 1.4.0-1.7.0 bug: the wheel's drawing called its own close() on the first frame,
+     * so it vanished while the finger was still down. Hold a finger on the edge for two
+     * seconds: the wheel must still be there, fully drawn.
+     */
+    @Test fun wheelStaysWhileHeld() {
+        show { Shell(store, act, Module.FACE) }
+        settle(300)
+        val midY = winH * 0.5f
+        down(4f, midY); drag(4f, midY, 60f * dens, midY + 30f * dens, steps = 6)
+        settle(100)
+        // Robolectric only draws when asked: the bug lived in the draw code, so draw it
+        shot("17g_wheel_held")
+        settle(2000)
+        shot("17g_wheel_held")
+        listOf("Tools", "Weather", "Settings").forEach { assertTrue("$it slot after 2s", rule.onAllNodesWithContentDescription(it, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) }
+        assertTrue(com.andysocial.voidos.ui.EdgeSwipe.last.value != "wheel closed")
+        up(60f * dens, midY + 30f * dens)
+        settle(600)
+    }
+
+    /** The page dots are a second way in: a tap opens the tab wheel, no swipe needed. */
+    @Test fun dotsOpenWheel() {
+        show { Shell(store, act, Module.FACE) }
+        settle(300)
+        rule.onNodeWithContentDescription("Screens").performClick()
+        settle(800)
+        listOf("Tools", "Weather", "Settings").forEach { rule.onAllNodesWithContentDescription(it, useUnmergedTree = true).fetchSemanticsNodes().let { n -> assertTrue("$it slot; edge log: ${com.andysocial.voidos.ui.EdgeSwipe.last.value}; descs: ${rule.onAllNodes(androidx.compose.ui.test.SemanticsMatcher("d") { x -> x.config.contains(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription) }, useUnmergedTree = true).fetchSemanticsNodes().map { x -> x.config[androidx.compose.ui.semantics.SemanticsProperties.ContentDescription] }}", n.isNotEmpty()) } }
+        shot("17e_wheel_from_dots")
+    }
+
+    /** The debug overlay shows the router's last decision on screen. */
+    @Test fun edgeDebugOverlay() {
+        store.set("edgeDebug", true)
+        show { Shell(store, act, Module.FACE) }
+        settle(300)
+        down(4f, winH * 0.5f); up(4f, winH * 0.5f)
+        settle(600)
+        rule.onAllNodesWithText("EDGE DEBUG", substring = true).assertCountEquals(1)
+        shot("17f_edge_debug")
+        store.set("edgeDebug", false)
     }
 
     /** A slow drag that starts in the soft strip is still a page swipe, not the wheel. */

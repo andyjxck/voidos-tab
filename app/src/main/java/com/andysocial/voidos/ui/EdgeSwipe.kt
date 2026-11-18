@@ -1,5 +1,6 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.runtime.mutableStateOf
 import kotlin.math.abs
 import kotlin.math.hypot
 
@@ -33,12 +34,51 @@ object EdgeSwipe {
     @Volatile var sink: Sink? = null
 
     interface Sink {
-        fun begin(left: Boolean, x: Float, y: Float)
-        fun move(x: Float, y: Float)
-        fun end(x: Float, y: Float)
+        fun begin(left: Boolean, x: Float, y: Float, t: Long)
+        fun move(x: Float, y: Float, t: Long)
+        fun end(x: Float, y: Float, t: Long)
         fun cancel()
     }
+
+    /**
+     * Open a wheel without a swipe, pinned open for taps: true is the tab wheel (left),
+     * false the app wheel. The page dots and the edge handles use this, so getting
+     * around never depends on one gesture.
+     */
+    val request = mutableStateOf<Boolean?>(null)
+
+    /** Settings > About > Edge touch debug: draws the edge zones and the last touch on screen. */
+    val debug = mutableStateOf(false)
+
+    /** The last thing the router decided, for the debug overlay. */
+    val last = mutableStateOf("no touch yet")
+
+    /** Last touch-down point in window pixels, for the debug overlay. */
+    val lastDown = mutableStateOf<Pair<Float, Float>?>(null)
+
+    /**
+     * Releasing a swipe only picks a slot when the finger stayed on the wheel at least this
+     * long and rested on that slot for [REST_MS]. A quick swipe in from the edge (what
+     * everyone does first) leaves the wheel open to tap instead. Before 1.8.0 that quick
+     * swipe picked the middle slot on release and closed the wheel in 140 ms, so on the
+     * tablet it looked like a page change with no wheel at all.
+     */
+    const val HOLD_MS = 420L
+    const val REST_MS = 120L
+
+    /** What's keeping the edges off, if anything. */
+    @Volatile var offReason = ""
+
+    const val TAG = "VoidEdge"
+    fun log(msg: String) {
+        last.value = msg
+        try { android.util.Log.i(TAG, msg) } catch (_: Throwable) { }
+    }
 }
+
+/** Whether letting go should pick the slot under the finger (true) or leave the wheel open to tap (false). */
+fun releasePicks(moved: Boolean, beganAt: Long, selAt: Long, upAt: Long): Boolean =
+    moved && upAt - beganAt >= EdgeSwipe.HOLD_MS && upAt - selAt >= EdgeSwipe.REST_MS
 
 /** What the activity does with one touch event. */
 enum class EdgeAction {

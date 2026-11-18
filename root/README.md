@@ -4,7 +4,7 @@
 
 | File | What it is | Used in |
 | --- | --- | --- |
-| `voidos-tab-1.7.0.apk` | The VoidOS app, release build (same fixed key as every build, so it installs over any earlier one and keeps device owner) | main README, Install; after unlocking (section 1) |
+| `voidos-tab-1.8.0.apk` | The VoidOS app, release build (same fixed key as every build, so it installs over any earlier one and keeps device owner) | main README, Install; after unlocking (section 1) |
 | `voidos-boot-magisk.zip` | Magisk module 2.0: the boot animation and the shutdown animation | section 3 |
 | `bootanimation.zip`, `shutdownanimation.zip` | The two animations on their own, for a hand copy or your own firmware | section 3 |
 | `logo-voidos.bin` | The power-on logo for the TB-X306F, build TB-X306F_S120637_230301_BMP, ready to flash | section 5 |

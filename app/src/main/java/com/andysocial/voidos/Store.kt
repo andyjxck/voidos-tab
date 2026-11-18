@@ -88,6 +88,10 @@ class Store(private val ctx: Context) {
     var tempF by mutableStateOf(p.getBoolean("tempF", false)); private set
     /** Swipe left and right on a screen to move to the next one. */
     var swipeScreens by mutableStateOf(p.getBoolean("swipeScreens", true)); private set
+    /** Settings > About > Edge touch debug: shows the edge zones and the last touch. */
+    var edgeDebug by mutableStateOf(p.getBoolean("edgeDebug", false)); private set
+    /** The slow moving light behind every screen. Off holds it still. */
+    var motion by mutableStateOf(p.getBoolean("motion", true)); private set
     /** Apps opened from VoidOS, newest first: what the right-edge app wheel offers. */
     var recentApps by mutableStateOf(p.getString("recentApps", "")!!.split(',').filter { it.isNotBlank() }); private set
     var favs by mutableStateOf(p.getString("favs", "")!!.split(',').filter { it.isNotBlank() }); private set
@@ -116,6 +120,8 @@ class Store(private val ctx: Context) {
             "railLabels" -> railLabels = v
             "tempF" -> tempF = v
             "swipeScreens" -> swipeScreens = v
+            "edgeDebug" -> { edgeDebug = v; com.andysocial.voidos.ui.EdgeSwipe.debug.value = v }
+            "motion" -> { motion = v; com.andysocial.voidos.ui.Ambience.motion.value = v }
         }
     }
 

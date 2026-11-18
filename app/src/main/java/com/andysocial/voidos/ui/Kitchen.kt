@@ -1,5 +1,9 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.ui.graphics.lerp
+
+import androidx.compose.ui.graphics.drawscope.rotate
+
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -254,7 +258,7 @@ private fun RoundKey(text: String, onClick: () -> Unit) {
 @Composable
 fun SmallKey(text: String, accent: Color = V.Muted, onClick: () -> Unit) {
     Box(
-        Modifier.height(36.dp).clip(Pill).background(V.Panel2).clickable(onClick = onClick).padding(horizontal = 14.dp),
+        Modifier.height(36.dp).glass(Pill, 0.7f).clickable(onClick = onClick).padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) { VText(text.lowercase(), size = 13.sp, color = V.Text) }
 }
@@ -264,9 +268,9 @@ fun SmallKey(text: String, accent: Color = V.Muted, onClick: () -> Unit) {
 private fun TimerCard(t: KTimer, now: Long) {
     val ctx = LocalContext.current
     val left = t.remaining(now)
-    val col = if (t.rang) V.Coral else V.Teal
+    val col = if (t.rang) V.Coral else V.Coral
     val frac = if (t.totalMs > 0) (left.toFloat() / t.totalMs).coerceIn(0f, 1f) else 0f
-    BoxWithConstraints(Modifier.fillMaxSize().clip(Oct).background(V.Panel)) {
+    BoxWithConstraints(Modifier.fillMaxSize().pane(Oct)) {
         val ringSide = minOf(maxWidth - 32.dp, maxHeight - 120.dp).coerceAtLeast(90.dp)
         val digits = fmtDur(left).length
         val big = (ringSide.value * (if (digits > 5) 0.17f else 0.24f)).coerceIn(22f, 150f).sp
@@ -281,8 +285,18 @@ private fun TimerCard(t: KTimer, now: Long) {
                 val sw = (size.minDimension * 0.035f).coerceIn(4.dp.toPx(), 9.dp.toPx())
                 val inset = sw / 2
                 val arcSize = Size(size.width - sw, size.height - sw)
-                drawArc(V.White.copy(alpha = 0.08f), 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(sw))
-                drawArc(col, -90f, 360f * frac, false, Offset(inset, inset), arcSize, style = Stroke(sw, cap = StrokeCap.Round))
+                drawArc(V.White.copy(alpha = 0.07f), 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(sw))
+                // the ring runs coral into purple, with a soft glow under it and a bright bead at its head
+                val grad = if (t.rang) Brush.sweepGradient(listOf(V.Coral, V.Coral)) else Brush.sweepGradient(listOf(V.Purple, V.Coral, V.Orange, V.Purple))
+                drawArc(col.copy(alpha = 0.16f), -90f, 360f * frac, false, Offset(inset, inset), arcSize, style = Stroke(sw * 3.2f, cap = StrokeCap.Round))
+                rotate(-90f) { drawArc(grad, 0f, 360f * frac, false, Offset(inset, inset), arcSize, style = Stroke(sw, cap = StrokeCap.Round)) }
+                if (frac > 0f) {
+                    val ang = Math.toRadians((-90f + 360f * frac).toDouble())
+                    val rr = arcSize.width / 2
+                    val head = Offset(size.width / 2 + rr * kotlin.math.cos(ang).toFloat(), size.height / 2 + rr * kotlin.math.sin(ang).toFloat())
+                    drawCircle(Color.White.copy(alpha = 0.35f), sw * 1.6f, head)
+                    drawCircle(Color.White, sw * 0.62f, head)
+                }
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 VText(if (t.rang) "Done" else fmtDur(left), size = big, color = if (t.rang) V.Coral else if (t.running) V.White else V.Muted, font = SansThin, maxLines = 1)
@@ -292,7 +306,7 @@ private fun TimerCard(t: KTimer, now: Long) {
         Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             SmallKey("+1 min") { KTimers.addTime(ctx, t.id, 60_000) }
             Box(
-                Modifier.size(48.dp).clip(CircleShape).background(if (t.running) V.Panel2 else V.Teal).clickable { KTimers.toggle(ctx, t.id) },
+                Modifier.size(48.dp).clip(CircleShape).background(if (t.running) Brush.verticalGradient(listOf(V.Panel2, V.Panel2)) else Brush.verticalGradient(listOf(lerp(V.Coral, Color.White, 0.2f), V.Coral))).clickable { KTimers.toggle(ctx, t.id) },
                 contentAlignment = Alignment.Center,
             ) { Glyph(if (t.running) G.PAUSE else G.PLAY, if (t.running) V.Text else V.Bg, Modifier.size(20.dp)) }
             SmallKey("+5 min") { KTimers.addTime(ctx, t.id, 300_000) }

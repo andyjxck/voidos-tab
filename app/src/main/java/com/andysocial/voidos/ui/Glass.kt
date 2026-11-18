@@ -1,5 +1,7 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.ui.draw.drawBehind
+
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -58,8 +60,8 @@ val BarShape = RoundedCornerShape(18.dp)
 /** A surface that sits on the page: quieter than [glass], so cards don't shout. */
 fun Modifier.pane(shape: Shape = Oct, lift: Float = 1f): Modifier = this
     .clip(shape)
-    .background(Brush.verticalGradient(listOf(Color(0xFF1E1E22).copy(alpha = 0.78f * lift), Color(0xFF121214).copy(alpha = 0.70f * lift))))
-    .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.13f), Color.White.copy(alpha = 0.03f))), shape)
+    .drawBehind { glassFill(0.74f, lift * 0.85f) }
+    .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.18f), Color.White.copy(alpha = 0.03f), Color.White.copy(alpha = 0.07f))), shape)
 
 /** The chosen segment: a teal-tinted lens with a bright rim along its top. */
 private fun Modifier.lens(shape: Shape, accent: Color): Modifier = this
@@ -212,18 +214,27 @@ class GlassGroupScope internal constructor() {
  */
 @Composable
 fun Backdrop(modifier: Modifier = Modifier) {
-    Canvas(modifier.fillMaxSize()) {
-        drawRect(V.Bg)
-        val r = maxOf(size.width, size.height)
-        drawRect(Brush.radialGradient(listOf(V.Teal.copy(alpha = 0.10f), Color.Transparent), center = Offset(size.width * 0.08f, -size.height * 0.05f), radius = r * 0.62f))
-        drawRect(Brush.radialGradient(listOf(V.Purple.copy(alpha = 0.08f), Color.Transparent), center = Offset(size.width * 0.95f, size.height * 1.05f), radius = r * 0.58f))
-    }
+    // the aurora: slow lights in the colours of the screen you're on (Alive.kt)
+    Aurora(modifier)
 }
 
 /** A thin page heading block: a light title and a quiet line under it. */
 @Composable
 fun PageTitle(text: String, portrait: Boolean, modifier: Modifier = Modifier) {
-    VText(text, size = if (portrait) 30.sp else 32.sp, font = SansLight, color = V.White, spacing = (-0.3).sp, modifier = modifier)
+    // the title, and just under it a short stroke of the screen's own colour. Drawn below the
+    // text's box, not laid out, so pages keep exactly the room they had
+    VText(
+        text, size = if (portrait) 30.sp else 32.sp, font = SansLight, color = V.White, spacing = (-0.3).sp,
+        modifier = modifier.drawBehind {
+            val c = Ambience.tint()
+            val y = size.height + 2.dp.toPx()
+            drawRoundRect(
+                Brush.horizontalGradient(listOf(c, c.copy(alpha = 0.15f)), startX = 1.dp.toPx(), endX = 29.dp.toPx()),
+                topLeft = androidx.compose.ui.geometry.Offset(1.dp.toPx(), y), size = androidx.compose.ui.geometry.Size(28.dp.toPx(), 3.dp.toPx()),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(1.5f.dp.toPx()),
+            )
+        },
+    )
 }
 
 @Suppress("unused")

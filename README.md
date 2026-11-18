@@ -67,7 +67,7 @@ Device owner can only be set when no account (Google or other) has been added
 to the tablet. If one has, factory reset and skip every account during setup.
 
 ```
-adb install -t root/voidos-tab-1.7.0.apk
+adb install -t root/voidos-tab-1.8.0.apk
 adb shell dpm set-device-owner com.andysocial.voidos/.VoidAdmin
 adb shell am start -n com.andysocial.voidos/.MainActivity
 ```

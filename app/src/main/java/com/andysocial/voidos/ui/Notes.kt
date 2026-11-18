@@ -181,7 +181,8 @@ private fun NoteRow(n: Note, selected: Boolean, first: Boolean, last: Boolean, o
     val shape = groupShape(first, last)
     Column(
         Modifier.fillMaxWidth().clip(shape)
-            .background(if (selected) V.Teal.copy(alpha = 0.16f) else GroupFill)
+            .background(GroupFill)
+            .background(Brush.horizontalGradient(listOf(V.Yellow.copy(alpha = if (selected) 0.20f else 0f), V.Coral.copy(alpha = if (selected) 0.06f else 0f))))
             .clickable(onClick = onClick),
     ) {
         if (!first) Box(Modifier.padding(start = 18.dp).fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.06f)))

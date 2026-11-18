@@ -1,15 +1,18 @@
+[land] 17e_wheel_from_dots: ok
+[land] 17g_wheel_held: ok
+[land] 17g_wheel_held: ok
 [land] 05_tools_alarms: ok
 [land] 05b_alarm_edit: ok
 [land] 05c_alarm_sounds: ok
 [land] 05d_alarm_new: ok
 [land] 05e_alarm_ringing: 9 issue(s)
   OVERLAP   "List" / "Gym"
-  OVERLAP   "+" / "02:28"
-  OVERLAP   "Laundry" / "02:28"
-  OVERLAP   "8:54" / "02:28"
-  OVERLAP   "+1 min" / "02:28"
+  OVERLAP   "+" / "09:02"
+  OVERLAP   "Laundry" / "09:02"
+  OVERLAP   "8:59" / "09:02"
+  OVERLAP   "+1 min" / "09:02"
   OVERLAP   "+1 min" / "Wednesday 18 November"
-  OVERLAP   "+5 min" / "02:28"
+  OVERLAP   "+5 min" / "09:02"
   OVERLAP   "+5 min" / "Wednesday 18 November"
   OVERLAP   "Stretch" / "Snooze"
 [land] 44_escape_pin: ok
@@ -38,6 +41,8 @@
 [land] 01b_face_widgets: ok
 [land] 17c_flick_from_bezel: 1 issue(s)
   OVERLAP   "−" / "Notes"
+[land] 17d_flick_leaves_wheel_open: 1 issue(s)
+  OVERLAP   "−" / "Notes"
 [land] 07_sky: 1 issue(s)
   TEXT CUT  "OPEN-METEO" box=106 x 0 text=106 x 0 lines=1 (taller than its box)
 [land] 12_apps: ok
@@ -62,18 +67,22 @@
 [land] 17b_tab_wheel_up: 1 issue(s)
   OVERLAP   "Settings" / "Home"
 [land] 18_app_wheel: ok
+[land] 17f_edge_debug: ok
 [land] 41_lock_pin: ok
 [land] 16_control_centre: ok
 [land] 12b_apps_hidden: ok
 [land] 01c_face_stretched: ok
 [land] 01d_face_clock_moved: ok
+[port] 17e_wheel_from_dots: ok
+[port] 17g_wheel_held: ok
+[port] 17g_wheel_held: ok
 [port] 05_tools_alarms: ok
 [port] 05b_alarm_edit: ok
 [port] 05c_alarm_sounds: ok
 [port] 05d_alarm_new: ok
 [port] 05e_alarm_ringing: 2 issue(s)
-  OVERLAP   "8:58" / "02:29"
-  OVERLAP   "21:58" / "02:29"
+  OVERLAP   "8:59" / "09:03"
+  OVERLAP   "21:59" / "09:03"
 [port] 44_escape_pin: ok
 [port] 20_system_wifi: ok
 [port] 21_system_bluetooth: ok
@@ -99,6 +108,7 @@
   OVERLAP   "adb shell am broadcast -a com.andysocial.voidos.action.UNLOCK -n com.andysocial.voidos/.ReleaseReceiver" / "0"
 [port] 01b_face_widgets: ok
 [port] 17c_flick_from_bezel: ok
+[port] 17d_flick_leaves_wheel_open: ok
 [port] 07_sky: ok
 [port] 12_apps: ok
 [port] 13_apps_manage: ok
@@ -123,6 +133,7 @@
 [port] 17_tab_wheel: ok
 [port] 17b_tab_wheel_up: ok
 [port] 18_app_wheel: ok
+[port] 17f_edge_debug: ok
 [port] 41_lock_pin: ok
 [port] 16_control_centre: ok
 [port] 12b_apps_hidden: ok

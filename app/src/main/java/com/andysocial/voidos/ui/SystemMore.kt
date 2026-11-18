@@ -90,6 +90,12 @@ fun HubPane(store: Store, act: MainActivity) {
     SettingRow("Swipe between screens", "Swipe left or right on a screen to move to the next one. The edge wheels work either way.") {
         VToggle(store.swipeScreens) { store.set("swipeScreens", it) }
     }
+    SettingRow("Living background", "The slow coloured light behind every screen. Off holds it still.") {
+        VToggle(store.motion) { store.set("motion", it) }
+    }
+    SettingRow("Edge touch debug", "Shows where the edge wheels listen and what the last touch did. For checking the wheels.") {
+        VToggle(store.edgeDebug, V.Coral) { store.set("edgeDebug", it) }
+    }
     SettingRow("App icons", "Void: VoidOS line icons for apps it knows, the rest greyed. Letters: initials. Colour: each app's own icon.") {}
     GlassSegments(listOf("void" to "Void", "letter" to "Letters", "colour" to "Colour"), store.iconStyle, Modifier.widthIn(max = 450.dp)) { store.setIconStyle(it) }
     SettingRow("Home widgets", "Tap + on Home to add the weather, music, the list or a note. Hold one to drag it, pinch to stretch or turn it.") {

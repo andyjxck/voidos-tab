@@ -1,5 +1,7 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.ui.graphics.Brush
+
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
@@ -68,10 +70,11 @@ import kotlinx.coroutines.isActive
 
 /** Settings pages, gathered into four groups so the list reads at a glance. */
 private enum class Tab(val label: String, val g: G, val group: Int, val accent: Color) {
-    WIFI("Wi-Fi", G.WIFI, 0, V.Teal), BT("Bluetooth", G.BT, 0, V.Teal), NET("Network", G.GLOBE, 0, V.Teal),
-    DISPLAY("Display & sound", G.SUN, 1, V.Teal), QUIET("Do not disturb", G.MOON, 1, V.Teal), BATTERY("Battery", G.BATTERY, 1, V.Teal),
-    HUB("Home & lock screen", G.FACE, 2, V.Teal), TIME("Date & time", G.TIMER, 2, V.Teal), VOID("Lock mode", G.LOCK, 2, V.Teal),
-    STORAGE("Storage", G.APPS, 3, V.Teal), ROOT("Boot & root", G.POWER, 3, V.Teal), ANDROID("Android settings", G.SYSTEM, 3, V.Teal),
+    // each page has its own colour, drawn from the logo's six, the way a phone's settings do
+    WIFI("Wi-Fi", G.WIFI, 0, V.Teal), BT("Bluetooth", G.BT, 0, Color(0xFF5A8CF0)), NET("Network", G.GLOBE, 0, V.Green),
+    DISPLAY("Display & sound", G.SUN, 1, V.Orange), QUIET("Do not disturb", G.MOON, 1, V.Purple), BATTERY("Battery", G.BATTERY, 1, V.Green),
+    HUB("Home & lock screen", G.FACE, 2, V.Coral), TIME("Date & time", G.TIMER, 2, V.Yellow), VOID("Lock mode", G.LOCK, 2, V.Purple),
+    STORAGE("Storage", G.APPS, 3, Color(0xFF8E8E98)), ROOT("Boot & root", G.POWER, 3, V.Coral), ANDROID("Android settings", G.SYSTEM, 3, Color(0xFF8E8E98)),
     ABOUT("About", G.INFO, 3, V.Teal),
 }
 
@@ -169,12 +172,18 @@ fun SystemScreen(store: Store, act: MainActivity) {
 @Composable
 private fun NavItem(t: Tab, sel: Boolean, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().background(if (sel) V.Teal.copy(alpha = 0.16f) else Color.Transparent)
+        Modifier.fillMaxWidth()
+            .background(if (sel) Brush.horizontalGradient(listOf(t.accent.copy(alpha = 0.26f), t.accent.copy(alpha = 0.06f))) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)))
             .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(32.dp).clip(RoundedCornerShape(9.dp)).background(if (sel) V.Teal else V.Panel2), contentAlignment = Alignment.Center) {
-            Glyph(t.g, if (sel) V.Bg else V.Text, Modifier.size(18.dp))
+        // a lit glass tile in the page's colour, like the icons in an iPad's settings
+        Box(
+            Modifier.size(32.dp).clip(RoundedCornerShape(9.dp)).background(tileBrush(t.accent))
+                .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.45f), Color.Transparent)), RoundedCornerShape(9.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Glyph(t.g, Color.White, Modifier.size(18.dp))
         }
         Gap(w = 16.dp)
         VText(t.label, size = 16.sp, color = V.Text, maxLines = 1, modifier = Modifier.weight(1f))

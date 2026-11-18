@@ -31,6 +31,11 @@ class MainActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         Policy.applyAll(this)
         excludeEdges()
+        EdgeSwipe.debug.value = store.edgeDebug
+        com.andysocial.voidos.ui.Ambience.motion.value = store.motion
+        val dm = resources.displayMetrics
+        val anim = try { android.provider.Settings.Global.getFloat(contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) } catch (_: Throwable) { -1f }
+        EdgeSwipe.log("start ${dm.widthPixels}x${dm.heightPixels} density=${dm.density} animScale=$anim version=${BuildConfig.VERSION_NAME}")
         setContent {
             LaunchedEffect(Unit) {
                 snapshotFlow { VoidApp.releaseSignal.value }.collect { if (it > 0) leaveLockTask() }
@@ -87,36 +92,47 @@ class MainActivity : ComponentActivity() {
     private fun routeEdge(ev: MotionEvent): Boolean {
         val sink = EdgeSwipe.sink
         val width = window.decorView.width.toFloat()
+        val t = ev.eventTime
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                val a = edge.down(ev.x, ev.y, width, ev.eventTime, EdgeSwipe.enabled && sink != null)
-                if (a == EdgeAction.CONSUME) sink?.begin(edge.left, ev.x, ev.y)
+                val on = EdgeSwipe.enabled && sink != null
+                val a = edge.down(ev.x, ev.y, width, t, on)
+                EdgeSwipe.lastDown.value = ev.x to ev.y
+                val d = minOf(ev.x, width - ev.x) / resources.displayMetrics.density
+                if (d <= EdgeSwipe.SOFT_DP * 2 || !on) {
+                    EdgeSwipe.log("down x=${ev.x.toInt()} y=${ev.y.toInt()} edge=${d.toInt()}dp win=${width.toInt()}x${window.decorView.height} enabled=${EdgeSwipe.enabled}${if (EdgeSwipe.offReason.isNotEmpty()) " (off: ${EdgeSwipe.offReason})" else ""} sink=${sink != null} -> $a")
+                }
+                if (a == EdgeAction.CONSUME) sink?.begin(edge.left, ev.x, ev.y, t)
                 return a == EdgeAction.CONSUME
             }
             MotionEvent.ACTION_MOVE -> {
                 val wasOurs = edge.owned
-                return when (edge.move(ev.x, ev.y, ev.eventTime)) {
+                return when (val a = edge.move(ev.x, ev.y, t)) {
                     EdgeAction.CLAIM -> {
+                        EdgeSwipe.log("flick claimed at x=${ev.x.toInt()} after ${t - ev.downTime}ms")
                         // the screen already saw the press: take it back, then the wheel has it
                         val cancel = MotionEvent.obtain(ev).apply { action = MotionEvent.ACTION_CANCEL }
                         super.dispatchTouchEvent(cancel)
                         cancel.recycle()
-                        sink?.begin(edge.left, edge.startX, edge.startY)
-                        sink?.move(ev.x, ev.y)
+                        sink?.begin(edge.left, edge.startX, edge.startY, ev.downTime)
+                        sink?.move(ev.x, ev.y, t)
                         true
                     }
-                    EdgeAction.CONSUME -> { if (wasOurs) sink?.move(ev.x, ev.y); true }
+                    EdgeAction.CONSUME -> { if (wasOurs) sink?.move(ev.x, ev.y, t); true }
                     EdgeAction.PASS -> false
                 }
             }
             MotionEvent.ACTION_UP -> {
                 val ours = edge.up() == EdgeAction.CONSUME
-                if (ours) sink?.end(ev.x, ev.y)
+                if (ours) {
+                    EdgeSwipe.log("up x=${ev.x.toInt()} y=${ev.y.toInt()} after ${t - ev.downTime}ms")
+                    sink?.end(ev.x, ev.y, t)
+                }
                 return ours
             }
             MotionEvent.ACTION_CANCEL -> {
                 val ours = edge.up(cancelled = true) == EdgeAction.CONSUME
-                if (ours) sink?.cancel()
+                if (ours) { EdgeSwipe.log("cancelled by Android"); sink?.cancel() }
                 return ours
             }
             else -> return edge.owned // extra fingers during a wheel gesture stay with the wheel

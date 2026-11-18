@@ -351,4 +351,13 @@ class LogicTest {
         rects.forEach { assertEquals((200 * d).toInt(), it[3] - it[1]); assertTrue(kotlin.math.abs((1280 - it[3]) - it[1]) <= 1) }
         assertEquals(0, rects[0][0]); assertEquals(800, rects[1][2])
     }
+
+    /** A quick swipe in leaves the wheel open to tap; only a held, settled slide picks on release. */
+    @Test fun wheelReleaseRule() {
+        val pick: (Boolean, Long, Long, Long) -> Boolean = { a, b, c, d -> com.andysocial.voidos.ui.releasePicks(a, b, c, d) }
+        assertEquals(false, pick(true, 0L, 60L, 150L))   // flick: 150 ms in all
+        assertEquals(false, pick(false, 0L, 0L, 900L))   // a tap on the edge, held: never picks
+        assertEquals(false, pick(true, 0L, 840L, 900L))  // still sliding between slots at release
+        assertEquals(true, pick(true, 0L, 500L, 900L))   // held on a slot, then let go
+    }
 }

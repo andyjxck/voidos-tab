@@ -19,6 +19,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.geometry.CornerRadius
 import kotlinx.coroutines.launch
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -139,6 +142,10 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
     val scope = rememberCoroutineScope()
     val module = pages[pager.currentPage]
     SideEffect { ShellNow.module.value = module }
+    // the backdrop's light follows the swipe, colour by colour
+    LaunchedEffect(pager) {
+        snapshotFlow { pager.currentPage + pager.currentPageOffsetFraction }.collect { Ambience.pos.floatValue = it }
+    }
     var escape by EscapeDoor.asked
     var control by remember { mutableStateOf(false) }
     val ambient by Idle.ambient
@@ -185,7 +192,7 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
             key = { pages[it].name },
         ) { i ->
             val mod = pages[i]
-            Column(Modifier.fillMaxSize().padding(start = side, end = side, bottom = 6.dp)) {
+            Column(Modifier.fillMaxSize().pageDepth(pager, i).padding(start = side, end = side, bottom = 6.dp)) {
                 if (mod != Module.FACE) {
                     PageTitle(mod.label, portrait, Modifier.padding(top = 4.dp, bottom = 16.dp))
                 }
@@ -202,7 +209,7 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
                 }
             }
         }
-        PageDots(pages.size, pager.currentPage)
+        PageDots(pages.size, pager.currentPage + pager.currentPageOffsetFraction)
     }
 
     val apps = remember(store.recentApps, store.allowed) {
@@ -220,25 +227,51 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
         onApp = { pkg -> if (!launchApp(ctx, store, pkg)) store.forgetRecent(pkg) },
         onAllApps = { go(Module.APPS, animate = false) },
         // anything over the screens (lock, ringing timer, control centre, the way out, the ambient clock) keeps the edges
-        enabled = !escape && !control && !ambient && !(LockState.locked.value && store.voidLock) && KTimers.ringing.value.isEmpty() && com.andysocial.voidos.Alarms.ringing.value == null,
+        enabled = edgeOff(escape, control, ambient, LockState.locked.value && store.voidLock).isEmpty(),
     )
 
+    EdgeDebugOverlay()
     ControlCentre(control, store, act, onClose = { control = false }, onSettings = { go(Module.SYSTEM, animate = false) })
     if (ambient) AmbientClock(store)
     if (escape) EscapeOverlay(store, act, onClose = { escape = false })
 }
 
+/** Why the edges are off right now, for the debug overlay and the log; empty when they're on. */
+private fun edgeOff(escape: Boolean, control: Boolean, ambient: Boolean, locked: Boolean): String {
+    val why = buildList {
+        if (escape) add("escape")
+        if (control) add("control centre")
+        if (ambient) add("ambient clock")
+        if (locked) add("lock screen")
+        if (KTimers.ringing.value.isNotEmpty()) add("timer ringing")
+        if (com.andysocial.voidos.Alarms.ringing.value != null) add("alarm ringing")
+    }.joinToString()
+    EdgeSwipe.offReason = why
+    return why
+}
+
 /** Small dots under the screens, so swiping sideways explains itself. */
 @Composable
-private fun PageDots(n: Int, current: Int) {
-    Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 12.dp), horizontalArrangement = Arrangement.Center) {
-        repeat(n) { i ->
-            val w by animateDpAsState(if (i == current) 18.dp else 6.dp, label = "dot")
-            Box(
-                Modifier.padding(horizontal = 3.dp).size(w, 6.dp).clip(RoundedCornerShape(50))
-                    .background(if (i == current) V.White.copy(alpha = 0.85f) else V.White.copy(alpha = 0.22f))
-            )
-        }
+private fun PageDots(n: Int, pos: Float) {
+    // one lit pill that stretches between dots as you swipe, in the colour of where you're going
+    // tapping the dots opens the tab wheel, pinned: a way round that needs no edge swipe
+    Canvas(
+        Modifier.fillMaxWidth().clickable(interactionSource = null, indication = null) { EdgeSwipe.request.value = true }
+            .padding(top = 4.dp, bottom = 12.dp).height(6.dp)
+            .semantics { contentDescription = "Screens" }
+    ) {
+        val d = 6.dp.toPx(); val gap = 6.dp.toPx(); val step = d + gap
+        val total = n * d + (n - 1) * gap
+        val x0 = size.width / 2 - total / 2
+        repeat(n) { i -> drawCircle(Color.White.copy(alpha = 0.18f), d / 2, Offset(x0 + i * step + d / 2, d / 2)) }
+        val lo = kotlin.math.floor(pos).toInt().coerceIn(0, n - 1)
+        val f = (pos - lo).coerceIn(0f, 1f)
+        val stretch = (1f - kotlin.math.abs(f - 0.5f) * 2f) * step
+        val left = x0 + (lo + f) * step - stretch * 0.0f
+        val wPill = 18.dp.toPx() + stretch
+        val cx = left + d / 2
+        val c = androidx.compose.ui.graphics.lerp(Color.White, Ambience.moodAt(pos).a, 0.45f)
+        drawRoundRect(c, Offset(cx - wPill / 2 + (wPill - 18.dp.toPx()) / 2 * 0f, 0f), androidx.compose.ui.geometry.Size(wPill, d), CornerRadius(d / 2))
     }
 }
 
