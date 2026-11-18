@@ -65,7 +65,8 @@ import kotlin.math.roundToLong
 enum class KTab(val label: String, val glyph: G) {
     TIMERS("Timers", G.TIMER), STOPWATCH("Stopwatch", G.STOPWATCH), ALARMS("Alarms", G.BELL), WORLD("World", G.WORLD),
     CALENDAR("Calendar", G.CALENDAR), CONVERT("Convert", G.CONVERT), LIST("List", G.LIST), MEMO("Memos", G.MIC),
-    LEVEL("Level", G.LEVEL), METER("Sound", G.METER),
+    LEVEL("Level", G.LEVEL), METER("Sound", G.METER), SCAN("QR scan", G.QR), MIRROR("Mirror", G.MIRROR),
+    ZOOM("Magnifier", G.ZOOM), TORCH("Torch", G.TORCH), RING("Ring light", G.LIGHT),
 }
 
 /** Tools: timers first, then the unit converter and the list. (This was the Kitchen screen.) */
@@ -84,6 +85,11 @@ fun ToolsScreen(store: Store) {
                 KTab.ALARMS -> AlarmsPane()
                 KTab.CONVERT -> ConvertPane()
                 KTab.LIST -> ShoppingPane(store)
+                KTab.SCAN -> CameraPane(CamMode.SCAN)
+                KTab.MIRROR -> CameraPane(CamMode.MIRROR)
+                KTab.ZOOM -> CameraPane(CamMode.ZOOM)
+                KTab.TORCH -> LightPane(ring = false)
+                KTab.RING -> LightPane(ring = true)
                 else -> MoreToolsPane(tab, store)
             }
         }

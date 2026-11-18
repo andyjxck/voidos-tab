@@ -80,7 +80,7 @@ private enum class Tab(val label: String, val g: G, val group: Int, val accent: 
     WIFI("Wi-Fi", G.WIFI, 0, V.Teal), BT("Bluetooth", G.BT, 0, Color(0xFF5A8CF0)), NET("Network", G.GLOBE, 0, V.Green),
     DISPLAY("Display & sound", G.SUN, 1, V.Orange), QUIET("Do not disturb", G.MOON, 1, V.Purple), BATTERY("Battery", G.BATTERY, 1, V.Green),
     HUB("Home & lock screen", G.FACE, 2, V.Coral), TIME("Date & time", G.TIMER, 2, V.Yellow), VOID("Lock mode", G.LOCK, 2, V.Purple),
-    STORAGE("Storage", G.APPS, 3, Color(0xFF8E8E98)), ANDROID("System settings", G.SYSTEM, 3, Color(0xFF8E8E98)),
+    STORAGE("Storage", G.APPS, 3, Color(0xFF8E8E98)), ANDROID("System", G.SYSTEM, 3, Color(0xFF8E8E98)),
     ABOUT("About", G.INFO, 3, V.Teal),
 }
 
@@ -109,9 +109,9 @@ fun SystemScreen(store: Store, act: MainActivity) {
                     Tab.QUIET -> QuietPane(act)
                     Tab.TIME -> TimePane(store, act)
                     Tab.BATTERY -> BatteryPane()
-                    Tab.NET -> NetworkPane()
-                    Tab.STORAGE -> StoragePane(store)
-                    Tab.ANDROID -> AndroidPane(act)
+                    Tab.NET -> { NetworkPane(); Gap(h = 24.dp); NetworkExtras() }
+                    Tab.STORAGE -> { StoragePane(store); Gap(h = 24.dp); StorageExtras(); Gap(h = 24.dp); AppsExtras(store) }
+                    Tab.ANDROID -> SystemSettingsPane(store, act)
                     Tab.VOID -> VoidPane(store, act)
                     Tab.ABOUT -> AboutTabletPane(store, act)
                 }
@@ -374,6 +374,9 @@ private fun DisplayPane(store: Store, act: MainActivity) {
             runCatching { am.setStreamVolume(stream, (it * max).toInt(), 0) }
         }
     }
+    SoundExtras(store)
+    Gap(h = 24.dp)
+    ScreenExtras(store)
 }
 
 // ------------------------------------------------------------------ Bluetooth

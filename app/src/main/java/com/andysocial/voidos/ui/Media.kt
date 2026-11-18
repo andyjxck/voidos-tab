@@ -325,7 +325,7 @@ private fun NowPlayingCard(src: Source?, hasFiles: Boolean, modifier: Modifier, 
                     Gap(h = 16.dp)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (!access && !connected) VButton("Turn on access", accent = V.Teal, filled = true) {
-                            runCatching { ctx.startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                            Thread { com.andysocial.voidos.Stealth.grant(ctx) }.start()
                         }
                         if (hasFiles) VButton("Play your music", accent = V.Teal) { Player.play(ctx, 0); onFiles() }
                     }

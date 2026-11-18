@@ -102,6 +102,13 @@ class AlarmService : Service() {
             focus = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT).setAudioAttributes(attrs).build()
             runCatching { am.requestAudioFocus(focus!!) }
         }
+        // vibrate with the alarm too, unless it's switched off in Settings > Display & sound
+        if ((applicationContext as VoidApp).store.alarmVibrate) runCatching {
+            @Suppress("DEPRECATION")
+            getSystemService(android.os.Vibrator::class.java)?.vibrate(
+                android.os.VibrationEffect.createWaveform(longArrayOf(0, 700, 500), 0), attrs,
+            )
+        }
         target = 1f
         // a sound that builds up on its own doesn't get a second ramp on top
         rampMs = if (sound.cat == SoundCat.PROGRESSIVE) 0L else a.rampSec * 1000L
@@ -133,6 +140,7 @@ class AlarmService : Service() {
     }
 
     private fun stopSound() {
+        runCatching { getSystemService(android.os.Vibrator::class.java)?.cancel() }
         main.removeCallbacks(rampTick)
         player?.let { runCatching { it.stop() }; runCatching { it.release() } }
         player = null

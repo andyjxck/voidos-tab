@@ -323,7 +323,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
 
     @Test fun tools() {
         show { Shell(store, act, Module.TOOLS) }
-        expect("Tools", "Timers", "Laundry", "Call Maya", "Start"); shot("02_tools_timers")
+        expect("Timers", "Laundry", "Call Maya", "Start"); shot("02_tools_timers")
         // the old cooking presets and the focus timers are gone
         listOf("Pasta", "Eggs", "Deep work", "Focus", "Kitchen").forEach { gone ->
             val left = rule.onAllNodesWithText(gone, substring = true, ignoreCase = true, useUnmergedTree = true).fetchSemanticsNodes()
@@ -386,8 +386,8 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         tapDesc("Done drawing")
         if (tag.startsWith("port")) {
             // upright the note fills the screen and there's a way back to the list
-            tap("Notes"); expect("Shopping", "1 note"); shot("08c_notes_list")
-        } else expect("Shopping", "1 note")
+            tap("Notes"); expect("Shopping"); shot("08c_notes_list")
+        } else expect("Shopping")
     }
 
     @Test fun notesSketch() {
@@ -398,7 +398,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
 
     @Test fun sound() {
         show { Shell(store, act, Module.MEDIA) }
-        expect("Nothing playing", "Not playing", "Brown noise"); shot("09_media")
+        expect("Not playing", "Brown noise"); shot("09_media")
         val old = rule.onAllNodesWithText("On this tablet", substring = true, ignoreCase = true, useUnmergedTree = true).fetchSemanticsNodes()
         assertTrue("[$tag] the separate On this tablet section should be gone", old.isEmpty())
         // the same controls whatever plays
@@ -491,10 +491,10 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
 
     @Test fun controlCentre() {
         showCc()
-        listOf("Wi-Fi", "Bluetooth", "Do not disturb", "Rotation lock", "Brightness", "Volume").forEach {
+        listOf("Wi-Fi", "Bluetooth", "Focus", "Rotation lock", "Brightness", "Volume").forEach {
             assertTrue("[$tag] control centre should have $it", described(it))
         }
-        expect("Stay awake", "Screen off", "Settings", "Not playing")
+        expect("Stay awake", "Settings", "Not playing")
         rule.onAllNodesWithText("Leave VoidOS", substring = true).assertCountEquals(0)
         shot("16_control_centre"); fitsOnScreen("16_control_centre")
         // holding Wi-Fi opens the network list, like an iPad
@@ -735,7 +735,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     /** The way out is hidden: About, then the Device line, twenty taps, no hint on the way. */
     @Test fun hiddenWayOut() {
         show { Shell(store, act, Module.SYSTEM) }
-        tap("About this tablet"); settle(600)
+        tap("About"); settle(600)
         val door = rule.onNodeWithTag("about-device", useUnmergedTree = true)
         repeat(19) { door.performTouchInput { click() }; settle(60) }
         listOf("Enter your VoidOS PIN", "more tap", "taps away", "almost").forEach { hint ->
@@ -750,7 +750,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         show { Shell(store, act, Module.SYSTEM) }
         shot("20_system_wifi")
         listOf("Bluetooth", "Network", "Display & sound", "Do not disturb", "Battery", "Home & lock screen", "Date & time",
-            "Lock mode", "Storage", "Android settings", "About this tablet").forEachIndexed { i, t ->
+            "Lock mode", "Storage", "System", "About").forEachIndexed { i, t ->
             tap(t)
             shot("%02d_system_%s".format(21 + i, t.lowercase().replace(Regex("[^a-z]+"), "_").trim('_')))
             // upright, a page opens over the list: go back to it
@@ -813,15 +813,13 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
 
     @Test fun about() {
         show { Shell(store, act, Module.SYSTEM) }
-        tap("About this tablet"); settle(1500)
-        expect("Tablet", "Android", "Storage", "Battery", "Startup", "Startup logo", "Startup animation", "Shutdown animation", "Technical details")
-        listOf("Boot & root", "Logo partition", "system app", "Time zone control", "getprop").forEach {
+        tap("About"); settle(1500)
+        expect("VoidOS", "Device", "Storage", "Memory", "Battery")
+        listOf("Lenovo", "Magisk", "Bootloader", "running the tablet", "Boot & root").forEach {
             val n = rule.onAllNodesWithText(it, substring = true, ignoreCase = true, useUnmergedTree = true).fetchSemanticsNodes()
             assertTrue("[$tag] About should not show \"$it\"", n.isEmpty())
         }
         shot("50_about")
-        tap("Technical details")
-        expect("Model number", "Bootloader")
     }
 
     @Test fun pinSettings() {

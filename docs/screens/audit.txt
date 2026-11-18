@@ -2,6 +2,16 @@
 [land] 17g_wheel_held: ok
 [land] 17h_wheel_over_app: ok
 [land] 05_tools_alarms: ok
+[land] 05b_alarm_edit: ok
+[land] 05c_alarm_sounds: ok
+[land] 05d_alarm_new: ok
+[land] 05e_alarm_ringing: 6 issue(s)
+  OVERLAP   "+" / "19:44"
+  OVERLAP   "Laundry" / "Gym"
+  OVERLAP   "8:59" / "19:44"
+  OVERLAP   "+1 min" / "19:44"
+  OVERLAP   "+5 min" / "19:44"
+  OVERLAP   "6:00" / "9 minutes"
 [land] 44_escape_pin: ok
 [land] 20_system_wifi: ok
 [land] 21_system_bluetooth: ok
@@ -25,7 +35,8 @@
 [land] 08b_notes_draw: ok
 [land] 43_setup: ok
 [land] 17_tab_wheel: ok
-[land] 17b_tab_wheel_up: ok
+[land] 17b_tab_wheel_up: 1 issue(s)
+  OVERLAP   "Wi-Fi" / "Home"
 [land] 18_app_wheel: ok
 [land] 17f_edge_debug: ok
 [land] 41_lock_pin: ok
@@ -40,9 +51,9 @@
 [land] 16f_cc_dnd: ok
 [land] 16g_cc_rotate: ok
 [land] 16h_cc_bright: ok
-[land] 16i_cc_volume: 1 issue(s)
-  OVERLAP   "06:45" / "Alarms"
+[land] 16i_cc_volume: ok
 [land] 16j_cc_media: ok
+[land] 51_pin_change: ok
 [port] 17g_wheel_held: ok
 [port] 17g_wheel_held: ok
 [port] 17h_wheel_over_app: ok
@@ -51,11 +62,19 @@
 [port] 05c_alarm_sounds: ok
 [port] 05d_alarm_new: ok
 [port] 05e_alarm_ringing: 2 issue(s)
-  OVERLAP   "8:59" / "19:36"
-  OVERLAP   "21:59" / "19:36"
+  OVERLAP   "8:59" / "19:45"
+  OVERLAP   "21:59" / "19:45"
 [port] 44_escape_pin: ok
 [port] 20_system_wifi: ok
 [port] 21_system_bluetooth: ok
+[port] 22_system_network: ok
+[port] 23_system_display_sound: ok
+[port] 24_system_do_not_disturb: ok
+[port] 25_system_battery: ok
+[port] 26_system_home_lock_screen: ok
+[port] 27_system_date_time: ok
+[port] 28_system_lock_mode: ok
+[port] 29_system_storage: ok
 [port] 01b_face_widgets: ok
 [port] 17c_flick_from_bezel: ok
 [port] 17d_flick_leaves_wheel_open: ok
@@ -68,7 +87,8 @@
 [port] 08b_notes_draw: ok
 [port] 43_setup: ok
 [port] 17_tab_wheel: ok
-[port] 17b_tab_wheel_up: ok
+[port] 17b_tab_wheel_up: 1 issue(s)
+  OVERLAP   "Display & sound" / "Home"
 [port] 18_app_wheel: ok
 [port] 17f_edge_debug: ok
 [port] 41_lock_pin: ok

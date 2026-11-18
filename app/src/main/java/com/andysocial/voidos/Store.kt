@@ -90,6 +90,14 @@ class Store(private val ctx: Context) {
     var timerSound by mutableStateOf(p.getBoolean("timerSound", true)); private set
     var railLabels by mutableStateOf(p.getBoolean("railLabels", true)); private set
     var tempF by mutableStateOf(p.getBoolean("tempF", false)); private set
+    var nightAuto by mutableStateOf(p.getBoolean("nightAuto", false)); private set
+    var autoNight by mutableStateOf(p.getBoolean("autoNight", false)); private set
+    var alarmVibrate by mutableStateOf(p.getBoolean("alarmVibrate", true)); private set
+    var waveWake by mutableStateOf(p.getBoolean("waveWake", false)); private set
+    var faceDown by mutableStateOf(p.getBoolean("faceDown", false)); private set
+    var pickUp by mutableStateOf(p.getBoolean("pickUp", false)); private set
+    var nightWarmth by mutableStateOf(p.getFloat("nightWarmth", 0.5f)); private set
+    fun set(key: String, v: Float) { p.edit().putFloat(key, v).apply(); if (key == "nightWarmth") nightWarmth = v }
     /** Swipe left and right on a screen to move to the next one. */
     var swipeScreens by mutableStateOf(p.getBoolean("swipeScreens", true)); private set
     /** Settings > About > Edge touch debug: shows the edge zones and the last touch. */
@@ -125,6 +133,12 @@ class Store(private val ctx: Context) {
             "timerSound" -> timerSound = v
             "railLabels" -> railLabels = v
             "tempF" -> tempF = v
+            "nightAuto" -> nightAuto = v
+            "autoNight" -> autoNight = v
+            "alarmVibrate" -> alarmVibrate = v
+            "waveWake" -> waveWake = v
+            "faceDown" -> faceDown = v
+            "pickUp" -> pickUp = v
             "swipeScreens" -> swipeScreens = v
             "edgeDebug" -> { edgeDebug = v; com.andysocial.voidos.ui.EdgeSwipe.debug.value = v }
             "motion" -> { motion = v; com.andysocial.voidos.ui.Ambience.motion.value = v }

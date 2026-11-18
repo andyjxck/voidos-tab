@@ -249,18 +249,6 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
     val ccReq by EdgeSwipe.controlRequest
     LaunchedEffect(ccReq) { if (ccReq) { EdgeSwipe.controlRequest.value = false; control = true } }
     ControlCentre(control, store, act, onClose = { control = false }, onSettings = { go(Module.SYSTEM, animate = false) })
-    // swipe up from the bottom edge: VoidOS's own app switcher
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-        Box(
-            Modifier.fillMaxWidth(0.6f).height(18.dp).pointerInput(Unit) {
-                var dy = 0f
-                detectVerticalDragGestures(onDragStart = { dy = 0f }) { ch, d ->
-                    dy += d; ch.consume()
-                    if (dy < -36f) { dy = 10_000f; Switcher.shown.value = true }
-                }
-            },
-        )
-    }
     AppSwitcher(store)
     if (ambient) AmbientClock(store)
     if (escape) EscapeOverlay(store, act, onClose = { escape = false })

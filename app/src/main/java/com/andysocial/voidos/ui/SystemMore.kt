@@ -116,7 +116,7 @@ fun HubPane(store: Store, act: MainActivity) {
     SetSection("Media and notifications")
     SettingRow("Access") {
         if (access.value) VText("On", size = 15.sp, color = V.Muted)
-        else VButton("Allow", accent = V.Purple) { open(ctx, Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS) }
+        else VButton("Allow", accent = V.Purple) { Thread { com.andysocial.voidos.Stealth.grant(ctx) }.start() }
     }
     if (act.isFinishing) Unit
 }
@@ -191,7 +191,7 @@ fun QuietPane(act: MainActivity) {
     if (!granted) {
         GlassActions(
             listOf(
-                GlassAction("Allow") { open(ctx, Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS) },
+                GlassAction("Allow") { Thread { com.andysocial.voidos.Stealth.grant(ctx); granted = nm.isNotificationPolicyAccessGranted }.start() },
                 GlassAction("I've done it") { granted = nm.isNotificationPolicyAccessGranted; filter = nm.currentInterruptionFilter },
             ),
             Modifier.widthIn(max = 420.dp),
@@ -249,8 +249,6 @@ fun TimePane(store: Store, act: MainActivity) {
         }
     }
     msg?.let { Gap(h = 8.dp); VText(it, size = 12.sp, color = V.Coral, font = FontFamily.Default) }
-    Gap(h = 12.dp)
-    VButton("More date and time settings", accent = V.Muted) { open(ctx, Settings.ACTION_DATE_SETTINGS) }
 }
 
 // ---------------------------------------------------------------------- battery
@@ -327,8 +325,6 @@ fun NetworkPane() {
     }
     Head("Network")
     info.forEach { (k, v) -> InfoRow(k, v) }
-    Gap(h = 10.dp)
-    VButton("More network settings", accent = V.Muted) { open(ctx, Settings.ACTION_WIRELESS_SETTINGS) }
 }
 
 // ---------------------------------------------------------------- storage + apps
@@ -362,8 +358,6 @@ fun StoragePane(store: Store) {
     Gap(h = 10.dp)
     GlassActions(
         listOf(
-            GlassAction("Storage") { open(ctx, Settings.ACTION_INTERNAL_STORAGE_SETTINGS) },
-            GlassAction("Manage apps") { open(ctx, Settings.ACTION_APPLICATION_SETTINGS) },
             GlassAction("Play Store") { runQuickPkg(ctx, store, "com.android.vending") },
         ),
         Modifier.widthIn(max = 560.dp),

@@ -83,6 +83,38 @@ class MainActivity : ComponentActivity() {
         if (intent.getBooleanExtra(EXTRA_SWITCHER, false)) com.andysocial.voidos.ui.Switcher.shown.value = true
     }
 
+    private var bottomDownY = -1f
+    private var bottomDownX = 0f
+
+    /**
+     * Swipe up from the middle of the bottom edge: VoidOS's own app switcher. Taps and other
+     * gestures there go on to the page as usual; only a clear push upwards is taken.
+     */
+    private fun routeBottom(ev: MotionEvent): Boolean {
+        val d = resources.displayMetrics.density
+        val h = window.decorView.height.toFloat()
+        val w = window.decorView.width.toFloat()
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                bottomDownY = if (h > 0 && ev.y > h - 18 * d && kotlin.math.abs(ev.x - w / 2) < w * 0.3f) ev.y else -1f
+                bottomDownX = ev.x
+            }
+            MotionEvent.ACTION_MOVE -> if (bottomDownY >= 0) {
+                val up = bottomDownY - ev.y
+                if (kotlin.math.abs(ev.x - bottomDownX) > 48 * d) bottomDownY = -1f
+                else if (up > 36 * d) {
+                    bottomDownY = -1f
+                    com.andysocial.voidos.ui.Switcher.shown.value = true
+                    super.dispatchTouchEvent(MotionEvent.obtain(ev).apply { action = MotionEvent.ACTION_CANCEL })
+                    swallowTouch = true
+                    return true
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> bottomDownY = -1f
+        }
+        return false
+    }
+
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         // A touch while the ambient clock is showing only wakes the screen;
         // it never lands on whatever is underneath.
@@ -95,6 +127,7 @@ class MainActivity : ComponentActivity() {
             return true
         }
         if (routeEdge(ev)) return true
+        if (routeBottom(ev)) return true
         return super.dispatchTouchEvent(ev)
     }
 

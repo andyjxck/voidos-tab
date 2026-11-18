@@ -38,6 +38,7 @@ class VoidApp : Application() {
         Su.quiet(applicationInfo.uid)
         BootCover.reenable(this)
         BootOrient.watch(this)
+        runCatching { com.andysocial.voidos.ui.Sensors.sync(this, store) }
         // play the start animation once per power-on, not every time Android
         // restarts the app to free memory
         val bootId = (System.currentTimeMillis() - android.os.SystemClock.elapsedRealtime()) / 60_000
