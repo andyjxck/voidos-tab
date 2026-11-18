@@ -220,7 +220,7 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
         onApp = { pkg -> if (!launchApp(ctx, store, pkg)) store.forgetRecent(pkg) },
         onAllApps = { go(Module.APPS, animate = false) },
         // anything over the screens (lock, ringing timer, control centre, the way out, the ambient clock) keeps the edges
-        enabled = !escape && !control && !ambient && !(LockState.locked.value && store.voidLock) && KTimers.ringing.value.isEmpty(),
+        enabled = !escape && !control && !ambient && !(LockState.locked.value && store.voidLock) && KTimers.ringing.value.isEmpty() && com.andysocial.voidos.Alarms.ringing.value == null,
     )
 
     ControlCentre(control, store, act, onClose = { control = false }, onSettings = { go(Module.SYSTEM, animate = false) })

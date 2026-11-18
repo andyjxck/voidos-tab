@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 e78b43d3609de9913d0a18613fd1e5722102b954ae9fc24eecb391605d23a845  voidos-tab-1.6.0.apk
+=======
+961b08323eac1472d6d4a33ff3f028e534235cdfebd871b7c9a0638897c6934d  voidos-tab-1.7.0.apk
+>>>>>>> aa80a00 (1.7.0: alarms release APK (same key); edges off while an alarm rings)
 9deaed368b680e550c22cbdb311f43e6c616322e0e6604852a053dee7f5d177f  voidos-boot-magisk.zip
 adb006f9697665cda58c35d53c46174b02624a2d2d577c95cf9a5787653a712e  voidos-system-magisk.zip
 0ee2e2a0c89a834408b344a258dba6855b28297c78cf3202cf2ea3cb4119c100  bootanimation.zip
