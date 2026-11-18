@@ -240,10 +240,7 @@ fun MediaScreen() {
         Row(Modifier.fillMaxSize()) {
             Column(Modifier.weight(1f).fillMaxHeight()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        PageTitle("Sound", portrait)
-                        VText(if (src != null) "Playing on ${src.app}" else "Nothing playing", size = 13.sp, color = V.Muted, maxLines = 1)
-                    }
+                    Spacer(Modifier.weight(1f))
                     RoundIcon(G.FOLDER, "Files", active = files) { files = !files }
                 }
                 Gap(h = 16.dp)

@@ -132,9 +132,10 @@ fun tabletName(maker: String = Build.MANUFACTURER, model: String = Build.MODEL):
 }
 
 /**
- * About this tablet: what a person wants to know, in plain words. The
- * technical rows sit in a closed section at the bottom. The model line is
- * also the hidden way out of VoidOS: tap it twenty times.
+ * About: VoidOS's own identity and nothing else. No maker's name, no system
+ * housekeeping. The system's own build IDs are left exactly as they are; they're
+ * simply not shown. The device line is also the hidden way out of VoidOS: tap it
+ * twenty times.
  */
 @Composable
 fun AboutTabletPane(store: Store, act: MainActivity) {
@@ -142,66 +143,19 @@ fun AboutTabletPane(store: Store, act: MainActivity) {
     val disk = remember { runCatching { StatFs(Environment.getDataDirectory().path) }.getOrNull() }
     val mem = remember { ActivityManager.MemoryInfo().also { ctx.getSystemService(ActivityManager::class.java)?.getMemoryInfo(it) } }
     val bat = rememberBattery()
-    val gb = { b: Long -> "%.1f GB".format(b / 1_000_000_000.0) }
-    var startup by remember { mutableStateOf<Startup.State?>(null) }
-    LaunchedEffect(Unit) { startup = withContext(Dispatchers.IO) { Startup.read() } }
-    var more by remember { mutableStateOf(false) }
+    val gb = { b: Long -> "%.0f GB".format(b / 1_000_000_000.0) }
 
-    VText(store.hubName.ifBlank { "VoidOS" }, size = 34.sp, font = SansLight, color = V.White)
-    VText("VoidOS ${BuildConfig.VERSION_NAME}", size = 14.sp, color = V.Teal)
-    Gap(h = 18.dp)
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        VoidMark(Modifier.size(64.dp))
+        Gap(h = 14.dp)
+        VText("VoidOS", size = 30.sp, font = SansLight, color = V.White, spacing = (-0.3).sp)
+        VText(BuildConfig.VERSION_NAME, size = 14.sp, color = V.Muted)
+    }
     GlassGroup {
-        AboutLine("Tablet", tabletName(), Modifier.pointerInput(Unit) { detectTapGestures { EscapeDoor.tap() } }.testTag("about-device"))
-        AboutLine("VoidOS", "Version ${BuildConfig.VERSION_NAME}")
-        AboutLine("Android", "Android ${Build.VERSION.RELEASE}")
-        AboutLine("Storage", disk?.let { "${gb(it.availableBytes)} free of ${gb(it.totalBytes)}" } ?: "Couldn't read")
-        AboutLine("Battery", if (bat.pct < 0) "Reading…" else "${bat.pct}%" + if (bat.charging) ", charging" else "")
-        AboutLine("Memory", "${gb(mem.totalMem)}")
-    }
-    Gap(h = 22.dp)
-    Label("Startup")
-    Gap(h = 8.dp)
-    val s = startup
-    GlassGroup {
-        if (s == null) {
-            listOf("Startup logo", "Startup animation", "Shutdown animation").forEach { AboutLine(it, "Checking…") }
-        } else Startup.lines(s).forEach { (k, v) -> AboutLine(k, v) }
-    }
-    s?.let { Startup.note(it) }?.let {
-        Gap(h = 8.dp)
-        VText(it, size = 13.sp, color = V.Muted, lineHeight = 18.sp, modifier = Modifier.padding(horizontal = 6.dp))
-    }
-    Gap(h = 22.dp)
-    Row(
-        Modifier.fillMaxWidth().tap { more = !more }.padding(horizontal = 6.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        VText("Technical details", size = 14.sp, color = V.Muted, modifier = Modifier.weight(1f))
-        Glyph(G.CHEV, V.Muted, Modifier.size(16.dp).graphicsLayer { rotationZ = if (more) 90f else 0f })
-    }
-    AnimatedVisibility(more) {
-        Column {
-            Gap(h = 6.dp)
-            val bl = RootInfo.prop("ro.boot.verifiedbootstate")
-            val locked = RootInfo.prop("ro.boot.flash.locked")
-            GlassGroup {
-                AboutLine("Model number", Build.MODEL)
-                AboutLine("Software build", Build.DISPLAY)
-                AboutLine("Security update", Build.VERSION.SECURITY_PATCH)
-                AboutLine("Bootloader", when { locked == "0" || bl == "orange" -> "Unlocked"; locked == "1" -> "Locked"; else -> "Unknown" })
-                AboutLine("Root", if (RootInfo.hasSu()) "Magisk" else "No")
-                AboutLine("Startup module", s?.module?.let { "Version $it" } ?: if (s == null) "Checking…" else "Not installed")
-                AboutLine("In charge of the tablet", if (Policy.isOwner(act)) "VoidOS (device owner)" else "Android")
-            }
-            Gap(h = 12.dp)
-            VText("To hand the tablet back from your Mac:", size = 12.sp, color = V.Muted)
-            Gap(h = 4.dp)
-            listOf(
-                "./adb shell am broadcast -a com.andysocial.voidos.action.UNLOCK -n com.andysocial.voidos/.ReleaseReceiver",
-                "./adb shell dpm remove-active-admin com.andysocial.voidos/.VoidAdmin",
-                "./adb uninstall com.andysocial.voidos",
-            ).forEach { VText(it, size = 11.sp, color = V.Muted, font = FontFamily.Monospace, lineHeight = 16.sp, modifier = Modifier.padding(bottom = 4.dp)) }
-        }
+        AboutLine("Device", store.hubName.ifBlank { "Void Tab" }, Modifier.pointerInput(Unit) { detectTapGestures { EscapeDoor.tap() } }.testTag("about-device"))
+        AboutLine("Storage", disk?.let { "${gb(it.availableBytes)} free of ${gb(it.totalBytes)}" } ?: "—")
+        AboutLine("Memory", gb(mem.totalMem))
+        AboutLine("Battery", if (bat.pct < 0) "—" else "${bat.pct}%" + if (bat.charging) ", charging" else "")
     }
 }
 

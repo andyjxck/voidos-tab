@@ -29,6 +29,18 @@ object Su {
 
     fun ok(cmd: String, timeoutS: Long = 10) = run(cmd, timeoutS).ok
 
+    /**
+     * The Magisk rule that stops the "VoidOS was granted superuser rights" toasts: VoidOS's
+     * entry in Magisk's policies table set to allow, forever, with no toast and no log.
+     */
+    fun quietCmd(uid: Int): String =
+        "magisk --sqlite " + q("REPLACE INTO policies (uid,policy,until,logging,notification) VALUES($uid,2,0,0,0)")
+
+    /** Silences Magisk's toasts for VoidOS. Runs once per start, off the main thread. */
+    fun quiet(uid: Int) {
+        Thread { runCatching { run(quietCmd(uid)) } }.apply { isDaemon = true; start() }
+    }
+
     /** Single-quotes [s] for the shell. */
     fun q(s: String) = "'" + s.replace("'", "'\\''") + "'"
 }

@@ -44,6 +44,9 @@ import com.andysocial.voidos.ui.WheelItem
 import com.andysocial.voidos.ui.blockReason
 import com.andysocial.voidos.ui.launchApp
 import kotlin.math.abs
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.fillMaxSize
 
 /**
  * The edge wheels over other apps.
@@ -121,10 +124,16 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     private var right: View? = null
     private var wheel: ComposeView? = null
     private var wheelShown = false
+    private var top: View? = null
+    private var cc: ComposeView? = null
+    private var ccShown = false
 
     /** For tests: the edge strip windows, and whether the wheel window is up. */
     internal val strips: List<View> get() = listOfNotNull(left, right)
     internal val wheelOpen: Boolean get() = wheelShown
+    /** For tests: the top strip, and whether the control centre window is up. */
+    internal val topStrip: View? get() = top
+    internal val controlOpen: Boolean get() = ccShown
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -137,6 +146,7 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         startForeground(NOTE_ID, note())
         EdgeOverlay.service = this
         addStrips()
+        addTop()
         EdgeSwipe.log("overlay: on")
     }
 
@@ -148,8 +158,9 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     override fun onDestroy() {
         EdgeOverlay.service = null
         hideWheel()
-        listOfNotNull(left, right).forEach { runCatching { wm.removeView(it) } }
-        left = null; right = null
+        hideControl()
+        listOfNotNull(left, right, top).forEach { runCatching { wm.removeView(it) } }
+        left = null; right = null; top = null
         registry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         EdgeSwipe.log("overlay: off")
         super.onDestroy()
@@ -159,6 +170,7 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         super.onConfigurationChanged(newConfig)
         // the strips cover the middle of the side edges, so they follow the screen round
         listOfNotNull(left, right).forEach { v -> runCatching { wm.updateViewLayout(v, stripParams(v === left)) } }
+        top?.let { v -> runCatching { wm.updateViewLayout(v, topParams()) } }
     }
 
     private fun note(): Notification {
@@ -203,10 +215,140 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     fun refreshStrips() {
         main.post {
-            val vis = if (EdgeOverlay.hostInFront || wheelShown) View.GONE else View.VISIBLE
+            val vis = if (EdgeOverlay.hostInFront || wheelShown || ccShown) View.GONE else View.VISIBLE
             left?.visibility = vis
             right?.visibility = vis
+            top?.visibility = vis
             if (EdgeOverlay.hostInFront && wheelShown) EdgeSwipe.overlaySink?.cancel()
+            if (EdgeOverlay.hostInFront && ccShown) hideControl()
+        }
+    }
+
+    // ---------------------------------------------------------------- the control centre over other apps
+
+    /** A strip across the middle of the top edge: pull down from it inside any app for the control centre. */
+    private fun topParams(): WindowManager.LayoutParams {
+        val dm = resources.displayMetrics
+        return WindowManager.LayoutParams(
+            (dm.widthPixels * 0.6f).toInt(),
+            (STRIP_DP * dm.density).toInt(),
+            overlayType(),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT,
+        ).apply { gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL; title = "VoidOS edge top" }
+    }
+
+    private fun addTop() {
+        val v = TopStrip(this)
+        v.visibility = if (EdgeOverlay.hostInFront) View.GONE else View.VISIBLE
+        runCatching { wm.addView(v, topParams()) }
+            .onSuccess { top = v }
+            .onFailure { EdgeSwipe.log("overlay: top strip refused (${it.message})") }
+    }
+
+    /** Opens the control centre only for a pull downwards; a tap or a sideways touch does nothing. */
+    @SuppressLint("ViewConstructor", "ClickableViewAccessibility")
+    private inner class TopStrip(ctx: Context) : View(ctx) {
+        private var downX = 0f
+        private var downY = 0f
+        private var done = false
+        private val slop = SWIPE_DP * resources.displayMetrics.density
+
+        override fun onTouchEvent(ev: MotionEvent): Boolean {
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { downX = ev.rawX; downY = ev.rawY; done = false }
+                MotionEvent.ACTION_MOVE -> if (!done) {
+                    val dy = ev.rawY - downY
+                    val dx = abs(ev.rawX - downX)
+                    if (dx > slop * 2 && dx > dy) done = true
+                    else if (dy >= slop && dy > dx) { done = true; showControl() }
+                }
+            }
+            return true
+        }
+    }
+
+    /** Opens the control centre over whatever app is in front, in a window of its own. */
+    internal fun showControl() {
+        if (ccShown) return
+        val act = MainActivity.live?.get()
+        if (act == null || act.isDestroyed) {
+            // VoidOS isn't running behind this app: bring it back with its control centre open
+            EdgeSwipe.log("overlay: control centre via VoidOS")
+            runCatching {
+                startActivity(
+                    Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_CONTROL, true)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
+                )
+            }
+            return
+        }
+        val back = androidx.activity.OnBackPressedDispatcher()
+        val owner = object : androidx.activity.OnBackPressedDispatcherOwner {
+            override val onBackPressedDispatcher get() = back
+            override val lifecycle: Lifecycle get() = registry
+        }
+        val v = object : FrameLayoutCompat(this) {
+            override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+                if (event.keyCode == android.view.KeyEvent.KEYCODE_BACK) {
+                    if (event.action == android.view.KeyEvent.ACTION_UP) { if (back.hasEnabledCallbacks()) back.onBackPressed() else hideControl() }
+                    return true
+                }
+                return super.dispatchKeyEvent(event)
+            }
+        }
+        val cv = ComposeView(this).also { c ->
+            c.setViewTreeLifecycleOwner(this)
+            c.setViewTreeSavedStateRegistryOwner(this)
+            c.setContent {
+                CompositionLocalProvider(androidx.activity.compose.LocalOnBackPressedDispatcherOwner provides owner, LocalRoom provides Rooms.overlay) {
+                    OverlayControl(act)
+                }
+            }
+        }
+        v.addView(cv)
+        runCatching { wm.addView(v, controlParams()) }
+            .onSuccess { cc = cv; ccHost = v; ccShown = true; refreshStrips(); EdgeSwipe.log("overlay: control centre opened over an app") }
+            .onFailure { EdgeSwipe.log("overlay: control centre window refused (${it.message})") }
+    }
+
+    private var ccHost: View? = null
+
+    internal fun hideControl() {
+        if (!ccShown) return
+        ccHost?.let { runCatching { wm.removeView(it) } }
+        cc?.disposeComposition()
+        cc = null; ccHost = null; ccShown = false
+        refreshStrips()
+    }
+
+    /** Focusable, so the Wi-Fi password box can take the keyboard. */
+    private fun controlParams() = WindowManager.LayoutParams(
+        WindowManager.LayoutParams.MATCH_PARENT,
+        WindowManager.LayoutParams.MATCH_PARENT,
+        overlayType(),
+        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+        PixelFormat.TRANSLUCENT,
+    ).apply {
+        gravity = Gravity.TOP or Gravity.LEFT; title = "VoidOS control centre"
+        softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+    }
+
+    @androidx.compose.runtime.Composable
+    private fun OverlayControl(act: MainActivity) {
+        var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+        androidx.compose.runtime.LaunchedEffect(Unit) { open = true }
+        androidx.compose.foundation.layout.BoxWithConstraints(androidx.compose.ui.Modifier.fillMaxSize()) {
+            CompositionLocalProvider(com.andysocial.voidos.ui.LocalPortrait provides (maxHeight > maxWidth)) {
+                com.andysocial.voidos.ui.ControlCentre(
+                    open, store, act,
+                    onClose = { open = false; main.postDelayed({ hideControl() }, 320) },
+                    onSettings = { hideControl(); backToVoid(Module.SYSTEM.name) },
+                )
+            }
         }
     }
 
@@ -354,3 +496,6 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         const val SWIPE_DP = 14f
     }
 }
+
+/** A plain frame for the control centre window, so it can catch the back key. */
+internal open class FrameLayoutCompat(ctx: Context) : android.widget.FrameLayout(ctx)

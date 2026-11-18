@@ -161,7 +161,7 @@ private class CcState(val ctx: Context, val act: MainActivity, val scope: Corout
         scope.launch {
             val ok = withContext(Dispatchers.IO) { Tablet.setWifi(ctx, on) }
             holdUntil = 0; refresh()
-            if (!ok) note = "Wi-Fi didn't switch. If Magisk asks to allow VoidOS, tap Allow and try again."
+            if (!ok) note = "Wi-Fi didn't switch. Try again."
         }
     }
 
@@ -170,7 +170,7 @@ private class CcState(val ctx: Context, val act: MainActivity, val scope: Corout
         scope.launch {
             val ok = withContext(Dispatchers.IO) { Tablet.setBt(on) }
             holdUntil = 0; refresh()
-            if (!ok) note = "Bluetooth didn't switch. If Magisk asks to allow VoidOS, tap Allow and try again."
+            if (!ok) note = "Bluetooth didn't switch. Try again."
         }
     }
 
@@ -180,7 +180,7 @@ private class CcState(val ctx: Context, val act: MainActivity, val scope: Corout
         scope.launch {
             val ok = withContext(Dispatchers.IO) { Tablet.setDndMode(ctx, mode) }
             holdUntil = 0
-            if (!ok) { dnd = was; note = "Do Not Disturb didn't switch. If Magisk asks to allow VoidOS, tap Allow and try again." } else refresh()
+            if (!ok) { dnd = was; note = "Do Not Disturb didn't switch. Try again." } else refresh()
         }
     }
 
@@ -189,7 +189,7 @@ private class CcState(val ctx: Context, val act: MainActivity, val scope: Corout
         scope.launch {
             val ok = withContext(Dispatchers.IO) { Tablet.setNightLight(ctx, on) }
             night = Tablet.nightLight(ctx).let { if (ok) on else it }
-            if (!ok) note = "Night Light needs root. If Magisk asks to allow VoidOS, tap Allow."
+            if (!ok) note = "Night Light didn't switch. Try again."
         }
     }
 }
@@ -489,8 +489,6 @@ private fun RoundButtons(st: CcState, store: Store, act: MainActivity, onClose: 
     data class B(val g: G, val label: String, val on: Boolean, val accent: Color, val act: () -> Unit)
     val items = buildList {
         add(B(G.LIGHT, "Stay awake", store.deskMode, V.Sun) { store.set("deskMode", !store.deskMode); act.applyPolicies() })
-        add(B(G.POWER, "Screen off", false, V.Text) { onClose(); if (!Tablet.screenOff(ctx)) st.note = "Android didn't let VoidOS turn the screen off." })
-        if (store.voidLock) add(B(G.LOCK, "Lock", false, V.Text) { onClose(); LockState.locked.value = true })
         add(B(G.SYSTEM, "Settings", false, V.Text) { onClose(); onSettings() })
     }
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {

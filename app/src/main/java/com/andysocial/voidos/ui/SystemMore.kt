@@ -81,44 +81,42 @@ fun HubPane(store: Store, act: MainActivity) {
     val ctx = LocalContext.current
     var name by remember { mutableStateOf(store.hubName) }
     val access = remember { mutableStateOf(VoidListener.enabled(ctx)) }
-    Head("Home & lock screen", "How VoidOS looks and moves day to day.")
-    SettingRow("Tablet name", "Shown on the lock screen.") {}
+    Head("Home & lock screen")
+    SettingRow("Tablet name") {}
     Row(verticalAlignment = Alignment.CenterVertically) {
         VField(name, { name = it.take(16) }, Modifier.weight(1f), placeholder = "Home", onDone = { store.setHubName(name.ifBlank { "Home" }) })
         Gap(w = 8.dp)
         VButton("Save") { store.setHubName(name.ifBlank { "Home" }) }
     }
-    SettingRow("Swipe between screens", "Swipe left or right on a screen to move to the next one. The edge wheels work either way.") {
+    SettingRow("Swipe between screens") {
         VToggle(store.swipeScreens) { store.set("swipeScreens", it) }
     }
-    SettingRow("Edge wheels in other apps", if (com.andysocial.voidos.EdgeOverlay.allowed.value) "Swipe in from either side inside any app to open the wheels." else "Needs one permission. Run this from your Mac: ./adb shell appops set com.andysocial.voidos SYSTEM_ALERT_WINDOW allow") {
+    SettingRow("Edge wheels in other apps", if (com.andysocial.voidos.EdgeOverlay.allowed.value) null else "Needs permission") {
         VToggle(store.edgeInApps) { store.set("edgeInApps", it); com.andysocial.voidos.EdgeOverlay.sync(ctx, store) }
     }
-    SettingRow("Living background", "The slow coloured light behind every screen. Off holds it still.") {
+    SettingRow("Living background") {
         VToggle(store.motion) { store.set("motion", it) }
     }
-    SettingRow("Edge touch debug", "Shows where the edge wheels listen and what the last touch did. For checking the wheels.") {
-        VToggle(store.edgeDebug, V.Coral) { store.set("edgeDebug", it) }
-    }
-    SettingRow("App icons", "Void: VoidOS line icons for apps it knows, the rest greyed. Letters: initials. Colour: each app's own icon.") {}
+    SettingRow("App icons") {}
     GlassSegments(listOf("void" to "Void", "letter" to "Letters", "colour" to "Colour"), store.iconStyle, Modifier.widthIn(max = 450.dp)) { store.setIconStyle(it) }
-    SettingRow("Home widgets", "Tap + on Home to add the weather, music, the list or a note. Hold one to drag it, pinch to stretch or turn it.") {
+    SettingRow("Home widgets") {
         VButton("Clear all", accent = V.Muted, enabled = store.widgets.isNotEmpty()) { store.saveWidgets(emptyList()) }
     }
-    SettingRow("Fahrenheit", "Weather in °F instead of °C.") { VToggle(store.tempF) { store.set("tempF", it) } }
-    SettingRow("Timer alarm sound", "Loops until you press Stop. Uses the Alarms volume.") { VToggle(store.timerSound, V.Orange) { store.set("timerSound", it) } }
+    SettingRow("Fahrenheit") { VToggle(store.tempF) { store.set("tempF", it) } }
+    SettingRow("Timer alarm sound") { VToggle(store.timerSound, V.Orange) { store.set("timerSound", it) } }
     Gap(h = 18.dp)
-    Head("Lock screen", "The VoidOS lock screen shows whenever the screen turns off and on again. Android's own lock screen is switched off by \"No lock screen\" in VoidOS rules.")
-    SettingRow("VoidOS lock screen", "Clock, weather, what's playing, timers and notifications. Swipe up to open.") {
+    SetSection("Lock screen")
+    SettingRow("VoidOS lock screen") {
         VToggle(store.voidLock) { store.set("voidLock", it) }
     }
     PinSettings(store)
     SettingRow("Notifications on the lock screen") { VToggle(store.lockNotices) { store.set("lockNotices", it) } }
     SettingRow("Show it now") { VButton("Lock", accent = V.Teal) { LockState.locked.value = true } }
     Gap(h = 18.dp)
-    Head("Media + notifications access", "Lets VoidOS show and control what's playing in YouTube, Spotify and other apps, and show notifications on the lock screen.")
-    SettingRow("Access", if (access.value) "On" else "Off. Tap Open, find VoidOS, switch it on. Or from the Mac: ${VoidListener.ADB_ALLOW}") {
-        VButton("Open", accent = V.Purple) { open(ctx, Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS) }
+    SetSection("Media and notifications")
+    SettingRow("Access") {
+        if (access.value) VText("On", size = 15.sp, color = V.Muted)
+        else VButton("Allow", accent = V.Purple) { open(ctx, Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS) }
     }
     if (act.isFinishing) Unit
 }
@@ -138,16 +136,13 @@ private fun PinSettings(store: Store) {
     var len by remember { mutableStateOf(4) }
     var err by remember { mutableStateOf<String?>(null) }
     var done by remember { mutableStateOf<String?>(null) }
-    SettingRow(
-        "Ask for PIN to unlock",
-        if (store.lockNeedsPin) "After you swipe up, VoidOS asks for its PIN. The same PIN lets you leave VoidOS." else "Swipe up opens VoidOS straight away. Leaving VoidOS still needs the PIN.",
-    ) {
+    SettingRow("Ask for PIN to unlock") {
         VToggle(store.lockNeedsPin, V.Coral) { on ->
             done = null
             if (on) store.set("lockNeedsPin", true) else { step = PinStep.CHECK_OFF; err = null }
         }
     }
-    SettingRow("Change PIN", done ?: if (store.pinChanged) "${store.pinLength()} digits." else "Still the code you've been using to leave VoidOS.") {
+    SettingRow("Change PIN", done) {
         VButton(if (step != null) "Cancel" else "Change", accent = V.Muted) {
             done = null; err = null; first = null
             step = if (step != null) null else PinStep.CHECK_CHANGE
@@ -192,7 +187,7 @@ fun QuietPane(act: MainActivity) {
     val nm = remember { ctx.getSystemService(NotificationManager::class.java) }
     var granted by remember { mutableStateOf(nm.isNotificationPolicyAccessGranted) }
     var filter by remember { mutableIntStateOf(nm.currentInterruptionFilter) }
-    Head("Do not disturb", if (granted) "Choose what can make a sound." else "VoidOS needs Do Not Disturb access. Tap Allow, find VoidOS, switch it on, then come back.")
+    Head("Do not disturb", if (granted) null else "Needs access")
     if (!granted) {
         GlassActions(
             listOf(
@@ -233,9 +228,11 @@ fun TimePane(store: Store, act: MainActivity) {
     var zone by remember { mutableStateOf(TimeZone.getDefault().id) }
     var autoTime by remember { mutableStateOf(runCatching { Settings.Global.getInt(ctx.contentResolver, Settings.Global.AUTO_TIME) == 1 }.getOrDefault(true)) }
     var msg by remember { mutableStateOf<String?>(null) }
-    Head("Date + time", java.text.SimpleDateFormat("EEEE d MMMM yyyy, HH:mm:ss", Locale.UK).format(java.util.Date(now)))
-    SettingRow("24-hour clock") { VToggle(store.use24h) { store.set("use24h", it) } }
-    SettingRow("Set time automatically", if (owner) "From the network." else "Needs device owner.") {
+    Head("Date + time", java.text.SimpleDateFormat(if (store.use24h) "EEEE d MMMM, HH:mm" else "EEEE d MMMM, h:mm a", Locale.UK).format(java.util.Date(now)))
+    SettingRow("Clock") {}
+    GlassSegments(listOf("12" to "12-hour", "24" to "24-hour"), if (store.use24h) "24" else "12", Modifier.widthIn(max = 360.dp)) { store.set("use24h", it == "24") }
+    Gap(h = 8.dp)
+    SettingRow("Set time automatically") {
         VToggle(autoTime, enabled = owner) { on ->
             runCatching { Policy.dpm(ctx).setAutoTimeRequired(Policy.admin(ctx), on) }
             runCatching { Policy.dpm(ctx).setGlobalSetting(Policy.admin(ctx), Settings.Global.AUTO_TIME, if (on) "1" else "0") }
@@ -247,13 +244,13 @@ fun TimePane(store: Store, act: MainActivity) {
         zones.chunked(3).forEach { row ->
             GlassSegments(row.map { it to it.substringAfter('/').replace('_', ' ') }, zone, height = 46.dp, textSize = 14f) { z ->
                 val ok = Policy.setTimeZone(ctx, z)
-                if (ok) { zone = z; msg = null } else msg = "Android didn't allow VoidOS to change the time zone. Use Android settings > Date & time."
+                if (ok) { zone = z; msg = null } else msg = "Couldn't change the time zone."
             }
         }
     }
     msg?.let { Gap(h = 8.dp); VText(it, size = 12.sp, color = V.Coral, font = FontFamily.Default) }
     Gap(h = 12.dp)
-    VButton("Android date + time settings", accent = V.Muted) { open(ctx, Settings.ACTION_DATE_SETTINGS) }
+    VButton("More date and time settings", accent = V.Muted) { open(ctx, Settings.ACTION_DATE_SETTINGS) }
 }
 
 // ---------------------------------------------------------------------- battery
@@ -292,9 +289,7 @@ fun BatteryPane() {
         BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "Over voltage"; BatteryManager.BATTERY_HEALTH_COLD -> "Cold"; else -> "Unknown"
     })
     Gap(h = 10.dp)
-    VText("For a hub that lives on the charger: Desk mode (VoidOS rules) keeps the screen on while charging.", size = 12.sp, color = V.Muted, font = FontFamily.Default)
-    Gap(h = 10.dp)
-    VButton("Android battery settings", accent = V.Muted) { open(ctx, Intent.ACTION_POWER_USAGE_SUMMARY) }
+    VButton("Battery usage", accent = V.Muted) { open(ctx, Intent.ACTION_POWER_USAGE_SUMMARY) }
 }
 
 // ---------------------------------------------------------------------- network
@@ -330,10 +325,10 @@ fun NetworkPane() {
             delay(4000)
         }
     }
-    Head("Network", "Handy when setting up smart lights later: they need to be on this same network.")
+    Head("Network")
     info.forEach { (k, v) -> InfoRow(k, v) }
     Gap(h = 10.dp)
-    VButton("Android network settings", accent = V.Muted) { open(ctx, Settings.ACTION_WIRELESS_SETTINGS) }
+    VButton("More network settings", accent = V.Muted) { open(ctx, Settings.ACTION_WIRELESS_SETTINGS) }
 }
 
 // ---------------------------------------------------------------- storage + apps
@@ -377,12 +372,12 @@ fun StoragePane(store: Store) {
 
 private fun runQuickPkg(ctx: Context, store: Store, pkg: String) { launchApp(ctx, store, pkg) }
 
-// ------------------------------------------------------------- Android settings
+// ------------------------------------------------------------- system settings
 
 @Composable
 fun AndroidPane(act: MainActivity) {
     val ctx = LocalContext.current
-    Head("Android settings", "Straight to the right page of Android's own settings. Press Home to come back to VoidOS.")
+    Head("System settings")
     listOf(
         Settings.ACTION_SETTINGS to "All settings",
         Settings.ACTION_WIFI_SETTINGS to "Wi-Fi",

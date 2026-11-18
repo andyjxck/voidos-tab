@@ -80,8 +80,8 @@ private enum class Tab(val label: String, val g: G, val group: Int, val accent: 
     WIFI("Wi-Fi", G.WIFI, 0, V.Teal), BT("Bluetooth", G.BT, 0, Color(0xFF5A8CF0)), NET("Network", G.GLOBE, 0, V.Green),
     DISPLAY("Display & sound", G.SUN, 1, V.Orange), QUIET("Do not disturb", G.MOON, 1, V.Purple), BATTERY("Battery", G.BATTERY, 1, V.Green),
     HUB("Home & lock screen", G.FACE, 2, V.Coral), TIME("Date & time", G.TIMER, 2, V.Yellow), VOID("Lock mode", G.LOCK, 2, V.Purple),
-    STORAGE("Storage", G.APPS, 3, Color(0xFF8E8E98)), ANDROID("Android settings", G.SYSTEM, 3, Color(0xFF8E8E98)),
-    ABOUT("About this tablet", G.INFO, 3, V.Teal),
+    STORAGE("Storage", G.APPS, 3, Color(0xFF8E8E98)), ANDROID("System settings", G.SYSTEM, 3, Color(0xFF8E8E98)),
+    ABOUT("About", G.INFO, 3, V.Teal),
 }
 
 private val groups = listOf("Connections", "Screen", "VoidOS", "Tablet")
@@ -120,21 +120,8 @@ fun SystemScreen(store: Store, act: MainActivity) {
     }
     val list: @Composable (Modifier) -> Unit = { m ->
         Column(m.verticalScroll(rememberScrollState())) {
-            Row(
-                Modifier.fillMaxWidth().pane(Oct).padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(Modifier.size(40.dp).glass(RoundedCornerShape(12.dp), 0.9f), contentAlignment = Alignment.Center) {
-                    VoidMark(Modifier.size(26.dp), mono = V.Text)
-                }
-                Gap(w = 14.dp)
-                Column(Modifier.weight(1f)) {
-                    VText("VoidOS ${BuildConfig.VERSION_NAME}", size = 16.sp, font = SansMedium, color = V.Text)
-                    VText(if (owner) "Running the tablet (device owner)" else "Not device owner: some switches are limited", size = 13.sp, color = if (owner) V.Muted else V.Coral, maxLines = 2)
-                }
-            }
-            groups.forEachIndexed { gi, g ->
-                Label(g, Modifier.padding(start = 16.dp, top = 22.dp, bottom = 8.dp))
+            groups.forEachIndexed { gi, _ ->
+                Gap(h = if (gi == 0) 0.dp else 16.dp)
                 Column(Modifier.fillMaxWidth().pane(Oct)) {
                     val pages = Tab.entries.filter { it.group == gi }
                     pages.forEachIndexed { i, t ->
@@ -195,12 +182,22 @@ private fun NavItem(t: Tab, sel: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** A page's title and a line on what it's for. */
+/**
+ * The top of a settings page. Pages carry no titles (the list already says where you
+ * are), so this only shows [status]: a live value worth seeing, such as the network
+ * you're on. [title] names the page in code only.
+ */
 @Composable
-internal fun Head(title: String, sub: String? = null) {
-    VText(sentence(title), size = 28.sp, font = SansLight, color = V.White, spacing = (-0.3).sp)
-    if (sub != null) { Gap(h = 6.dp); VText(sub, size = 14.sp, color = V.Muted, lineHeight = 20.sp) }
-    Gap(h = 20.dp)
+internal fun Head(@Suppress("UNUSED_PARAMETER") title: String, status: String? = null) {
+    if (status != null) { VText(status, size = 15.sp, color = V.Muted, maxLines = 1); Gap(h = 10.dp) }
+}
+
+/** A small label between groups of rows on one settings page. */
+@Composable
+internal fun SetSection(text: String) {
+    Gap(h = 18.dp)
+    Label(text)
+    Gap(h = 4.dp)
 }
 
 // ---------------------------------------------------------------------- Wi-Fi
@@ -246,7 +243,7 @@ private fun WifiPane(act: MainActivity) {
             enabled = on
             wscope.launch {
                 val ok = withContext(Dispatchers.IO) { Radio.setWifi(ctx, on) }
-                if (!ok) msg = if (owner) "Wi-Fi didn't switch. If Magisk asked about root, tap Allow and try again." else "VoidOS needs to be device owner to switch Wi-Fi."
+                if (!ok) msg = if (owner) "Wi-Fi didn't switch. Try again." else "Wi-Fi didn't switch."
                 enabled = wm.isWifiEnabled
             }
         }
@@ -307,14 +304,14 @@ private fun connect(wm: WifiManager, r: ScanResult, pass: String): String {
                     allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE)
                     allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.SHARED)
                 }
-                r.capabilities.contains("EAP") -> return "Work/school (EAP) Wi-Fi needs Android settings."
+                r.capabilities.contains("EAP") -> return "Work/school (EAP) Wi-Fi isn't supported here."
                 else -> allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE)
             }
         }
         val existing = wm.configuredNetworks?.firstOrNull { it.SSID == conf.SSID }
         existing?.let { wm.removeNetwork(it.networkId) }
         val id = wm.addNetwork(conf)
-        if (id == -1) return "Android refused the network. VoidOS must be device owner for this."
+        if (id == -1) return "Couldn't add the network."
         wm.disconnect()
         wm.enableNetwork(id, true)
         wm.reconnect()
@@ -336,7 +333,7 @@ private fun DisplayPane(store: Store, act: MainActivity) {
 
     fun sys(key: String, v: String) = runCatching { Policy.dpm(ctx).setSystemSetting(Policy.admin(ctx), key, v) }.isSuccess
 
-    Head("Screen", if (owner) null else "Brightness and timeout need VoidOS to be device owner.")
+    Head("Screen")
     SettingRow("Brightness") {}
     VSlider(bright, Modifier.fillMaxWidth(), accent = V.Teal) {
         bright = it
@@ -345,24 +342,24 @@ private fun DisplayPane(store: Store, act: MainActivity) {
         // instant feedback on this window too
         act.window.attributes = act.window.attributes.apply { screenBrightness = (0.03f + it * 0.97f) }
     }
-    SettingRow("Auto brightness", "Let the light sensor decide.") {
+    SettingRow("Auto brightness") {
         VToggle(auto, V.Teal, enabled = owner) {
             auto = it; sys(Settings.System.SCREEN_BRIGHTNESS_MODE, if (it) "1" else "0")
             act.window.attributes = act.window.attributes.apply { screenBrightness = -1f }
         }
     }
-    SettingRow("Screen off after", "When the tablet isn't charging. Desk mode keeps it on while charging.") {}
+    SettingRow("Screen off after") {}
     GlassSegments(
         listOf("30000" to "30 s", "60000" to "1 min", "300000" to "5 min", "600000" to "10 min", "1800000" to "30 min"),
         timeout.toString(), Modifier.widthIn(max = 620.dp), enabled = owner,
     ) { k -> if (sys(Settings.System.SCREEN_OFF_TIMEOUT, k)) timeout = k.toInt() }
     Gap(h = 18.dp)
-    SettingRow("Rotation", "Follow the tablet, or pin it. Every VoidOS screen has a layout for both.") {}
+    SettingRow("Rotation") {}
     GlassSegments(
         listOf("auto" to "Auto", "land" to "Landscape", "port" to "Portrait"), store.rotation, Modifier.widthIn(max = 520.dp),
     ) { k -> store.setRotation(k); act.applyRotation() }
     Gap(h = 24.dp)
-    Head("Sound")
+    SetSection("Sound")
     listOf(
         Triple("Media", AudioManager.STREAM_MUSIC, V.Teal),
         Triple("Alarms + timer", AudioManager.STREAM_ALARM, V.Coral),
@@ -387,7 +384,7 @@ private fun BtPane() {
     val ctx = LocalContext.current
     @Suppress("DEPRECATION")
     val bt = remember { BluetoothAdapter.getDefaultAdapter() }
-    if (bt == null) { Head("Bluetooth", "This tablet reports no Bluetooth."); return }
+    if (bt == null) { Head("Bluetooth", "No Bluetooth"); return }
     var on by remember { mutableStateOf(bt.isEnabled) }
     var bonded by remember { mutableStateOf(bt.bondedDevices?.toList() ?: emptyList()) }
     var found by remember { mutableStateOf<List<BluetoothDevice>>(emptyList()) }
@@ -463,27 +460,26 @@ private fun VoidPane(store: Store, act: MainActivity) {
 
     fun toggle(key: String, v: Boolean) { store.set(key, v); act.applyPolicies() }
 
-    Head("VoidOS rules", if (owner) "Changes apply straight away." else "Most of these need device owner. Run: ${Policy.SET_OWNER_CMD}")
-    SettingRow("Lock mode", "Pins VoidOS: Home and Recents can't leave it, and only allowed apps open.") {
+    Head("VoidOS rules")
+    SettingRow("Lock mode") {
         VToggle(store.kiosk, V.Coral, enabled = owner) { toggle("kiosk", it) }
     }
-    SettingRow("Hide Android's bars", "Status and navigation bars stay hidden. A swipe from the edge shows them for a moment; the notification shade stays shut.") {
+    SettingRow("Hide system bars") {
         VToggle(store.hideBars, enabled = true) { toggle("hideBars", it) }
     }
-    SettingRow("No lock screen", "Power button wakes straight into VoidOS.") {
+    SettingRow("No lock screen") {
         VToggle(store.noLockScreen, enabled = owner) { toggle("noLockScreen", it) }
     }
-    SettingRow("Hold off system updates", "Sets Android's postpone policy (Android caps this at 30 days per update) and hides Lenovo's updater app if it can find it.") {
+    SettingRow("Hold off system updates") {
         VToggle(store.blockUpdates, enabled = owner) { toggle("blockUpdates", it) }
     }
-    SettingRow("Desk mode", "Screen stays on while charging. The ambient clock takes over when idle.") {
+    SettingRow("Desk mode") {
         VToggle(store.deskMode, V.Teal, enabled = owner) { toggle("deskMode", it) }
     }
-    SettingRow("Hide Lenovo extras", if (bloat.isEmpty()) "No Lenovo or partner apps found to hide." else "Hides ${bloat.size}: ${bloat.joinToString(", ")}. Nothing is deleted; turning this off brings them back.") {
+    SettingRow("Hide extra apps", if (bloat.isEmpty()) null else "${bloat.size} hidden") {
         VToggle(store.hideLenovo, V.Teal, enabled = owner) { toggle("hideLenovo", it) }
     }
-    SettingRow("24-hour clock") { VToggle(store.use24h) { store.set("use24h", it) } }
-    SettingRow("Ambient clock after", "Dim drifting clock when nobody touches the screen.") {}
+    SettingRow("Ambient clock after") {}
     GlassSegments(
         listOf("0" to "Never", "1" to "1 min", "5" to "5 min", "15" to "15 min"), store.ambientMinutes.toString(), Modifier.widthIn(max = 520.dp),
     ) { store.setAmbient(it.toInt()) }

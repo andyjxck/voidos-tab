@@ -203,9 +203,8 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
         ) { i ->
             val mod = pages[i]
             Column(Modifier.fillMaxSize().pageDepth(pager, i).padding(start = side, end = side, bottom = 6.dp)) {
-                if (mod != Module.FACE) {
-                    PageTitle(mod.label, portrait, Modifier.padding(top = 4.dp, bottom = 16.dp))
-                }
+                // no page titles: the content starts at the top
+                if (mod != Module.FACE) Gap(h = 8.dp)
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     when (mod) {
                         Module.FACE -> FaceScreen(store, onOpen = { go(it) })
@@ -245,6 +244,8 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
     )
 
     EdgeDebugOverlay()
+    val ccReq by EdgeSwipe.controlRequest
+    LaunchedEffect(ccReq) { if (ccReq) { EdgeSwipe.controlRequest.value = false; control = true } }
     ControlCentre(control, store, act, onClose = { control = false }, onSettings = { go(Module.SYSTEM, animate = false) })
     if (ambient) AmbientClock(store)
     if (escape) EscapeOverlay(store, act, onClose = { escape = false })

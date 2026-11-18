@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -190,14 +191,15 @@ internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBead(ctr: Offs
 @Composable
 fun SettingRow(title: String, detail: String? = null, control: @Composable () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // lean rows: the name and its control. [detail] shows only as a short live status ("PIN changed"), never an explanation
         Column(Modifier.weight(1f).padding(end = 16.dp)) {
-            VText(sentence(title), size = 16.sp, color = V.Text)
-            if (detail != null) {
-                Spacer(Modifier.height(3.dp))
-                VText(detail, size = 13.sp, color = V.Muted, lineHeight = 18.sp)
+            VText(sentence(title), size = 16.sp, color = V.Text, maxLines = 1)
+            if (detail != null && detail.length <= 40) {
+                Spacer(Modifier.height(2.dp))
+                VText(detail, size = 13.sp, color = V.Muted, maxLines = 1)
             }
         }
         control()

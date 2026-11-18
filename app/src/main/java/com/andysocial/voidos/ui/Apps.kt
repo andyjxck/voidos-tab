@@ -319,14 +319,7 @@ fun AppsScreen(store: Store) {
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    PageTitle(if (managing) "Choose apps" else "Apps", portrait)
-                    VText(
-                        if (managing) "${store.allowed.count { p -> all.any { it.pkg == p } }} of ${all.size} shown"
-                        else when (shownCount) { 0 -> "None chosen yet"; 1 -> "1 app"; else -> "$shownCount apps" },
-                        size = 13.sp, color = V.Muted,
-                    )
-                }
+                Spacer(Modifier.weight(1f))
                 VText(
                     if (managing) "Done" else "Manage",
                     size = 17.sp, color = V.Teal, font = if (managing) SansMedium else Sans,

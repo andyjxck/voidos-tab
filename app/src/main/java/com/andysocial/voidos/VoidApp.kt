@@ -35,6 +35,7 @@ class VoidApp : Application() {
         if (started) return
         started = true
         store = Store(this)
+        Su.quiet(applicationInfo.uid)
         BootCover.reenable(this)
         BootOrient.watch(this)
         // play the start animation once per power-on, not every time Android

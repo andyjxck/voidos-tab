@@ -28,6 +28,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        live = java.lang.ref.WeakReference(this)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         Policy.applyAll(this)
         excludeEdges()
@@ -38,6 +39,7 @@ class MainActivity : ComponentActivity() {
         EdgeSwipe.log("start ${dm.widthPixels}x${dm.heightPixels} density=${dm.density} animScale=$anim version=${BuildConfig.VERSION_NAME}")
         EdgeOverlay.sync(this, store)
         intent?.getStringExtra(EXTRA_MODULE)?.let { com.andysocial.voidos.ui.Idle.openModule.value = it }
+        if (intent?.getBooleanExtra(EXTRA_CONTROL, false) == true) com.andysocial.voidos.ui.EdgeSwipe.controlRequest.value = true
         setContent {
             LaunchedEffect(Unit) {
                 snapshotFlow { VoidApp.releaseSignal.value }.collect { if (it > 0) leaveLockTask() }
@@ -76,6 +78,7 @@ class MainActivity : ComponentActivity() {
         if (intent.hasCategory(Intent.CATEGORY_HOME)) Idle.homePressed.value++
         // a screen picked on the wheel over another app
         intent.getStringExtra(EXTRA_MODULE)?.let { com.andysocial.voidos.ui.Idle.openModule.value = it }
+        if (intent.getBooleanExtra(EXTRA_CONTROL, false)) com.andysocial.voidos.ui.EdgeSwipe.controlRequest.value = true
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
@@ -223,7 +226,16 @@ class MainActivity : ComponentActivity() {
         enforceLockTask()
     }
 
+    override fun onDestroy() {
+        if (live?.get() === this) live = null
+        super.onDestroy()
+    }
+
     companion object {
+        /** The running VoidOS screen, for the control centre over other apps (rotation, policies, brightness). */
+        @Volatile var live: java.lang.ref.WeakReference<MainActivity>? = null
+        /** Opens the control centre when VoidOS comes back (the fallback when it isn't running behind another app). */
+        const val EXTRA_CONTROL = "com.andysocial.voidos.CONTROL"
         /** The screen to open, when the wheel over another app brings VoidOS back. */
         const val EXTRA_MODULE = "com.andysocial.voidos.MODULE"
     }

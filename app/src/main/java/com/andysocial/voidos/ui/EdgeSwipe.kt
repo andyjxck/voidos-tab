@@ -19,6 +19,9 @@ import kotlin.math.hypot
  *    looks like once the panel picks it up. Anything else there passes through.
  */
 object EdgeSwipe {
+    /** Set when VoidOS is brought back to open its control centre (from the overlay, when VoidOS wasn't running). */
+    val controlRequest = androidx.compose.runtime.mutableStateOf(false)
+
     const val HARD_DP = 34f
     const val SOFT_DP = 64f
     const val SLOP_DP = 10f

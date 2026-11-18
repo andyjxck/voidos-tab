@@ -134,13 +134,7 @@ private fun NoteList(
         .sortedByDescending { it.updated }
     Column(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                PageTitle("Notes", portrait)
-                VText(
-                    when (val n = store.notes.size) { 0 -> "No notes"; 1 -> "1 note"; else -> "$n notes" },
-                    size = 13.sp, color = V.Muted,
-                )
-            }
+            Spacer(Modifier.weight(1f))
             RoundIcon(G.PEN, "Sketch") { onNew(true) }
             Gap(w = 10.dp)
             RoundIcon(G.COMPOSE, "New note", active = true) { onNew(false) }
