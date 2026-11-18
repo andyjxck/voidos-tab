@@ -17,6 +17,7 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
@@ -721,6 +722,76 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         rule.runOnUiThread { sink!!.end(70f * dens, midY + 20f * dens, t + 900) }
         settle(800)
         assertTrue("picked a screen: $picked", picked != null)
+    }
+
+    /**
+     * The book: Notes dropped on the right half opens there, live, and the watch face slides to
+     * the left half. A second screen on the face's half takes it too (two at most). Closing a
+     * half brings the face back; closing both leaves the full watch face.
+     */
+    @Test fun bookSplitHome() {
+        com.andysocial.voidos.ui.Book.reset()
+        store.saveWidgets(emptyList())
+        show { Shell(store, act, Module.FACE) }
+        settle(300)
+        val ctx = act
+        fun b(t: String) = rule.onNodeWithTag(t, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val port = winH > winW
+        rule.runOnUiThread { com.andysocial.voidos.ui.Book.drop(ctx, com.andysocial.voidos.ui.Pane.screen(Module.NOTES), toFirst = false) }
+        settle(900)
+        shot("40_book_notes_right")
+        val face = b("bookFace"); val notes = b("bookSecond")
+        if (port) assertTrue("[$tag] face above notes: $face / $notes", face.bottom <= notes.top + 1f && face.height > 0.4f * (notes.bottom - face.top))
+        else assertTrue("[$tag] face left of notes: $face / $notes", face.right <= notes.left + 1f && face.width > 0.4f * (notes.right - face.left))
+        assertTrue(rule.onAllNodesWithContentDescription("Close Notes", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        // dropped on the left instead: the face goes right
+        rule.runOnUiThread { com.andysocial.voidos.ui.Book.drop(ctx, com.andysocial.voidos.ui.Pane.screen(Module.NOTES), toFirst = true) }
+        settle(900)
+        val face2 = b("bookFace"); val notes2 = b("bookFirst")
+        if (port) assertTrue("[$tag] face below notes", face2.top >= notes2.bottom - 1f)
+        else assertTrue("[$tag] face right of notes: $face2 / $notes2", face2.left >= notes2.right - 1f)
+        shot("41_book_notes_left")
+        // a second screen over the face: two halves, no face
+        rule.runOnUiThread { com.andysocial.voidos.ui.Book.drop(ctx, com.andysocial.voidos.ui.Pane.screen(Module.WEATHER), toFirst = false) }
+        settle(900)
+        shot("42_book_two_screens")
+        assertTrue("[$tag] face covered", rule.onAllNodesWithTag("bookFace", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        // close Weather: the face comes back on the right; close Notes: full face
+        rule.onNodeWithContentDescription("Close Weather", useUnmergedTree = true).performClick()
+        settle(900)
+        assertTrue(rule.onAllNodesWithTag("bookFace", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        rule.onNodeWithContentDescription("Close Notes", useUnmergedTree = true).performClick()
+        settle(900)
+        assertTrue("[$tag] closed book", !com.andysocial.voidos.ui.Book.state.value.isOpen)
+        assertTrue(rule.onAllNodesWithTag("home", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        shot("43_book_closed")
+    }
+
+    /** Pull a slot out of the tab wheel and let go on the right half: it opens there, beside the face. */
+    @Test fun bookDragFromWheel() {
+        com.andysocial.voidos.ui.Book.reset()
+        store.saveWidgets(emptyList())
+        show { Shell(store, act, Module.FACE) }
+        settle(300)
+        val midY = winH * 0.5f
+        down(4f, midY); drag(4f, midY, 70f * dens, midY, steps = 6)
+        settle(200)
+        // out past the wheel and on across to the right half
+        drag(70f * dens, midY, winW * 0.55f, midY, steps = 8)
+        settle(200)
+        drag(winW * 0.55f, midY, winW * 0.8f, midY + 20f, steps = 6)
+        settle(300)
+        shot("44_book_carrying")
+        val drops = rule.onAllNodes(androidx.compose.ui.test.SemanticsMatcher("drop") { x -> x.config.getOrElseNullable(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription) { null }?.any { d -> d.startsWith("Drop ") } == true }, useUnmergedTree = true).fetchSemanticsNodes()
+        assertTrue("[$tag] carrying a slot; edge log: ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", drops.isNotEmpty())
+        up(winW * 0.8f, midY + 20f)
+        settle(1200)
+        val st = com.andysocial.voidos.ui.Book.state.value
+        val port = winH > winW
+        assertTrue("[$tag] dropped on the second half: $st; log ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", if (port) st.isOpen else st.second != null && st.first == null)
+        assertEquals(Module.FACE, com.andysocial.voidos.ui.ShellNow.module.value)
+        shot("45_book_dropped")
+        com.andysocial.voidos.ui.Book.reset()
     }
 
     /** The page dots are a second way in: a tap opens the tab wheel, no swipe needed. */

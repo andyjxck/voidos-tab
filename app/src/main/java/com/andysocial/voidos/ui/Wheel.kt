@@ -399,6 +399,14 @@ fun EdgeWheels(
     overlay: Boolean = false,
     /** Called once the wheel has finished closing. */
     onClosed: () -> Unit = {},
+    /**
+     * Drag a slot out past the wheel and let go on one half of the screen: the book on Home
+     * (ui/Book.kt). [app] is true for the app wheel, [first] for the left (portrait: top) half.
+     * Null switches dragging out off.
+     */
+    onDrop: ((key: String, app: Boolean, first: Boolean) -> Unit)? = null,
+    /** Whether a slot may be dragged out at all. */
+    canDrop: (key: String, app: Boolean) -> Boolean = { _, _ -> true },
 ) {
     var side by remember { mutableStateOf<Edge?>(null) }
     val anchor = remember { mutableFloatStateOf(0f) }
@@ -418,6 +426,12 @@ fun EdgeWheels(
     val cbClosed by rememberUpdatedState(onClosed)
     val tabsNow by rememberUpdatedState(tabs)
     val appsNow by rememberUpdatedState(apps)
+    val cbDrop by rememberUpdatedState(onDrop)
+    val cbCan by rememberUpdatedState(canDrop)
+    // a slot being carried out of the wheel to a half of the screen, and where the finger is
+    var carry by remember { mutableStateOf<WheelItem?>(null) }
+    var carryApp by remember { mutableStateOf(false) }
+    val carryAt = remember { mutableStateOf(Offset.Zero) }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val w = constraints.maxWidth.toFloat()
@@ -499,10 +513,45 @@ fun EdgeWheels(
                 cbClosed()
             }
         }
+        /** Left (portrait: top) half of the screen. */
+        fun firstHalf(p: Offset) = if (h > w) p.y < h / 2f else p.x < w / 2f
+        /**
+         * Pulling a slot out past the wheel picks it up; pulling it back over the wheel puts it
+         * back. True while something is being carried.
+         */
+        fun carryCheck(e: Edge, p: Offset): Boolean {
+            val c = centre(e)
+            val d = hypot(p.x - c.x, p.y - c.y)
+            if (carry == null) {
+                if (overlay || cbDrop == null || d < px(Geo.rOut + 40f)) return false
+                val it = itemsOf(e).getOrNull(mo.sel.intValue) ?: return false
+                if (!cbCan(it.key, e == Edge.RIGHT)) return false
+                carry = it; carryApp = e == Edge.RIGHT
+                mo.dragging = false
+                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                EdgeSwipe.log("carrying ${it.label} out of the wheel")
+            } else if (d < px(Geo.rOut)) {
+                carry = null
+                EdgeSwipe.log("put back on the wheel")
+                return false
+            }
+            carryAt.value = p
+            return true
+        }
         fun pick(e: Edge, i: Int) {
             val key = itemsOf(e).getOrNull(i)?.key ?: return
             closeWheel()
             if (e == Edge.LEFT) cbTab(key) else cbApp(key)
+        }
+        /** Let go of a carried slot: it opens in the half under the finger. */
+        fun dropCarry(p: Offset) {
+            val it = carry ?: return
+            val first = firstHalf(p)
+            val app = carryApp
+            carry = null
+            EdgeSwipe.log("dropped ${it.label} on the ${if (first) "first" else "second"} half")
+            closeWheel()
+            cbDrop?.invoke(it.key, app, first)
         }
 
         // ---- the open wheel: a lens of liquid glass
@@ -515,6 +564,8 @@ fun EdgeWheels(
             val c0 = centre(open)
             val origin = TransformOrigin(c0.x / w, c0.y / h)
             fun fade() = (appear.value * 2f).coerceIn(0f, 1f)
+            // the wheel melts away while a slot is carried out of it
+            val carried = androidx.compose.animation.core.animateFloatAsState(if (carry != null) 1f else 0f, Motion.quick(), label = "carried")
 
             // the drop's physics: it tracks a held finger within a frame, and settles on its slot with a little wobble
             LaunchedEffect(open) {
@@ -577,7 +628,7 @@ fun EdgeWheels(
                 Modifier.fillMaxSize().graphicsLayer {
                     val g = 0.8f + 0.2f * appear.value
                     scaleX = g; scaleY = g
-                    alpha = fade()
+                    alpha = fade() * (1f - carried.value)
                     transformOrigin = origin
                     compositingStrategy = CompositingStrategy.ModulateAlpha
                 },
@@ -644,14 +695,23 @@ fun EdgeWheels(
                             val down = awaitFirstDown()
                             down.consume()
                             val onHub = hypot(down.position.x - hubC.x, down.position.y - hubC.y) < px(Geo.hub + 10f)
+                            val c0 = centre(open)
+                            val onRing = hypot(down.position.x - c0.x, down.position.y - c0.y) in px(Geo.rIn - 10f)..px(Geo.rOut + 10f)
+                            val from = if (onRing && !onHub) indexAt(open, down.position) else -1
                             var up = down
                             while (true) {
                                 val ch = awaitPointerEvent().changes.first()
                                 ch.consume()
                                 up = ch
+                                // a slot pressed and pulled out past the wheel is carried to a half of the screen
+                                if (from >= 0) {
+                                    if (carry == null) mo.sel.intValue = from
+                                    carryCheck(open, ch.position)
+                                }
                                 if (!ch.pressed) break
                             }
                             val p = up.position
+                            if (carry != null) { dropCarry(p); return@awaitEachGesture }
                             when {
                                 onHub -> { closeWheel(); if (open == Edge.RIGHT) cbAll() }
                                 hypot(p.x - centre(open).x, p.y - centre(open).y) in px(Geo.rIn - 10f)..px(Geo.rOut + 10f) -> pick(open, indexAt(open, p))
@@ -661,6 +721,38 @@ fun EdgeWheels(
                     }
                 )
             }
+        }
+
+        // ---- a slot carried out of the wheel: the half it will open in lights up as a sheet of
+        // glass, the other half shows where the watch face goes, and the slot rides under the finger
+        val held = carry
+        if (held != null) {
+            val p = carryAt.value
+            val port = h > w
+            val first = firstHalf(p)
+            val sw by androidx.compose.animation.core.animateFloatAsState(if (first) 0f else 1f, Motion.press(), label = "carrySide")
+            val halfW = if (port) w else w / 2f
+            val halfH = if (port) h / 2f else h
+            fun halfAt(f: Float) = if (port) IntOffset(0, (f * halfH).roundToInt()) else IntOffset((f * halfW).roundToInt(), 0)
+            val dw = with(density) { halfW.toDp() }
+            val dh = with(density) { halfH.toDp() }
+            // where the watch face will sit
+            Box(
+                Modifier.offset { halfAt(1f - sw) }.size(dw, dh).padding(Grid.l),
+                contentAlignment = Alignment.Center,
+            ) { Glyph(G.FACE, V.Text.copy(alpha = 0.35f), Modifier.size(56.dp)) }
+            // where it will open
+            Box(
+                Modifier.offset { halfAt(sw) }.size(dw, dh).padding(Grid.l)
+                    .liquidGlass(androidx.compose.foundation.shape.RoundedCornerShape(Radius.panel), GlassLook(smoke = 0.45f, depth = 1.2f, shine = 1.3f), still = true)
+                    .semantics { contentDescription = "Drop ${held.label} here" },
+            )
+            Box(
+                Modifier.offset { IntOffset((p.x - px(36f)).roundToInt(), (p.y - px(36f)).roundToInt()) }
+                    .size(72.dp)
+                    .liquidGlass(CircleShape, GlassLook(smoke = 0.6f, depth = 1.3f, shine = 1.5f, magnify = 1.3f), still = true),
+                contentAlignment = Alignment.Center,
+            ) { held.icon(Modifier.size(if (carryApp) 44.dp else 30.dp), V.White) }
         }
 
         // ---- the edges: MainActivity routes edge touches here before the page sees them (see EdgeSwipe)
@@ -680,6 +772,7 @@ fun EdgeWheels(
                     val e = side ?: return
                     g.lx = x - g.ox; g.ly = y - g.oy
                     if (!g.moved && hypot(g.lx - g.sx, g.ly - g.sy) > px(14f)) g.moved = true
+                    if (g.moved && carryCheck(e, Offset(g.lx, g.ly))) return
                     if (g.moved) {
                         val p = Offset(g.lx, g.ly)
                         mo.finger = wheelClamp(angleAt(e, p), slotAngle(0, e), slotAngle(nOf(e) - 1, e))
@@ -697,6 +790,7 @@ fun EdgeWheels(
                     // nothing open: over another app, give the screen straight back
                     val e = side ?: run { if (overlay) cbClosed(); return }
                     move(x, y, t)
+                    if (carry != null) { dropCarry(Offset(g.lx, g.ly)); return }
                     mo.dragging = false
                     mo.wake.intValue++
                     val hub = hubAt(e)
@@ -711,7 +805,7 @@ fun EdgeWheels(
                         else -> closeWheel()
                     }
                 }
-                override fun cancel() { if (side != null && !sticky) closeWheel() else if (side == null && overlay) cbClosed() }
+                override fun cancel() { carry = null; if (side != null && !sticky) closeWheel() else if (side == null && overlay) cbClosed() }
             }
         }
         // the page dots and the edge handles open a wheel pinned, no swipe needed

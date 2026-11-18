@@ -197,6 +197,8 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
         when {
             escape -> escape = false
             control -> control = false
+            // on Home, Back closes the half of the book opened last
+            module == Module.FACE && Book.back(ctx) -> Unit
             else -> go(Module.FACE)
         }
     }
@@ -225,7 +227,8 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
                 if (mod != Module.FACE) Gap(h = 8.dp)
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     when (mod) {
-                        Module.FACE -> FaceScreen(store, onOpen = { go(it) })
+                        // Home is the watch face, split like a book when a screen or an app is dropped on it
+                        Module.FACE -> BookHome(store, face = { FaceScreen(store, onOpen = { go(it) }) }) { m -> BookScreen(store, act, m) }
                         Module.TOOLS -> ToolsScreen(store)
                         Module.WEATHER -> WeatherScreen(store)
                         Module.NOTES -> NotesScreen(store)
@@ -263,6 +266,9 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
         apps = appItems,
         onApp = { pkg -> if (!launchApp(ctx, store, pkg)) store.forgetRecent(pkg) },
         onAllApps = { go(Module.APPS, animate = false) },
+        // pull a slot out past the wheel and drop it on a half of the screen: it opens there, beside the watch face
+        onDrop = { key, isApp, first -> dropOnBook(ctx, store, act, scope, key, isApp, first); go(Module.FACE, animate = false) },
+        canDrop = { key, isApp -> isApp || runCatching { bookable(Module.valueOf(key)) }.getOrDefault(false) },
         // anything over the screens (lock, ringing timer, control centre, the way out, the ambient clock) keeps the edges
         enabled = edgeOff(escape, control, ambient, LockState.locked.value && store.voidLock).isEmpty() && fullTool.value == null,
     )
@@ -477,6 +483,44 @@ fun AmbientClock(store: Store) {
                 Gap(h = Grid.s)
                 VText(if (waiting.size == 1) waiting.first().appName else "${waiting.size} new", size = Type.label, color = V.Muted.copy(alpha = 0.6f))
             }
+        }
+    }
+}
+
+/** One of VoidOS's screens, drawn in a half of the book on Home. */
+@Composable
+private fun BookScreen(store: Store, act: MainActivity, m: Module) {
+    when (m) {
+        Module.FACE -> Unit
+        Module.TOOLS -> ToolsScreen(store)
+        Module.WEATHER -> WeatherScreen(store)
+        Module.NOTES -> NotesScreen(store)
+        Module.SYSTEM -> SystemScreen(store, act)
+        Module.MEDIA -> MediaScreen()
+        Module.APPS -> AppsScreen(store)
+    }
+}
+
+/**
+ * A wheel slot dropped on a half of Home. While Android's split is up, VoidOS only has its own
+ * half to give: a screen goes into VoidOS's half and an app replaces the app in the other.
+ */
+private fun dropOnBook(ctx: android.content.Context, store: Store, act: MainActivity, scope: kotlinx.coroutines.CoroutineScope, key: String, isApp: Boolean, first: Boolean) {
+    val before = Book.state.value
+    val side = if (Idle.split.value && before.appFirst != null) (if (isApp) before.appFirst!! else !before.appFirst!!) else first
+    val pane = if (isApp) Pane.app(key) else Pane.screen(runCatching { Module.valueOf(key) }.getOrNull() ?: return)
+    Book.drop(ctx, pane, side)
+    val after = Book.state.value
+    scope.launch {
+        when {
+            isApp -> if (!Book.openApp(ctx, store, key, side)) {
+                Book.set(ctx, Book.state.value.withoutApp())
+                store.setSplit("")
+                act.enforceLockTask()
+                toast.value = "That app can't share the screen."
+            }
+            // a screen dropped over the app's half ends Android's split
+            before.app != null && after.app == null -> Book.closeApp(ctx, store)
         }
     }
 }

@@ -213,6 +213,8 @@ object Split {
     fun open(ctx: Context, store: Store, pkg: String): Boolean {
         val launch = ctx.packageManager.getLaunchIntentForPackage(pkg)?.component?.flattenToShortString() ?: return false
         store.setSplit(pkg)
+        // the app takes the right half of the book on Home (ui/Book.kt), so its close button shows
+        Book.drop(ctx, Pane.app(pkg), toFirst = false)
         (ctx as? com.andysocial.voidos.MainActivity)?.let { a -> runCatching { a.stopLockTask() } }
         val me = "${ctx.packageName}/.MainActivity"
         return Su.ok(
