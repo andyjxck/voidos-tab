@@ -35,15 +35,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import voidmark as vm  # noqa: E402
 
-VERSION = "3.0"
-VERSION_CODE = 3
+VERSION = "3.1"
+VERSION_CODE = 4
 
 MODULE_PROP = f"""id=voidos_boot
 name=VoidOS boot and shutdown animation
 version={VERSION}
 versionCode={VERSION_CODE}
 author=andyjxck
-description=VoidOS power-on and power-off animations: the "void" wordmark balloons up into a lava lamp at boot and caves in on itself at shutdown, the way round the tablet is held. Systemless: remove the module to restore the stock Lenovo animations.
+description=VoidOS power-on and power-off animations: the "void" wordmark balloons up and the dot of the i bounces between the two lines at boot and caves in on itself at shutdown, the way round the tablet is held. Systemless: remove the module to restore the stock Lenovo animations.
 """
 
 # The standard Magisk module installer stub (Magisk 20.4+ does the real work).

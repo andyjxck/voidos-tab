@@ -4,7 +4,7 @@ root/ (run it first):  python3 tools/test_void_balloon.py
 
 What matters for a hand-over with no cut: the boot animation starts and ends
 on exactly the still picture that the power-on logo (root/logo-voidos.bin,
-pictures 0 and 38) shows, its lava lamp loop has no seam, and no frame jumps.
+pictures 0 and 38) shows, its bouncing-dot loop has no seam, and no frame jumps.
 The landscape versions (root/orient/90, root/orient/270) start on the same
 portrait still and end on the landscape still that VoidOS draws."""
 import io
@@ -88,24 +88,36 @@ class Boot(unittest.TestCase):
         steps = [step(a, b) for a, b in zip(p["part0"], p["part0"][1:])]
         self.assertLess(max(steps), 8.0)                                            # no jump in the intro
 
-    def test_lava_lamp_merges_and_splits(self):
-        # purple and green glass in the loop, in separate blobs at some point
-        # and joined at another
-        import void_lava as lava
-        c, ww = vb.layout(800, 1280)[0], vb.layout(800, 1280)[3] * 2
-        counts = set()
-        for f in range(0, vb.LOOP, 4):
-            bl = lava.blobs(f / vb.LOOP, c[0], c[1], ww)
-            X, Y = np.meshgrid(np.arange(0, 800, 4), np.arange(0, 1280, 4))
-            F = sum(np.clip(1 - ((X - bx) ** 2 + (Y - by) ** 2) / R ** 2, 0, None) ** 3 for bx, by, R, _ in bl)
-            counts.add(blobs_in(F > lava.T))
-        self.assertIn(1, counts)
-        self.assertTrue(max(counts) >= 3, counts)
+    def test_dot_bounces_between_the_lines(self):
+        # the original loading animation: the teal dot of the i swings from
+        # the purple line to the green one and back, and merges into each
+        def dot_x(a):
+            band = a[400:480]                           # the row of the bar and the dot
+            teal = (band[..., 1] > 150) & (band[..., 2] > 150) & (band[..., 0] < 160)
+            xs = np.nonzero(teal)[1]
+            return xs.mean(), len(xs)
+        xs = [dot_x(px(self.z, n))[0] for n in self.p["part1"]]
+        rest = xs[0]                                    # frame 0: passing its own place
+        self.assertGreater(max(xs) - rest, 20)          # right, into the green line
+        self.assertGreater(rest - min(xs), 20)          # left, into the purple line
+        self.assertGreater(np.argmin(xs), np.argmax(xs))  # right first, then left, as in 1.2.0
+        # the plain word round it is the still word, ballooned: purple and
+        # green still there in every loop frame
         a = px(self.z, self.p["part1"][30])
         purple = ((a[..., 2] > a[..., 1] + 60) & (a[..., 0] > 90)).sum()
         green = ((a[..., 1] > a[..., 2] + 40) & (a[..., 1] > a[..., 0] + 60)).sum()
-        self.assertGreater(purple, 5000)
-        self.assertGreater(green, 5000)
+        self.assertGreater(purple, 300)
+        self.assertGreater(green, 300)
+
+    def test_dot_is_the_original_loading_animation(self):
+        # without the balloon, the loop is the 1.2.0/1.3.0 loading animation
+        # (tools/logo_loading_anim.py) frame for frame
+        import logo_loading_anim as lla
+        self.assertEqual(vb.LOOP, round(lla.PERIOD * vb.FPS))
+        flat = vb.DotLoop(800, 1280, air=0.0)
+        a = np.asarray(flat.frame(0, 0.0)).astype(int)
+        diff = np.abs(a - self.still).sum(2)
+        self.assertLess(diff.mean(), 2.0)               # at rest it is the still word
 
     def test_still_logo_is_the_app_layout(self):
         # the still picture is the wordmark where VoidOS draws it

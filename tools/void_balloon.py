@@ -7,14 +7,17 @@ over to the next on the same frame:
              -> boot animation part0 starts on that exact frame and the
                 "void" wordmark balloons up (swells from the middle out,
                 overshoots, settles)
-             -> the lava lamp pours out from behind it: glossy purple and
-                green blobs of liquid glass (tools/void_lava.py)
-             -> part1 loops: the blobs drift, merge and split behind the
-                word while Android starts (and while VoidOS waits for the
-                tablet to unlock: ui/BootCover.kt keeps it on screen)
-             -> part2 (played to the end once Android is ready): the blobs
-                drain back in behind the word, it lets its air out and
-                lands back on the still frame
+             -> the i's teal dot wakes up and starts to swing
+             -> part1 loops: the original liquid-glass loading animation
+                (tools/logo_loading_anim.py, drawn by its own renderer):
+                the dot bounces between the purple line over the o and the
+                green line over the d, merging into each like a drop of
+                liquid glass and pulling away, while Android starts (and
+                while VoidOS waits for the tablet to unlock:
+                ui/BootCover.kt keeps it on screen)
+             -> part2 (played to the end once Android is ready): the dot
+                swings to a stop back in its place, the word lets its air
+                out and lands back on the still frame
              -> VoidOS (ui/Boot.kt) opens on that same still frame, waits for
                 the boot animation to be gone, then balloons open into the hub
   power off  shutdown animation: a small last breath in, then the wordmark
@@ -59,7 +62,7 @@ from PIL import Image, ImageDraw, ImageFilter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import voidmark as vm  # noqa: E402
-import void_lava as lava  # noqa: E402
+import logo_loading_anim as lla  # noqa: E402
 
 FPS = 30
 SS = 3                    # supersampling
@@ -72,11 +75,13 @@ ROTATIONS = (0, 90, 270)  # Display rotation the versions are drawn for
 # boot timing (frames at 30 fps)
 HOLD = 6                  # part0: hold on the still logo,
 SWELL = 36                #        balloon up (and turn to landscape),
-POUR = 24                 #        the lava lamp pours out from behind the word
-INTRO = HOLD + SWELL + POUR
-LOOP = 96                 # part1: the lava lamp, 3.2 s (its trimmed frames take less memory than the 72 full frames 1.3.0 looped without trouble)
-DRAIN = 24                # part2: the blobs drain back in, the air goes out,
-OUTRO = DRAIN + 2         #        and it holds on the still frame
+KICK = 36                 #        the dot starts to swing, growing into the loop
+INTRO = HOLD + SWELL + KICK
+LOOP = int(round(lla.PERIOD * FPS))  # part1: one round trip of the dot, 2.4 s = 72 frames, as 1.2.0/1.3.0
+SETTLE = 30               # part2: the dot swings to a stop in its place,
+DRAIN = 24                #        the air goes out,
+OUTRO = SETTLE + DRAIN + 2  #      and it holds on the still frame
+FADE = 6                  # frames the flat still dot takes to turn into the glass dot (and back)
 # shutdown timing
 SHUT_HOLD = 4
 SHUT_BREATH = 9           # a small last breath in
@@ -275,41 +280,119 @@ def turn_post(W, H, rot, k):
     return f
 
 
-def render(w, h, warp=None, glow=0.0, fade=1.0, spark=None, turn=None, lava_state=None):
+def render(w, h, warp=None, glow=0.0, fade=1.0, spark=None, turn=None):
     """One frame, w x h as seen. turn = (rot, k) for turning the portrait
-    logo round to landscape; lava_state = (blobs args) for the lava lamp."""
+    logo round to landscape."""
     W, H = w * SS, h * SS
     img = Image.new("RGB", (W, H), BG)
     post = turn_post(W, H, *turn) if turn else None
-    if lava_state is None:
-        if fade > 0:
-            draw_word(img, W, H, warp, glow, fade, post)
-        if spark is not None:
-            c, _, _, ax, ay = layout(W, H)
-            r, a = spark
-            d = ImageDraw.Draw(img)
-            for i in range(4, 0, -1):
-                rr = r * (1 + 1.4 * i)
-                d.ellipse([c[0] - rr, c[1] - rr, c[0] + rr, c[1] + rr], fill=vm.mix(vm.TEAL, BG, a * 0.07 * (5 - i)))
-            if r > 0:
-                d.ellipse([c[0] - r, c[1] - r, c[0] + r, c[1] + r], fill=vm.mix((235, 255, 255), BG, a))
-        return img.resize((w, h), Image.LANCZOS)
-    # the lava lamp goes between the glow and the wordmark: it is behind the word
-    if glow > 0:
-        draw_glow(img, W, H, glow, fade, post)
-    base = np.asarray(img.resize((w, h), Image.LANCZOS)).astype(float)
-    t, emerge, gather, alpha = lava_state
-    c = layout(w, h)[0]
-    ww = layout(w, h)[3] * 2
-    lava.render(w, h, lava.blobs(t, c[0], c[1], ww, emerge, gather), base, alpha=alpha)
-    out = Image.fromarray(np.clip(base + 0.5, 0, 255).astype(np.uint8))
-    layer = word_layer(W, H, warp, fade, post).resize((w, h), Image.LANCZOS)
-    # a soft dark shadow round the letters keeps the word clear of the glass
-    sh = layer.getchannel("A").filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(7))
-    sh = sh.point(lambda v, k=0.85 * alpha * min(1.0, emerge * 1.5): int(v * k))
-    out.paste(Image.new("RGB", (w, h), BG), (0, 0), sh)
-    out.paste(layer, (0, 0), layer)
-    return out
+    if fade > 0:
+        draw_word(img, W, H, warp, glow, fade, post)
+    if spark is not None:
+        c, _, _, ax, ay = layout(W, H)
+        r, a = spark
+        d = ImageDraw.Draw(img)
+        for i in range(4, 0, -1):
+            rr = r * (1 + 1.4 * i)
+            d.ellipse([c[0] - rr, c[1] - rr, c[0] + rr, c[1] + rr], fill=vm.mix(vm.TEAL, BG, a * 0.07 * (5 - i)))
+        if r > 0:
+            d.ellipse([c[0] - r, c[1] - r, c[0] + r, c[1] + r], fill=vm.mix((235, 255, 255), BG, a))
+    return img.resize((w, h), Image.LANCZOS)
+
+
+# ------------------------------------------------------------------ the dot loop
+
+DOT_SS = 2                # the dot frames are drawn at twice the size, then bent and scaled down
+_DARK, _LIGHT = 32.0, 96.0  # two backgrounds, to get each pixel's see-through amount
+_ORIG_MOTION = lla.motion
+
+
+class DotLoop:
+    """The original loading animation (tools/logo_loading_anim.py, approved
+    with the wordmark): the i's dot bouncing between the purple and the green
+    line like a drop of liquid glass. Its own renderer draws every frame,
+    unchanged, on the word where VoidOS draws it; this only bends the result
+    the way the balloon bends the word (it stays full of air while the dot
+    bounces) and puts it over the balloon's teal glow.
+
+    frame(i, env): i = frame of the 72-frame round trip; env 0..1 = how much
+    of the motion the dot has (0 = resting in its place, 1 = the full bounce),
+    for starting and stopping it smoothly."""
+
+    def __init__(self, w, h, air=1.0):
+        self.w, self.h = w, h
+        W, H = w * DOT_SS, h * DOT_SS
+        lla.FPS = FPS
+        shapes, _ = lla.wordmark()
+        geo, static = lla.geometry(shapes)
+        self.full = _ORIG_MOTION(geo)          # x, half width, half height, side, tint per frame
+        assert len(self.full[0]) == LOOP
+        self.rest = (geo["ic"], geo["dot_w"] / 2, lla.T / 2)
+        # the word's box exactly where voidmark (and so the still logo) draws it
+        unit, c, ww, wh, _ = vm.lockup_geometry(W, H)
+        W0, _ = vm.word_size()
+        sc = ww / W0
+        ox0, oy0 = vm.geometry()["origin"]
+        left, top = c[0] - ww / 2, c[1] - wh / 2
+        import vgeom as g
+        rx0, ry0, rx1, ry1 = g.bounds(shapes)
+        box = (left + (rx0 - ox0) * sc, top + (ry0 - oy0) * sc, left + (rx1 - ox0) * sc, top + (ry1 - oy0) * sc)
+        # one slot the renderer reads the dot from; frame() fills it in
+        self.slot = [np.zeros(1), np.zeros(1), np.zeros(1), np.zeros(1), np.zeros(1)]
+        old_bg, lla.motion = lla.BG, (lambda _geo: tuple(self.slot))
+        try:
+            lla.BG = (int(_DARK),) * 3
+            _, self.f_dark, _ = lla.make_renderer(shapes, geo, static, W, H, box)
+            lla.BG = (int(_LIGHT),) * 3
+            _, self.f_light, _ = lla.make_renderer(shapes, geo, static, W, H, box)
+        finally:
+            lla.BG, lla.motion = old_bg, _ORIG_MOTION
+        # where each output pixel comes from: the balloon warp, turned round
+        cb, _, _, ax, ay = layout(W, H)
+        jj, ii = np.meshgrid(np.arange(W, dtype=float) + 0.5, np.arange(H, dtype=float) + 0.5)
+        a, sx, sy = 0.20 * air, 1 + 0.025 * air, 1 + 0.06 * air
+
+        def fwd(x, y):                          # balloon_warp, on arrays
+            dx, dy = x - cb[0], y - cb[1]
+            gg = 1 + a / (1 + 1.6 * ((dx / ax) ** 2 + (dy / ay) ** 2))
+            return cb[0] + dx * gg * sx, cb[1] + dy * gg * sy
+        qx, qy = jj.copy(), ii.copy()
+        for _ in range(80):
+            fx, fy = fwd(qx, qy)
+            qx += 0.7 * (jj - fx)
+            qy += 0.7 * (ii - fy)
+        fx, fy = fwd(qx, qy)
+        self.err = float(max(np.abs(fx - jj).max(), np.abs(fy - ii).max()))
+        self.coords = np.stack([qy - 0.5, qx - 0.5])
+        glow = Image.new("RGB", (W, H), BG)
+        draw_glow(glow, W, H, 1.0)
+        self.glow = np.asarray(glow, dtype=np.float32)
+
+    def frame(self, i, env):
+        from scipy.ndimage import map_coordinates
+        x, a, b, side, tint = (arr[i % LOOP] for arr in self.full)
+        rx, ra, rb = self.rest
+        for slot, v in zip(self.slot, (rx + env * (x - rx), ra + env * (a - ra), rb + env * (b - rb),
+                                       side, env * tint)):
+            slot[0] = v
+        d = self.f_dark(0).astype(np.float32)
+        l = self.f_light(0).astype(np.float32)
+        see = np.clip((l - d) / (_LIGHT - _DARK), 0, 1)   # how much background shows through
+        col = d - _DARK * see                              # the logo's own light
+        bent = [map_coordinates(col[..., k], self.coords, order=1, mode="constant", cval=0.0) for k in range(3)]
+        seeb = map_coordinates(see.mean(2), self.coords, order=1, mode="constant", cval=1.0)
+        out = np.stack(bent, 2) + seeb[..., None] * self.glow
+        img = Image.fromarray(np.clip(out + 0.5, 0, 255).astype(np.uint8))
+        return img.resize((self.w, self.h), Image.LANCZOS)
+
+
+_dots = {}
+
+
+def dot_loop(w, h):
+    if (w, h) not in _dots:
+        _dots[(w, h)] = DotLoop(w, h)
+    return _dots[(w, h)]
 
 
 # ------------------------------------------------------------------ timelines
@@ -331,30 +414,25 @@ def turn_intro(f):
     return ease_io((f - HOLD + 1) / (SWELL * 0.85))
 
 
-def air_loop(f):
-    """A small breath under the lava lamp, 1 -> 0.9 -> 1, seamless."""
-    return 1 - 0.10 * (1 - math.cos(2 * math.pi * f / LOOP)) / 2
-
-
 def air_outro(f):
     """1 -> 0 over the drain, ending exactly on the still frame."""
     return 1 - ease_io((f + 1) / DRAIN) if f < DRAIN else 0.0
 
 
 def boot_spec(part, f):
-    """What boot frame (part, f) shows: (air, turn k, lava_state or None)."""
+    """What boot frame (part, f) shows: (air, turn k, dot or None), dot =
+    (frame of the dot's round trip, how much of the bounce it has, how much
+    the glass dot frame shows over the plain still word)."""
     if part == "part0":
         if f < HOLD + SWELL:
             return air_intro(f), turn_intro(f), None
-        u = (f - HOLD - SWELL + 1) / POUR
-        return 1.0, 1.0, ((f - INTRO) / LOOP, ease_out(u), 0.0, 1.0)
-    if part == "part1":
-        return air_loop(f), 1.0, (f / LOOP, 1.0, 0.0, 1.0)
-    # part2: the blobs drain back in behind the word as the air goes out
-    if f >= DRAIN:
-        return 0.0, 1.0, None
-    u = (f + 1) / DRAIN
-    return air_outro(f), 1.0, (f / LOOP, 1 - ease_in(u), ease_io(u), 1 - ease_io((u - 0.45) / 0.55))
+        j = f - HOLD - SWELL                   # the dot wakes up and grows into the bounce,
+        return 1.0, 1.0, (LOOP - KICK + j, ease_io((j + 1) / KICK), min(1.0, (j + 1) / FADE))
+    if part == "part1":                        # the round trip itself, the same every loop
+        return 1.0, 1.0, (f, 1.0, 1.0)
+    if f < SETTLE:                             # it swings to a stop in its place
+        return 1.0, 1.0, (f, 1 - ease_io((f + 1) / SETTLE), min(1.0, (SETTLE - 1 - f) / FADE))
+    return air_outro(f - SETTLE), 1.0, None    # and the air goes out
 
 
 BOOT_PARTS = (("part0", INTRO), ("part1", LOOP), ("part2", OUTRO))
@@ -362,15 +440,21 @@ BOOT_PARTS = (("part0", INTRO), ("part1", LOOP), ("part2", OUTRO))
 
 def boot_frame(rot, part, f):
     w, h = view_size(rot)
-    b, k, lv = boot_spec(part, f)
-    glow = clamp(b) * (1 - 0.6 * (lv[1] if lv else 0) * (lv[3] if lv else 0))
-    warp = (lambda c, ax, ay, b=b: balloon_warp(b, c, ax, ay)) if b > 0 else None
+    b, k, dot = boot_spec(part, f)
     turn = (rot, k) if rot not in (0, 180) and k < 1 else None
-    if b <= 0 and lv is None and rot not in (0, 180) and k <= 0:
+    if b <= 0 and dot is None and rot not in (0, 180) and k <= 0:
         # exactly the power-on logo (turned to how the person sees it), so
         # the hand-over from the still logo has no seam at all
         return from_panel(render(*PANEL), rot)
-    return render(w, h, warp, glow=glow, turn=turn, lava_state=lv)
+    warp = (lambda c, ax, ay, b=b: balloon_warp(b, c, ax, ay)) if b > 0 else None
+    if dot is None:
+        return render(w, h, warp, glow=clamp(b), turn=turn)
+    i, env, show = dot
+    glass = dot_loop(w, h).frame(i, env)
+    if show >= 1:
+        return glass
+    plain = render(w, h, warp, glow=clamp(b), turn=turn)
+    return Image.blend(plain, glass, show) if show > 0 else plain
 
 
 SHUT_PARTS = (("part0", SHUT_HOLD + SHUT_BREATH + SHUT_COLLAPSE + SHUT_SPARK), ("part1", 1))
@@ -447,7 +531,7 @@ def write_anim(path, kind, rot, pool, keep=False):
     parts = BOOT_PARTS if kind == "boot" else SHUT_PARTS
     if kind == "boot":
         # c = play to the end even once Android is ready: part0 always plays
-        # through to the lava lamp, part1 loops (count 0) and finishes its
+        # through to the bouncing dot, part1 loops (count 0) and finishes its
         # loop once Android is ready, and part2 always drains back onto the
         # still frame, so the hand-over to VoidOS lands on the still frame
         desc = [f"c 1 0 part0 {bg_hex()}", f"c 0 0 part1 {bg_hex()}", f"c 1 0 part2 {bg_hex()}"]

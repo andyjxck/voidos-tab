@@ -138,20 +138,22 @@ app draws it (`tools/voidmark.py lockup_geometry`). That picture is
 1. **Power-on logo** (section 5) shows that still picture.
 2. **Boot animation** starts on that exact frame (checked pixel for pixel),
    holds it for 0.2 s, then the wordmark balloons up: it swells from the
-   middle, overshoots a little and settles (1.2 s), and the lava lamp pours
-   out from behind it: glossy purple and green blobs of liquid glass
-   (`tools/void_lava.py`, 0.8 s; together `part0`). While Android starts the
-   blobs drift, merge and split behind the word (`part1`, a 3.2 s seamless
-   loop). Once VoidOS has drawn its first screen the loop finishes, the blobs
-   drain back in behind the word and it lets its air out, ending on the
-   still picture again (0.9 s, `part2`). All parts are `c`, so they always
+   middle, overshoots a little and settles (1.2 s), then the dot of the i
+   wakes up and starts to swing (1.2 s; together `part0`). While Android
+   starts it loops the original loading animation from 1.2.0
+   (`tools/logo_loading_anim.py`): the dot bounces between the purple line
+   over the o and the green line over the d, merging into each like a drop
+   of liquid glass and pulling away (`part1`, a 2.4 s seamless loop). Once
+   VoidOS has drawn its first screen the loop finishes, the dot swings to a
+   stop in its place and the word lets its air out, ending on the still
+   picture again (1.9 s, `part2`). All parts are `c`, so they always
    play to the end and the loop never cuts mid-motion.
    **No "Android is starting" screen:** with the tablet's storage still
    locked, Android used to show Settings' FallbackHome (black, with a
    starting message) between the boot animation and VoidOS. VoidOS now has
    its own stand-in for it (`BootCover.kt`) that doesn't draw, and Android
-   keeps the boot animation up until the home screen has drawn, so the lava
-   lamp carries on until VoidOS itself is ready. Limits: it draws the still
+   keeps the boot animation up until the home screen has drawn, so the
+   bouncing dot carries on until VoidOS itself is ready. Limits: it draws the still
    logo after 20 s whatever happens (so any system error message can show;
    Android's own limit is 30 s), steps aside for Android's starting screen
    after 90 s still locked, and draws straight away if Android has its own
