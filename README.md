@@ -17,16 +17,16 @@ bars and pin itself in lock mode. No root needed.
 | Home | The date and a large, thin clock, running timers as small pills underneath, and optional widgets (weather, music, the list, notes) you hold to drag anywhere |
 | Tools | Timers that ring over everything (and keep going in the background), a unit converter (weight, volume, temperature incl. gas marks, length) and a list sorted by aisle |
 | Weather | Open-Meteo weather (no key): now, 12-hour graph, six days; last known weather when offline |
-| Notes | Notes saved on the tablet, autosave, sketching |
-| Music | Media controls for whatever is playing (needs notification access), music files on the tablet, brown "void noise" made on-device |
-| Apps | Only the apps you choose in Manage; every other app is hidden from VoidOS. Search, starred apps, quick actions |
+| Notes | Like Notes on an iPad: list by day with search, the first line is the title, a floating pen capsule for drawing (7 colours, 4 sizes, solid/dotted/dashed, eraser, undo, clear), any note can go on Home as a widget |
+| Sound | One now-playing card for whatever is playing, YouTube, Spotify or a file on the tablet (artwork, progress, controls, volume; apps need notification access), your music files in a sidebar behind Files, brown noise made on-device |
+| Apps | A plain icon grid of only the apps you switch on in Manage that will actually open; everything else is hidden from VoidOS. Search, starred apps in a dock (long-press), quick actions |
 | Settings | A grouped list (Connections, Screen, VoidOS, Tablet) with the page beside it, or over it when upright |
 
 Getting around (no sidebar):
 
 - **Swipe left or right** on a screen to move to the next one (Settings > Home & lock screen can turn this off).
-- **Left edge: the tab wheel.** Put a finger on the left edge and a glass wheel of every screen opens under it. Slide down, up or out to pick; let go to open it. A tap on the edge leaves the wheel open so you can tap a screen instead.
-- **Right edge: the app wheel.** The same for apps you've opened from VoidOS. Its centre opens Apps. It only works while VoidOS is on screen: once another app is in front, Android gives the edges to that app.
+- **Left edge: the tab wheel.** Swipe in from the left edge (or rest a finger on it) and a glass wheel of every screen opens under it. Slide down, up or out to pick; let go to open it. A tap on the edge leaves the wheel open so you can tap a screen instead.
+- **Right edge: the app wheel.** The same for apps you've opened from VoidOS. Its centre opens Apps. It only works while VoidOS is on screen: once another app is in front, Android gives the edges to that app. Edge touches are decided in `MainActivity` before the page sees them (`ui/EdgeSwipe.kt`): the outer 34 dp always opens a wheel, and a quick inward flick that starts up to 64 dp in does too; a slow drag there is still a page swipe.
 - **Top edge: the control centre.** Pull down from the status line, or tap it: brightness (and auto), volume, Wi-Fi, Bluetooth, do not disturb, rotation lock, stay awake, screen off, what's playing, Settings and Lock. There is no way out of VoidOS in it.
 
 Also: the VoidOS logo (`docs/logo`, drawn in `ui/Logo.kt`; the square root
@@ -65,7 +65,7 @@ Device owner can only be set when no account (Google or other) has been added
 to the tablet. If one has, factory reset and skip every account during setup.
 
 ```
-adb install -t root/voidos-tab-1.5.0.apk
+adb install -t root/voidos-tab-1.6.0.apk
 adb shell dpm set-device-owner com.andysocial.voidos/.VoidAdmin
 adb shell am start -n com.andysocial.voidos/.MainActivity
 ```

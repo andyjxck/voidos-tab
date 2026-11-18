@@ -22,6 +22,8 @@
   OVERLAP   "0.0 GB free of 0.0 GB" / "9"
   OVERLAP   "Up for" / "0"
 [land] 01b_face_widgets: ok
+[land] 17c_flick_from_bezel: 1 issue(s)
+  OVERLAP   "−" / "Notes"
 [land] 07_sky: 1 issue(s)
   TEXT CUT  "OPEN-METEO" box=106 x 0 text=106 x 0 lines=1 (taller than its box)
 [land] 12_apps: ok
@@ -31,10 +33,13 @@
 [land] 42_boot_mid: ok
 [land] 01_face: ok
 [land] 40_lock: ok
+[land] 08_notes_empty: ok
 [land] 08_notes: ok
 [land] 08b_notes_draw: ok
 [land] 43_setup: ok
 [land] 09_media: ok
+[land] 09b_media_files: 1 issue(s)
+  TEXT CUT  "+10" box=7 x 48 text=7 x 48 lines=2 (ellipsized)
 [land] 02_tools_timers: ok
 [land] 03_tools_convert: ok
 [land] 04_tools_convert_temperature: ok
@@ -72,6 +77,7 @@
   OVERLAP   "0 h 0 min" / "6"
   OVERLAP   "adb shell am broadcast -a com.andysocial.voidos.action.UNLOCK -n com.andysocial.voidos/.ReleaseReceiver" / "0"
 [port] 01b_face_widgets: ok
+[port] 17c_flick_from_bezel: ok
 [port] 07_sky: ok
 [port] 12_apps: ok
 [port] 13_apps_manage: ok
@@ -80,10 +86,15 @@
 [port] 42_boot_mid: ok
 [port] 01_face: ok
 [port] 40_lock: ok
+[port] 08_notes_empty: ok
 [port] 08_notes: ok
 [port] 08b_notes_draw: ok
+[port] 08c_notes_list: ok
 [port] 43_setup: ok
 [port] 09_media: ok
+[port] 09b_media_files: 2 issue(s)
+  OVERLAP   "Not playing" / "No music files yet"
+  OVERLAP   "Not playing" / "Copy songs into the tablet's Music folder and they show up here."
 [port] 02_tools_timers: ok
 [port] 03_tools_convert: ok
 [port] 04_tools_convert_temperature: ok
