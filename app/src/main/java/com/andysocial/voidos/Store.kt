@@ -69,8 +69,12 @@ class Store(private val ctx: Context) {
     var timerSound by mutableStateOf(p.getBoolean("timerSound", true)); private set
     var railLabels by mutableStateOf(p.getBoolean("railLabels", true)); private set
     var tempF by mutableStateOf(p.getBoolean("tempF", false)); private set
+    /** Swipe left and right on a screen to move to the next one. */
+    var swipeScreens by mutableStateOf(p.getBoolean("swipeScreens", true)); private set
+    /** Apps opened from VoidOS, newest first: what the right-edge app wheel offers. */
+    var recentApps by mutableStateOf(p.getString("recentApps", "")!!.split(',').filter { it.isNotBlank() }); private set
     var favs by mutableStateOf(p.getString("favs", "")!!.split(',').filter { it.isNotBlank() }); private set
-    var hubName by mutableStateOf(p.getString("hubName", "Kitchen")!!); private set
+    var hubName by mutableStateOf(p.getString("hubName", "Home")!!); private set
     /** How Android app icons are drawn: "colour" (as shipped), "void" (VoidOS glyph or tinted) or "letter". */
     var iconStyle by mutableStateOf(p.getString("iconStyle", "void")!!); private set
 
@@ -94,6 +98,7 @@ class Store(private val ctx: Context) {
             "timerSound" -> timerSound = v
             "railLabels" -> railLabels = v
             "tempF" -> tempF = v
+            "swipeScreens" -> swipeScreens = v
         }
     }
 
@@ -105,6 +110,15 @@ class Store(private val ctx: Context) {
     fun toggleFav(pkg: String) {
         favs = if (pkg in favs) favs - pkg else (favs + pkg).take(8)
         p.edit().putString("favs", favs.joinToString(",")).apply()
+    }
+
+    fun noteRecent(pkg: String) {
+        recentApps = (listOf(pkg) + recentApps.filter { it != pkg }).take(8)
+        p.edit().putString("recentApps", recentApps.joinToString(",")).apply()
+    }
+    fun forgetRecent(pkg: String) {
+        recentApps = recentApps.filter { it != pkg }
+        p.edit().putString("recentApps", recentApps.joinToString(",")).apply()
     }
 
     fun setAmbient(min: Int) { ambientMinutes = min; p.edit().putInt("ambientMinutes", min).apply() }

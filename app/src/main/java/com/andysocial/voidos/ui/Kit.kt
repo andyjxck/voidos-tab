@@ -19,6 +19,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CutCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -57,8 +60,12 @@ import androidx.compose.foundation.Canvas
 import kotlin.math.cos
 import kotlin.math.sin
 
-val Oct = CutCornerShape(14.dp)
-val OctS = CutCornerShape(8.dp)
+/** Card corners. (Named Oct from the old octagon style; now plain rounded corners.) */
+val Oct = RoundedCornerShape(22.dp)
+/** Small control corners. */
+val OctS = RoundedCornerShape(14.dp)
+/** Fully round ends. */
+val Pill = RoundedCornerShape(50)
 
 @Composable
 fun VText(
@@ -66,7 +73,7 @@ fun VText(
     modifier: Modifier = Modifier,
     size: TextUnit = 14.sp,
     color: Color = V.Text,
-    font: FontFamily = Kenney,
+    font: FontFamily = Sans,
     align: TextAlign = TextAlign.Start,
     maxLines: Int = Int.MAX_VALUE,
     spacing: TextUnit = 0.sp,
@@ -75,7 +82,7 @@ fun VText(
     BasicText(
         text = text,
         modifier = modifier,
-        style = TextStyle(color = color, fontSize = size, fontFamily = font, textAlign = align, letterSpacing = spacing, lineHeight = lineHeight),
+        style = TextStyle(color = color, fontSize = size, fontFamily = font, textAlign = align, letterSpacing = spacing, lineHeight = lineHeight, fontFeatureSettings = "tnum"),
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
     )
@@ -84,20 +91,21 @@ fun VText(
 /** Small grey uppercase label, the watch's "STEPS" style. */
 @Composable
 fun Label(text: String, modifier: Modifier = Modifier, color: Color = V.Muted) =
-    VText(text.uppercase(), modifier, size = 11.sp, color = color, spacing = 1.5.sp)
+    VText(text.uppercase(), modifier, size = 12.sp, color = if (color == V.Muted || color == V.Tick) color else calm(color), font = SansMedium, spacing = 1.sp)
 
 @Composable
 fun VPanel(
     modifier: Modifier = Modifier,
     accent: Color? = null,
-    padding: Dp = 18.dp,
+    padding: Dp = 20.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    // a quiet card: no coloured frame, just a step up from the background
     Column(
         modifier
             .clip(Oct)
             .background(V.Panel)
-            .border(1.dp, accent?.copy(alpha = 0.55f) ?: V.Line, Oct)
+            .border(1.dp, if (accent != null) calm(accent).copy(alpha = 0.35f) else V.White.copy(alpha = 0.05f), Oct)
             .padding(padding),
         content = content,
     )
@@ -107,6 +115,7 @@ fun Modifier.tap(onClick: () -> Unit): Modifier = this.clickable(
     interactionSource = MutableInteractionSource(), indication = null, onClick = onClick,
 )
 
+/** Pill button. Filled = the main action, in the accent; otherwise a quiet grey pill. */
 @Composable
 fun VButton(
     label: String,
@@ -116,40 +125,53 @@ fun VButton(
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
-    val c = if (enabled) accent else V.Tick
+    val c = calm(accent)
+    val warn = c == V.Coral
     Box(
         modifier
-            .clip(OctS)
-            .background(if (filled) c else c.copy(alpha = 0.08f))
-            .border(1.5.dp, c, OctS)
+            .clip(Pill)
+            .background(
+                when {
+                    !enabled -> V.Panel2.copy(alpha = 0.5f)
+                    filled -> c
+                    else -> V.Panel2
+                }
+            )
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        VText(label.uppercase(), size = 13.sp, color = if (filled) V.Bg else c, spacing = 1.sp, maxLines = 1)
+        VText(
+            label, size = 15.sp, font = SansMedium, maxLines = 1,
+            color = when {
+                !enabled -> V.Tick
+                filled -> V.Bg
+                warn -> V.Coral
+                else -> V.Text
+            },
+        )
     }
 }
 
-/** Octagonal on/off switch. */
+/** On/off switch. */
 @Composable
 fun VToggle(checked: Boolean, accent: Color = V.Teal, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
     val t by animateFloatAsState(if (checked) 1f else 0f, label = "tog")
-    val c = if (enabled) accent else V.Tick
+    val c = calm(accent)
     Box(
         Modifier
-            .size(64.dp, 32.dp)
-            .clip(OctS)
-            .background(if (checked) c.copy(alpha = 0.22f) else V.Deep)
-            .border(1.5.dp, if (checked) c else V.Tick, OctS)
+            .size(52.dp, 32.dp)
+            .clip(Pill)
+            .background(lerp(V.Line, if (enabled) c else V.Tick, t))
             .clickable(enabled = enabled) { onChange(!checked) }
-            .padding(4.dp),
+            .padding(3.dp),
     ) {
         Box(
             Modifier
-                .padding(start = (32 * t).dp)
-                .size(24.dp)
-                .clip(CutCornerShape(6.dp))
-                .background(if (checked) c else V.Tick)
+                .padding(start = (20 * t).dp)
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(if (enabled) V.White else V.Muted)
         )
     }
 }
@@ -158,27 +180,32 @@ fun VToggle(checked: Boolean, accent: Color = V.Teal, enabled: Boolean = true, o
 @Composable
 fun SettingRow(title: String, detail: String? = null, control: @Composable () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 10.dp),
+        Modifier.fillMaxWidth().padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f).padding(end = 16.dp)) {
-            VText(title.uppercase(), size = 14.sp, color = V.Text, spacing = 0.5.sp)
+            VText(sentence(title), size = 16.sp, color = V.Text)
             if (detail != null) {
-                Spacer(Modifier.height(4.dp))
-                VText(detail, size = 12.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 16.sp)
+                Spacer(Modifier.height(3.dp))
+                VText(detail, size = 13.sp, color = V.Muted, lineHeight = 18.sp)
             }
         }
         control()
     }
 }
 
+/** "WI-FI NETWORKS" -> "Wi-fi networks": old call sites passed shouty titles. */
+fun sentence(s: String): String =
+    if (s.any { it.isLowerCase() }) s else s.lowercase().replaceFirstChar { it.uppercase() }
+
 /** Drag/tap slider, 0..1. */
 @Composable
 fun VSlider(value: Float, modifier: Modifier = Modifier, accent: Color = V.Teal, onChange: (Float) -> Unit) {
     val cb by rememberUpdatedState(onChange)
+    val c = calm(accent)
     Canvas(
         modifier
-            .height(36.dp)
+            .height(40.dp)
             .pointerInput(Unit) {
                 detectTapGestures { o -> cb((o.x / size.width).coerceIn(0f, 1f)) }
             }
@@ -190,16 +217,29 @@ fun VSlider(value: Float, modifier: Modifier = Modifier, accent: Color = V.Teal,
             }
     ) {
         val y = size.height / 2
-        drawLine(V.Line, Offset(0f, y), Offset(size.width, y), strokeWidth = 6.dp.toPx(), cap = StrokeCap.Round)
-        val x = size.width * value.coerceIn(0f, 1f)
-        drawLine(accent, Offset(0f, y), Offset(x, y), strokeWidth = 6.dp.toPx(), cap = StrokeCap.Round)
-        // ticks like the dial
-        for (i in 0..10) {
-            val tx = size.width * i / 10f
-            drawLine(if (tx <= x) accent.copy(alpha = 0.6f) else V.Tick, Offset(tx, y + 9.dp.toPx()), Offset(tx, y + 13.dp.toPx()), 1.5f)
-        }
-        drawOct(Offset(x, y), 11.dp.toPx(), V.White, fill = true)
+        val r = 12.dp.toPx()
+        val x = r + (size.width - 2 * r) * value.coerceIn(0f, 1f)
+        drawLine(V.Line, Offset(r, y), Offset(size.width - r, y), strokeWidth = 5.dp.toPx(), cap = StrokeCap.Round)
+        drawLine(c, Offset(r, y), Offset(x, y), strokeWidth = 5.dp.toPx(), cap = StrokeCap.Round)
+        drawCircle(Color.Black.copy(alpha = 0.35f), r + 1.5.dp.toPx(), Offset(x, y + 1.dp.toPx()))
+        drawCircle(V.White, r, Offset(x, y))
     }
+}
+
+/** An invisible 0..1 touch strip: tap or drag sideways. Draw the level yourself underneath. */
+@Composable
+fun VSliderTouch(modifier: Modifier, onChange: (Float) -> Unit) {
+    val cb by rememberUpdatedState(onChange)
+    Box(
+        modifier
+            .pointerInput(Unit) { detectTapGestures { o -> cb((o.x / size.width).coerceIn(0f, 1f)) } }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures { change, _ ->
+                    change.consume()
+                    cb((change.position.x / size.width).coerceIn(0f, 1f))
+                }
+            }
+    )
 }
 
 @Composable
@@ -211,17 +251,16 @@ fun VField(
     singleLine: Boolean = true,
     password: Boolean = false,
     size: TextUnit = 16.sp,
-    font: FontFamily = FontFamily.Default,
+    font: FontFamily = Sans,
     onDone: (() -> Unit)? = null,
 ) {
     Box(
         modifier
             .clip(OctS)
-            .background(V.Deep)
-            .border(1.dp, V.Line, OctS)
+            .background(V.Panel2)
             .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
-        if (value.isEmpty()) VText(placeholder, size = size, color = V.Tick, font = font)
+        if (value.isEmpty()) VText(placeholder, size = size, color = V.Muted, font = font)
         BasicTextField(
             value = value,
             onValueChange = onChange,
@@ -247,15 +286,14 @@ fun octPath(c: Offset, r: Float): Path {
     }
 }
 
+/** A dot or ring (named from the old octagon style; now a plain circle). */
 fun DrawScope.drawOct(c: Offset, r: Float, color: Color, fill: Boolean = false, width: Float = 2f) {
-    if (fill) drawPath(octPath(c, r), color) else drawPath(octPath(c, r), color, style = Stroke(width))
+    if (fill) drawCircle(color, r, c) else drawCircle(color, r, c, style = Stroke(width))
 }
 
-/** Hand-drawn VoidOS glyphs. No icon packs: they're all lines and octagons. */
 /**
  * The VoidOS icon set: vector drawables in res/drawable/vi_*.xml, generated by
- * tools/icons.py (chamfered corners, octagons, one stroke weight, a 35% second
- * tone). Tinting keeps the second tone because it lives in the path alpha.
+ * tools/icons.py (calm line icons, one stroke weight).
  */
 enum class G(@DrawableRes val res: Int) {
     FACE(R.drawable.vi_face), WEATHER(R.drawable.vi_weather), NOTES(R.drawable.vi_notes), MEDIA(R.drawable.vi_media),

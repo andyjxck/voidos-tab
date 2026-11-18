@@ -1,5 +1,7 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.foundation.shape.CircleShape
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.height
@@ -95,12 +97,15 @@ internal fun evenIcon(src: android.graphics.Bitmap): android.graphics.Bitmap {
 }
 
 /** Why an app won't open, if Android or lock mode would stop it; null when it opens. */
+const val HIDDEN = "hidden"
+
 fun blockReason(ctx: Context, store: Store, pkg: String): String? {
     val pm = ctx.packageManager
     val ai = runCatching { pm.getApplicationInfo(pkg, 0) }.getOrNull() ?: return "not installed"
     if (!ai.enabled) return "turned off in Android"
     if (runCatching { pm.isPackageSuspended(pkg) }.getOrDefault(false)) return "paused by Android"
-    if (store.kiosk && pkg !in store.allowed) return "blocked by lock mode"
+    // the drawer shows only the apps chosen in Manage; the rest stay hidden and can't be opened from VoidOS
+    if (pkg !in store.allowed) return HIDDEN
     return null
 }
 
@@ -138,11 +143,15 @@ fun launchApp(ctx: Context, store: Store, pkg: String): Boolean {
 private fun startSafely(ctx: Context, store: Store, i: Intent, pkg: String?): Boolean {
     if (pkg != null) blockReason(ctx, store, pkg)?.let { why ->
         val name = AppsRepo.find(ctx, pkg)?.label ?: "That app"
-        launchMsg.value = if (why == "blocked by lock mode") "$name is blocked by lock mode. Tap Manage to allow it." else "$name is $why."
+        launchMsg.value = if (why == HIDDEN) "$name is hidden. Tap Manage in Apps to show it." else "$name is $why."
         blocked.value = pkg
         return false
     }
-    return runCatching { ctx.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); launchMsg.value = null; true }
+    return runCatching {
+        ctx.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); launchMsg.value = null
+        if (pkg != null) store.noteRecent(pkg)
+        true
+    }
         .getOrElse { launchMsg.value = "Android blocked that app from opening."; false }
 }
 
@@ -241,30 +250,25 @@ private val greyscale = ColorFilter.colorMatrix(ColorMatrix().apply { setToSatur
 
 /**
  * One Android app's icon in the chosen style: "colour" is the app's own icon,
- * "void" a VoidOS glyph for apps it knows and a greyed icon in an octagon for
- * the rest, "letter" the app's initials in an octagon.
+ * "void" a VoidOS line icon for apps it knows and a greyed icon on a quiet tile
+ * for the rest, "letter" the app's initials on a quiet tile.
  */
 @Composable
 fun AppGlyph(app: AppEntry, style: String, size: Dp) {
     val ctx = LocalContext.current
-    val accent = accentFor(app.pkg)
     val glyph = if (style == "void") glyphForPackage(app.pkg) else null
+    val tile = Modifier.size(size).clip(RoundedCornerShape(size * 0.26f)).background(V.Panel2)
     when {
-        style == "letter" -> Box(
-            Modifier.size(size).clip(OctS).background(accent.copy(alpha = 0.12f)).border(1.5.dp, accent, OctS),
-            contentAlignment = Alignment.Center,
-        ) { VText(initialsFor(app.label), size = (size.value * 0.32f).sp, color = accent, font = Kenney, maxLines = 1) }
-        glyph != null -> Box(
-            Modifier.size(size).clip(OctS).background(accent.copy(alpha = 0.12f)).border(1.5.dp, accent, OctS),
-            contentAlignment = Alignment.Center,
-        ) { Glyph(glyph, accent, Modifier.size(size * 0.58f)) }
+        style == "letter" -> Box(tile, contentAlignment = Alignment.Center) {
+            VText(initialsFor(app.label), size = (size.value * 0.34f).sp, color = V.Text, font = SansMedium, maxLines = 1)
+        }
+        glyph != null -> Box(tile, contentAlignment = Alignment.Center) { Glyph(glyph, V.Text, Modifier.size(size * 0.52f)) }
         else -> {
             var icon by remember(app.pkg) { mutableStateOf<ImageBitmap?>(null) }
             LaunchedEffect(app.pkg) { icon = Icons.get(ctx, app.pkg) }
-            if (style == "void") Box(
-                Modifier.size(size).clip(OctS).background(accent.copy(alpha = 0.12f)).border(1.5.dp, accent, OctS),
-                contentAlignment = Alignment.Center,
-            ) { icon?.let { Image(it, app.label, Modifier.size(size * 0.66f), colorFilter = greyscale, alpha = 0.9f) } }
+            if (style == "void") Box(tile, contentAlignment = Alignment.Center) {
+                icon?.let { Image(it, app.label, Modifier.size(size * 0.62f), colorFilter = greyscale, alpha = 0.9f) }
+            }
             else Box(Modifier.size(size), contentAlignment = Alignment.Center) {
                 icon?.let { Image(it, app.label, Modifier.size(size)) }
             }
@@ -280,16 +284,16 @@ fun AppsScreen(store: Store) {
     var managing by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
-    var showBlocked by remember { mutableStateOf(false) }
     var all by remember { mutableStateOf(AppsRepo.all(ctx)) }
     LaunchedEffect(refresh) { all = withContext(Dispatchers.IO) { AppsRepo.all(ctx, fresh = true) } }
     val q = query.trim()
     val match = if (q.isEmpty()) all else all.filter { it.label.contains(q, ignoreCase = true) }
-    // what opens and what doesn't, worked out once per list
-    val reasons = remember(all, store.kiosk, store.allowed, refresh) { all.associate { it.pkg to blockReason(ctx, store, it.pkg) } }
+    // only the apps chosen in Manage that Android will also open; everything else is simply not here
+    val reasons = remember(all, store.allowed, refresh) { all.associate { it.pkg to blockReason(ctx, store, it.pkg) } }
     val open = match.filter { reasons[it.pkg] == null }
-    val shut = match.filter { reasons[it.pkg] != null }
+    val shownCount = all.count { reasons[it.pkg] == null }
     val favs = store.favs.mapNotNull { f -> open.firstOrNull { it.pkg == f } }
+    val quick = remember(store.allowed, refresh) { Quick.entries.filter { qk -> quickTargets(ctx, qk).any { it in store.allowed } } }
     val msg by launchMsg
     val stopped by blocked
 
@@ -298,88 +302,79 @@ fun AppsScreen(store: Store) {
     Column(Modifier.fillMaxSize()) {
         // header: search + manage, nothing else
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                Glyph(G.SEARCH, V.Muted, Modifier.size(22.dp))
-                Gap(w = 10.dp)
-                VField(query, { query = it }, Modifier.weight(1f), placeholder = "Search ${open.size} apps")
+            Row(
+                Modifier.weight(1f).clip(OctS).background(V.Panel2).padding(start = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Glyph(G.SEARCH, V.Muted, Modifier.size(20.dp))
+                VField(query, { query = it }, Modifier.weight(1f), placeholder = if (managing) "Search all ${all.size} apps" else "Search $shownCount apps")
             }
             Gap(w = 12.dp)
-            VButton(if (managing) "Done" else "Manage", accent = V.Purple, filled = managing) {
+            VButton(if (managing) "Done" else "Manage", filled = managing) {
                 if (managing) (ctx as? MainActivity)?.applyPolicies()
                 managing = !managing
             }
         }
         if (managing) {
-            Gap(h = 8.dp)
+            Gap(h = 10.dp)
             VText(
-                if (store.kiosk) "Lock mode is on. Tap an app to allow or block it. Long-press to star it for the face."
-                else "Lock mode is off, so every app opens. Tap apps to choose what lock mode will let through. Long-press to star.",
-                size = 12.sp, color = V.Muted, font = FontFamily.Default,
+                "Choose the apps that appear here. Hidden apps don't show anywhere in VoidOS and can't be opened from it. Long-press an app to star it.",
+                size = 14.sp, color = V.Muted, lineHeight = 19.sp,
             )
         }
-        // a blocked launch says so, and offers the fix right there
+        // a stopped launch says so, and offers the fix right there
         msg?.let { m ->
-            Gap(h = 8.dp)
+            Gap(h = 10.dp)
             Row(
-                Modifier.fillMaxWidth().clip(OctS).background(V.Coral.copy(alpha = 0.1f)).border(1.dp, V.Coral.copy(alpha = 0.6f), OctS).padding(horizontal = 12.dp, vertical = 8.dp),
+                Modifier.fillMaxWidth().clip(OctS).background(V.Panel2).padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Glyph(G.LOCK, V.Coral, Modifier.size(18.dp)); Gap(w = 10.dp)
-                VText(m, size = 13.sp, color = V.Text, font = FontFamily.Default, modifier = Modifier.weight(1f))
-                if (stopped != null && reasons[stopped] == "blocked by lock mode") {
-                    VButton("Manage", accent = V.Purple) { managing = true; launchMsg.value = null }
+                VText(m, size = 14.sp, color = V.Text, modifier = Modifier.weight(1f))
+                if (stopped != null && reasons[stopped] == HIDDEN) {
+                    VButton("Manage") { managing = true; launchMsg.value = null }
                     Gap(w = 6.dp)
                 }
                 IconTap(G.CLOSE, V.Muted, 36.dp) { launchMsg.value = null; blocked.value = null }
             }
         }
-        Gap(h = 12.dp)
+        Gap(h = 14.dp)
 
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(if (portrait) 96.dp else 104.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            contentPadding = PaddingValues(bottom = 12.dp),
+            columns = GridCells.Adaptive(if (portrait) 100.dp else 108.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(bottom = 16.dp),
         ) {
             if (managing) {
-                // managing: every app, allowed ones first
+                // managing: every app, shown ones first
                 val sorted = match.sortedBy { if (it.pkg in store.allowed) 0 else 1 }
-                items(sorted, key = { "m_" + it.pkg }) { app -> AppTile(app, store, managing = true, starred = app.pkg in store.favs, why = null) }
+                items(sorted, key = { "m_" + it.pkg }) { app -> AppTile(app, store, managing = true, starred = app.pkg in store.favs) }
                 return@LazyVerticalGrid
             }
-            if (q.isEmpty()) {
+            if (q.isEmpty() && quick.isNotEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Quick.entries.forEach { qk -> QuickTile(qk) { runQuick(ctx, store, qk) } }
+                        quick.forEach { qk -> QuickTile(qk) { runQuick(ctx, store, qk) } }
                     }
                 }
-                if (favs.isNotEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) { Label("Starred", modifier = Modifier.padding(top = 10.dp, start = 4.dp)) }
-                    items(favs, key = { "f_" + it.pkg }) { app -> AppTile(app, store, false, starred = true, why = null) }
-                }
-                item(span = { GridItemSpan(maxLineSpan) }) { Label("Apps", modifier = Modifier.padding(top = 10.dp, start = 4.dp)) }
+            }
+            if (q.isEmpty() && favs.isNotEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) { Label("Starred", modifier = Modifier.padding(top = 12.dp, start = 4.dp)) }
+                items(favs, key = { "f_" + it.pkg }) { app -> AppTile(app, store, false, starred = true) }
+                item(span = { GridItemSpan(maxLineSpan) }) { Label("All apps", modifier = Modifier.padding(top = 12.dp, start = 4.dp)) }
             }
             if (open.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
-                    VText(if (q.isNotEmpty()) "NO APP MATCHES" else "NOTHING ALLOWED YET. TAP MANAGE.", size = 13.sp, color = V.Muted,
-                        align = TextAlign.Center, spacing = 1.sp, modifier = Modifier.padding(vertical = 30.dp).fillMaxWidth())
-                }
-            }
-            items(open, key = { it.pkg }) { app -> AppTile(app, store, false, starred = app.pkg in store.favs, why = null) }
-            // apps that won't open: counted, folded away, and honest about why
-            if (shut.isNotEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(top = 12.dp).clip(OctS).clickable { showBlocked = !showBlocked }.padding(horizontal = 4.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Glyph(G.LOCK, V.Muted, Modifier.size(16.dp)); Gap(w = 8.dp)
-                        Label("${shut.size} won't open${if (store.kiosk) " in lock mode" else ""}", Modifier.weight(1f))
-                        VText(if (showBlocked) "HIDE" else "SHOW", size = 11.sp, color = V.Purple, spacing = 1.sp)
+                    Column(Modifier.fillMaxWidth().padding(vertical = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        VText(if (q.isNotEmpty()) "No app matches \"$q\"" else "No apps chosen yet", size = 18.sp, font = SansMedium, color = V.Text)
+                        if (q.isEmpty()) {
+                            Gap(h = 6.dp)
+                            VText("Tap Manage to pick the apps that appear here.", size = 14.sp, color = V.Muted)
+                        }
                     }
                 }
-                if (showBlocked || q.isNotEmpty()) items(shut, key = { "x_" + it.pkg }) { app -> AppTile(app, store, false, starred = false, why = reasons[app.pkg]) }
             }
+            items(open, key = { it.pkg }) { app -> AppTile(app, store, false, starred = app.pkg in store.favs) }
         }
     }
 }
@@ -387,46 +382,49 @@ fun AppsScreen(store: Store) {
 @Composable
 private fun QuickTile(q: Quick, onClick: () -> Unit) {
     Row(
-        Modifier.clip(RoundedCornerShape(50)).background(q.accent.copy(alpha = 0.1f)).border(1.dp, q.accent.copy(alpha = 0.5f), RoundedCornerShape(50))
-            .tap(onClick).padding(horizontal = 16.dp, vertical = 10.dp),
+        Modifier.clip(Pill).background(V.Panel2).tap(onClick).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Glyph(q.glyph, q.accent, Modifier.size(20.dp))
+        Glyph(q.glyph, V.Text, Modifier.size(18.dp))
         Gap(w = 8.dp)
-        VText(q.label.uppercase(), size = 11.sp, color = q.accent, spacing = 1.sp, maxLines = 1)
+        VText(q.label, size = 14.sp, color = V.Text, maxLines = 1)
     }
 }
 
 /**
- * One app: the same size tile for every app, icon on top, name underneath,
- * no box round it. A blocked app is dimmed with a lock and its reason.
+ * One app: the same size tile for every app, icon on top, name underneath.
+ * While managing, hidden apps are dimmed and shown ones get a tick.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AppTile(app: AppEntry, store: Store, managing: Boolean, starred: Boolean, why: String?) {
+private fun AppTile(app: AppEntry, store: Store, managing: Boolean, starred: Boolean) {
     val ctx = LocalContext.current
-    val allowed = app.pkg in store.allowed
-    val dim = why != null || (managing && !allowed)
+    val shown = app.pkg in store.allowed
+    val dim = managing && !shown
     Column(
-        Modifier.fillMaxWidth().height(112.dp).clip(Oct)
-            .background(if (managing && allowed) V.Purple.copy(alpha = 0.12f) else Color.Transparent)
-            .border(1.dp, if (managing && allowed) V.Purple.copy(alpha = 0.7f) else Color.Transparent, Oct)
+        Modifier.fillMaxWidth().height(116.dp).clip(Oct)
+            .background(if (managing && shown) V.White.copy(alpha = 0.05f) else Color.Transparent)
             .combinedClickable(
-                onClick = { if (managing) store.setAllowed(app.pkg, !allowed) else launchApp(ctx, store, app.pkg) },
+                onClick = { if (managing) store.setAllowed(app.pkg, !shown) else launchApp(ctx, store, app.pkg) },
                 onLongClick = { store.toggleFav(app.pkg) },
             )
             .padding(top = 12.dp, start = 4.dp, end = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(Modifier.size(58.dp).alpha(if (dim) 0.38f else 1f), contentAlignment = Alignment.Center) {
-            AppGlyph(app, store.iconStyle, 54.dp)
+        Box(Modifier.size(60.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.alpha(if (dim) 0.32f else 1f)) { AppGlyph(app, store.iconStyle, 56.dp) }
+            if (managing) {
+                Box(
+                    Modifier.align(Alignment.TopEnd).size(22.dp).clip(CircleShape)
+                        .background(if (shown) V.Teal else V.Panel2).border(1.5.dp, if (shown) V.Teal else V.Tick, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { if (shown) Glyph(G.CHECK, V.Bg, Modifier.size(14.dp)) }
+            } else if (starred) {
+                Box(Modifier.align(Alignment.TopEnd).size(10.dp).clip(CircleShape).background(V.Teal))
+            }
         }
         Gap(h = 8.dp)
-        VText(app.label, size = 12.sp, color = if (dim) V.Muted else V.Text, font = FontFamily.Default, maxLines = 1, align = TextAlign.Center)
-        when {
-            managing -> VText(if (allowed) "ALLOWED" else "BLOCKED", size = 9.sp, color = if (allowed) V.Purple else V.Tick, spacing = 1.sp)
-            why != null -> VText(why.uppercase(), size = 8.sp, color = V.Coral, spacing = 0.5.sp, maxLines = 1)
-            starred -> Glyph(G.STAR, V.Yellow, Modifier.size(11.dp))
-        }
+        VText(app.label, size = 13.sp, color = if (dim) V.Muted else V.Text, maxLines = 1, align = TextAlign.Center)
+        if (managing) VText(if (shown) "Shown" else "Hidden", size = 11.sp, color = if (shown) V.Teal else V.Tick)
     }
 }

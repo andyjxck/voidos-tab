@@ -1,5 +1,8 @@
 package com.andysocial.voidos.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.widthIn
+
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.height
 import android.annotation.SuppressLint
@@ -63,23 +66,29 @@ import kotlinx.coroutines.isActive
 /** Settings pages, gathered into four groups so the list reads at a glance. */
 private enum class Tab(val label: String, val g: G, val group: Int, val accent: Color) {
     WIFI("Wi-Fi", G.WIFI, 0, V.Teal), BT("Bluetooth", G.BT, 0, V.Teal), NET("Network", G.GLOBE, 0, V.Teal),
-    DISPLAY("Screen + sound", G.SUN, 1, V.Yellow), QUIET("Do not disturb", G.MOON, 1, V.Yellow), BATTERY("Battery", G.BATTERY, 1, V.Yellow),
-    HUB("Look + lock", G.FACE, 2, V.Purple), TIME("Date + time", G.TIMER, 2, V.Purple), VOID("Lock mode rules", G.LOCK, 2, V.Purple),
-    STORAGE("Storage", G.APPS, 3, V.Coral), ROOT("Boot + root", G.POWER, 3, V.Coral), ANDROID("Android settings", G.SYSTEM, 3, V.Coral),
-    ABOUT("About", G.INFO, 3, V.Coral),
+    DISPLAY("Display & sound", G.SUN, 1, V.Teal), QUIET("Do not disturb", G.MOON, 1, V.Teal), BATTERY("Battery", G.BATTERY, 1, V.Teal),
+    HUB("Home & lock screen", G.FACE, 2, V.Teal), TIME("Date & time", G.TIMER, 2, V.Teal), VOID("Lock mode", G.LOCK, 2, V.Teal),
+    STORAGE("Storage", G.APPS, 3, V.Teal), ROOT("Boot & root", G.POWER, 3, V.Teal), ANDROID("Android settings", G.SYSTEM, 3, V.Teal),
+    ABOUT("About", G.INFO, 3, V.Teal),
 }
 
-private val groups = listOf("Connect", "Screen", "VoidOS", "Tablet")
+private val groups = listOf("Connections", "Screen", "VoidOS", "Tablet")
 
+/**
+ * Settings, laid out like a tablet settings app: a grouped list of pages on the
+ * left and the open page on the right. Upright, the list fills the screen and a
+ * page opens over it, with a back link to return.
+ */
 @Composable
 fun SystemScreen(store: Store, act: MainActivity) {
+    val portrait = LocalPortrait.current
     var tab by rememberSaveable { mutableStateOf(Tab.WIFI) }
+    var open by rememberSaveable { mutableStateOf(false) }   // upright only: a page is open over the list
     val owner = Policy.isOwner(act)
-    val pane: @Composable (Modifier) -> Unit = { m ->
-        Column(m.clip(Oct).background(V.Panel).border(1.dp, tab.accent.copy(alpha = 0.35f), Oct)) {
-            // a thin bar in the group's colour, then the page
-            Box(Modifier.fillMaxWidth().height(3.dp).background(tab.accent.copy(alpha = 0.7f)))
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 26.dp, vertical = 22.dp)) {
+
+    val page: @Composable (Modifier) -> Unit = { m ->
+        Column(m.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
+            Column(Modifier.widthIn(max = 720.dp)) {
                 when (tab) {
                     Tab.WIFI -> WifiPane(act)
                     Tab.BT -> BtPane()
@@ -98,76 +107,83 @@ fun SystemScreen(store: Store, act: MainActivity) {
             }
         }
     }
-    if (LocalPortrait.current) {
-        // upright: the four groups as tabs, then that group's pages
-        Column(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                groups.forEachIndexed { gi, g ->
-                    val sel = tab.group == gi
-                    val acc = Tab.entries.first { it.group == gi }.accent
-                    Box(
-                        Modifier.weight(1f).clip(RoundedCornerShape(50)).background(if (sel) acc.copy(alpha = 0.16f) else Color.Transparent)
-                            .border(1.dp, if (sel) acc else V.Line, RoundedCornerShape(50)).clickable { if (!sel) tab = Tab.entries.first { it.group == gi } }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center,
-                    ) { VText(g.uppercase(), size = 11.sp, color = if (sel) acc else V.Muted, spacing = 1.5.sp, maxLines = 1) }
+    val list: @Composable (Modifier) -> Unit = { m ->
+        Column(m.verticalScroll(rememberScrollState())) {
+            Row(
+                Modifier.fillMaxWidth().clip(Oct).background(V.Panel).padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(V.Panel2), contentAlignment = Alignment.Center) {
+                    VoidMark(Modifier.size(26.dp), mono = V.Text)
+                }
+                Gap(w = 14.dp)
+                Column(Modifier.weight(1f)) {
+                    VText("VoidOS ${BuildConfig.VERSION_NAME}", size = 16.sp, font = SansMedium, color = V.Text)
+                    VText(if (owner) "Running the tablet (device owner)" else "Not device owner: some switches are limited", size = 13.sp, color = if (owner) V.Muted else V.Coral, maxLines = 2)
                 }
             }
-            Gap(h = 10.dp)
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                Tab.entries.filter { it.group == tab.group }.forEach { t -> NavItem(t, t == tab, compact = true) { tab = t } }
-            }
-            Gap(h = 12.dp)
-            pane(Modifier.weight(1f).fillMaxWidth())
-        }
-    } else {
-        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            Column(Modifier.width(220.dp).fillMaxHeight()) {
-                VText("SETTINGS", size = 22.sp, color = V.White, spacing = 3.sp)
-                Gap(h = 6.dp)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(if (owner) V.Green else V.Yellow))
-                    Gap(w = 7.dp)
-                    VText(if (owner) "IN CHARGE OF THE TABLET" else "NOT DEVICE OWNER", size = 9.sp, color = if (owner) V.Green else V.Yellow, spacing = 1.sp, maxLines = 1)
-                }
-                Gap(h = 16.dp)
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                    groups.forEachIndexed { gi, g ->
-                        if (gi > 0) Gap(h = 14.dp)
-                        Label(g, Modifier.padding(start = 14.dp, bottom = 4.dp))
-                        Tab.entries.filter { it.group == gi }.forEach { t -> NavItem(t, t == tab, compact = false) { tab = t } }
+            groups.forEachIndexed { gi, g ->
+                Label(g, Modifier.padding(start = 16.dp, top = 22.dp, bottom = 8.dp))
+                Column(Modifier.fillMaxWidth().clip(Oct).background(V.Panel)) {
+                    val pages = Tab.entries.filter { it.group == gi }
+                    pages.forEachIndexed { i, t ->
+                        if (i > 0) Box(Modifier.padding(start = 62.dp).fillMaxWidth().height(1.dp).background(V.Line.copy(alpha = 0.6f)))
+                        NavItem(t, sel = !portrait && t == tab) { tab = t; open = true }
                     }
                 }
             }
-            pane(Modifier.weight(1f).fillMaxHeight())
+            Gap(h = 24.dp)
+        }
+    }
+
+    if (portrait) {
+        BackHandler(enabled = open) { open = false }
+        run {
+            val showing = open
+            if (!showing) list(Modifier.fillMaxSize())
+            else Column(Modifier.fillMaxSize()) {
+                Row(
+                    Modifier.clip(Pill).clickable { open = false }.padding(start = 2.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Glyph(G.BACK, V.Teal, Modifier.size(20.dp))
+                    Gap(w = 6.dp)
+                    VText("All settings", size = 16.sp, color = V.Teal)
+                }
+                Gap(h = 10.dp)
+                page(Modifier.weight(1f).fillMaxWidth())
+            }
+        }
+    } else {
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+            list(Modifier.width(300.dp).fillMaxHeight())
+            page(Modifier.weight(1f).fillMaxHeight())
         }
     }
 }
 
-/** One settings page in the list: no box, just a coloured pill and text when it's the one open. */
+/** One row in the settings list: a quiet icon tile, the page name, a chevron. */
 @Composable
-private fun NavItem(t: Tab, sel: Boolean, compact: Boolean, onClick: () -> Unit) {
-    val col = if (sel) t.accent else V.Muted
+private fun NavItem(t: Tab, sel: Boolean, onClick: () -> Unit) {
     Row(
-        Modifier.then(if (compact) Modifier else Modifier.fillMaxWidth()).clip(RoundedCornerShape(12.dp))
-            .background(if (sel && !compact) t.accent.copy(alpha = 0.08f) else Color.Transparent)
-            .clickable(onClick = onClick).padding(horizontal = if (compact) 4.dp else 10.dp, vertical = 9.dp),
+        Modifier.fillMaxWidth().background(if (sel) V.Teal.copy(alpha = 0.16f) else Color.Transparent)
+            .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (!compact) {
-            Box(Modifier.size(width = 4.dp, height = 18.dp).clip(RoundedCornerShape(50)).background(if (sel) t.accent else Color.Transparent))
-            Gap(w = 10.dp)
+        Box(Modifier.size(32.dp).clip(RoundedCornerShape(9.dp)).background(if (sel) V.Teal else V.Panel2), contentAlignment = Alignment.Center) {
+            Glyph(t.g, if (sel) V.Bg else V.Text, Modifier.size(18.dp))
         }
-        Glyph(t.g, col, Modifier.size(20.dp))
-        Gap(w = 10.dp)
-        VText(t.label, size = 14.sp, color = if (sel) V.White else V.Text.copy(alpha = 0.8f), font = FontFamily.Default, maxLines = 1)
+        Gap(w = 16.dp)
+        VText(t.label, size = 16.sp, color = V.Text, maxLines = 1, modifier = Modifier.weight(1f))
+        VText("\u203A", size = 22.sp, color = V.Tick, font = SansLight)
     }
 }
 
+/** A page's title and a line on what it's for. */
 @Composable
 internal fun Head(title: String, sub: String? = null) {
-    VText(title.uppercase(), size = 24.sp, color = V.White, spacing = 2.sp)
-    if (sub != null) { Gap(h = 6.dp); VText(sub, size = 13.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 19.sp) }
+    VText(sentence(title), size = 26.sp, font = SansMedium, color = V.White)
+    if (sub != null) { Gap(h = 6.dp); VText(sub, size = 14.sp, color = V.Muted, lineHeight = 20.sp) }
     Gap(h = 20.dp)
 }
 
@@ -219,7 +235,7 @@ private fun WifiPane(act: MainActivity) {
 
     joining?.let { net ->
         VPanel(Modifier.fillMaxWidth(), accent = V.Teal, padding = 14.dp) {
-            VText("JOIN ${net.SSID.uppercase()}", size = 14.sp, color = V.Teal, spacing = 1.sp)
+            VText("Join ${net.SSID}", size = 14.sp, color = V.Teal)
             Gap(h = 10.dp)
             if (isSecured(net)) VField(pass, { pass = it }, Modifier.fillMaxWidth(), placeholder = "Password", password = true)
             Gap(h = 10.dp)
@@ -234,7 +250,7 @@ private fun WifiPane(act: MainActivity) {
         Gap(h = 12.dp)
     }
 
-    if (enabled && results.isEmpty()) VText("SCANNING", size = 12.sp, color = V.Muted, spacing = 2.sp)
+    if (enabled && results.isEmpty()) VText("Scanning", size = 12.sp, color = V.Muted)
     results.forEach { r ->
         val isCur = r.SSID == current
         Row(
@@ -248,7 +264,7 @@ private fun WifiPane(act: MainActivity) {
             }
             Gap(w = 14.dp)
             VText(r.SSID, size = 15.sp, color = V.Text, font = FontFamily.Default, modifier = Modifier.weight(1f), maxLines = 1)
-            VText(if (isCur) "CONNECTED" else if (isSecured(r)) "LOCKED" else "OPEN", size = 10.sp, color = if (isCur) V.Teal else V.Muted, spacing = 1.sp)
+            VText(if (isCur) "CONNECTED" else if (isSecured(r)) "LOCKED" else "OPEN", size = 10.sp, color = if (isCur) V.Teal else V.Muted)
         }
     }
 }
@@ -303,7 +319,7 @@ private fun DisplayPane(store: Store, act: MainActivity) {
 
     Head("Screen", if (owner) null else "Brightness and timeout need VoidOS to be device owner.")
     SettingRow("Brightness") {}
-    VSlider(bright, Modifier.fillMaxWidth(), accent = V.Sun) {
+    VSlider(bright, Modifier.fillMaxWidth(), accent = V.Teal) {
         bright = it
         if (auto) { auto = false; sys(Settings.System.SCREEN_BRIGHTNESS_MODE, "0") }
         sys(Settings.System.SCREEN_BRIGHTNESS, (8 + it * 247).toInt().toString())
@@ -311,7 +327,7 @@ private fun DisplayPane(store: Store, act: MainActivity) {
         act.window.attributes = act.window.attributes.apply { screenBrightness = (0.03f + it * 0.97f) }
     }
     SettingRow("Auto brightness", "Let the light sensor decide.") {
-        VToggle(auto, V.Sun, enabled = owner) {
+        VToggle(auto, V.Teal, enabled = owner) {
             auto = it; sys(Settings.System.SCREEN_BRIGHTNESS_MODE, if (it) "1" else "0")
             act.window.attributes = act.window.attributes.apply { screenBrightness = -1f }
         }
@@ -319,7 +335,7 @@ private fun DisplayPane(store: Store, act: MainActivity) {
     SettingRow("Screen off after", "When the tablet isn't charging. Desk mode keeps it on while charging.") {}
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(30_000 to "30S", 60_000 to "1M", 300_000 to "5M", 600_000 to "10M", 1_800_000 to "30M").forEach { (ms, l) ->
-            VButton(l, accent = if (timeout == ms) V.Sun else V.Muted, filled = timeout == ms, enabled = owner) {
+            VButton(l, accent = if (timeout == ms) V.Teal else V.Muted, filled = timeout == ms, enabled = owner) {
                 if (sys(Settings.System.SCREEN_OFF_TIMEOUT, ms.toString())) timeout = ms
             }
         }
@@ -328,15 +344,15 @@ private fun DisplayPane(store: Store, act: MainActivity) {
     SettingRow("Rotation", "Follow the tablet, or pin it. Every VoidOS screen has a layout for both.") {}
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf("auto" to "AUTO", "land" to "LANDSCAPE", "port" to "PORTRAIT").forEach { (k, l) ->
-            VButton(l, accent = if (store.rotation == k) V.Sun else V.Muted, filled = store.rotation == k) { store.setRotation(k); act.applyRotation() }
+            VButton(l, accent = if (store.rotation == k) V.Teal else V.Muted, filled = store.rotation == k) { store.setRotation(k); act.applyRotation() }
         }
     }
     Gap(h = 24.dp)
     Head("Sound")
     listOf(
-        Triple("Media", AudioManager.STREAM_MUSIC, V.Pink),
+        Triple("Media", AudioManager.STREAM_MUSIC, V.Teal),
         Triple("Alarms + timer", AudioManager.STREAM_ALARM, V.Coral),
-        Triple("Notifications", AudioManager.STREAM_NOTIFICATION, V.Purple),
+        Triple("Notifications", AudioManager.STREAM_NOTIFICATION, V.Teal),
         Triple("Touch sounds", AudioManager.STREAM_SYSTEM, V.Muted),
     ).forEach { (label, stream, col) ->
         val max = remember { am.getStreamMaxVolume(stream).coerceAtLeast(1) }
@@ -419,7 +435,7 @@ private fun BtRow(name: String, state: String, col: Color, onClick: () -> Unit) 
         Glyph(G.BT, col, Modifier.size(20.dp))
         Gap(w = 12.dp)
         VText(name, size = 15.sp, color = V.Text, font = FontFamily.Default, modifier = Modifier.weight(1f), maxLines = 1)
-        VText(state, size = 10.sp, color = col, spacing = 1.sp)
+        VText(state, size = 10.sp, color = col)
     }
 }
 
@@ -449,10 +465,10 @@ private fun VoidPane(store: Store, act: MainActivity) {
         VToggle(store.blockUpdates, enabled = owner) { toggle("blockUpdates", it) }
     }
     SettingRow("Desk mode", "Screen stays on while charging. The ambient clock takes over when idle.") {
-        VToggle(store.deskMode, V.Green, enabled = owner) { toggle("deskMode", it) }
+        VToggle(store.deskMode, V.Teal, enabled = owner) { toggle("deskMode", it) }
     }
     SettingRow("Hide Lenovo extras", if (bloat.isEmpty()) "No Lenovo or partner apps found to hide." else "Hides ${bloat.size}: ${bloat.joinToString(", ")}. Nothing is deleted; turning this off brings them back.") {
-        VToggle(store.hideLenovo, V.Purple, enabled = owner) { toggle("hideLenovo", it) }
+        VToggle(store.hideLenovo, V.Teal, enabled = owner) { toggle("hideLenovo", it) }
     }
     SettingRow("24-hour clock") { VToggle(store.use24h) { store.set("use24h", it) } }
     SettingRow("Ambient clock after", "Dim drifting clock when nobody touches the screen.") {}
@@ -493,10 +509,10 @@ private fun AboutPane(act: MainActivity) {
     val gb = { b: Long -> "%.1f GB".format(b / 1_073_741_824.0) }
     val up = SystemClock.elapsedRealtime() / 60_000
 
-    VText("VOIDOS", size = 40.sp, color = V.White, spacing = 8.sp)
-    VText("TAB EDITION  /  ${BuildConfig.VERSION_NAME}", size = 12.sp, color = V.Teal, spacing = 3.sp)
+    VText("Voidos", size = 40.sp, color = V.White)
+    VText("Tablet edition \u00b7 ${BuildConfig.VERSION_NAME}", size = 12.sp, color = V.Teal)
     Gap(h = 6.dp)
-    VText("Sister of VoidOS for PineTime. Same octagon, same lap colours, same Kenney type.", size = 12.sp, color = V.Muted, font = FontFamily.Default)
+    VText("Sister of VoidOS for PineTime. Same octagon, same lap colours, same SansMedium type.", size = 12.sp, color = V.Muted, font = FontFamily.Default)
     Gap(h = 18.dp)
     listOf(
         "Device" to "${Build.MANUFACTURER} ${Build.MODEL}",

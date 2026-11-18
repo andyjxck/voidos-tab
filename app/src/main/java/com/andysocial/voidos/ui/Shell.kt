@@ -10,6 +10,16 @@ import android.content.IntentFilter
 import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.systemGestureExclusion
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.geometry.CornerRadius
+import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -79,12 +89,12 @@ object Idle {
 }
 
 enum class Module(val label: String, val glyph: G, val accent: Color) {
-    FACE("Face", G.FACE, V.Cyan),
-    KITCHEN("Kitchen", G.KITCHEN, V.Orange),
-    WEATHER("Sky", G.WEATHER, V.Sun),
-    NOTES("Notes", G.NOTES, V.Yellow),
-    MEDIA("Sound", G.MEDIA, V.Pink),
-    APPS("Apps", G.APPS, V.Purple),
+    FACE("Home", G.FACE, V.Teal),
+    TOOLS("Tools", G.TIMER, V.Teal),
+    WEATHER("Weather", G.WEATHER, V.Teal),
+    NOTES("Notes", G.NOTES, V.Teal),
+    MEDIA("Music", G.MEDIA, V.Teal),
+    APPS("Apps", G.APPS, V.Teal),
     SYSTEM("Settings", G.SYSTEM, V.Teal),
 }
 
@@ -108,15 +118,33 @@ fun VoidRoot(store: Store, act: MainActivity) {
     }
 }
 
+/**
+ * The home shell. No sidebar: the screen is all content. Swipe sideways to move
+ * between screens, pull the left edge for the tab wheel, the right edge for the
+ * app wheel, and pull down from the top for the control centre.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
-    var module by rememberSaveable { mutableStateOf(start) }
+    val pages = Module.entries
+    val pager = rememberPagerState(initialPage = pages.indexOf(start)) { pages.size }
+    val scope = rememberCoroutineScope()
+    val module = pages[pager.currentPage]
     var escape by remember { mutableStateOf(false) }
+    var control by remember { mutableStateOf(false) }
     val ambient by Idle.ambient
     val home by Idle.homePressed
     val portrait = LocalPortrait.current
+    val ctx = LocalContext.current
 
-    LaunchedEffect(home) { if (home > 0) { module = Module.FACE; escape = false } }
+    fun go(m: Module, animate: Boolean = true) {
+        scope.launch {
+            val i = pages.indexOf(m)
+            if (animate && kotlin.math.abs(i - pager.currentPage) <= 1) pager.animateScrollToPage(i) else pager.scrollToPage(i)
+        }
+    }
+
+    LaunchedEffect(home) { if (home > 0) { go(Module.FACE, animate = false); escape = false; control = false } }
 
     // ambient clock after N idle minutes
     LaunchedEffect(store.ambientMinutes) {
@@ -129,193 +157,82 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
         }
     }
 
-    BackHandler(enabled = true) { if (escape) escape = false else module = Module.FACE }
+    BackHandler(enabled = true) {
+        when {
+            escape -> escape = false
+            control -> control = false
+            else -> go(Module.FACE)
+        }
+    }
 
-    val content: @Composable (Modifier) -> Unit = { m ->
-        Column(m) {
-            StatusStrip(store, module)
-            Gap(h = 10.dp)
-            AnimatedContent(
-                targetState = module,
-                transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
-                label = "module",
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-            ) { mod ->
-                when (mod) {
-                    Module.FACE -> FaceScreen(store, onOpen = { module = it })
-                    Module.KITCHEN -> KitchenScreen(store)
-                    Module.WEATHER -> WeatherScreen(store)
-                    Module.NOTES -> NotesScreen(store)
-                    Module.MEDIA -> MediaScreen()
-                    Module.APPS -> AppsScreen(store)
-                    Module.SYSTEM -> SystemScreen(store, act)
+    val side = if (portrait) 22.dp else 40.dp
+    Column(Modifier.fillMaxSize()) {
+        StatusStrip(store, module, Modifier.padding(horizontal = side), onPull = { control = true })
+        HorizontalPager(
+            state = pager,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            userScrollEnabled = store.swipeScreens,
+            beyondViewportPageCount = 0,
+            key = { pages[it].name },
+        ) { i ->
+            val mod = pages[i]
+            Column(Modifier.fillMaxSize().padding(start = side, end = side, bottom = 6.dp)) {
+                if (mod != Module.FACE) {
+                    VText(mod.label, size = if (portrait) 30.sp else 32.sp, font = SansMedium, color = V.White, modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
+                }
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    when (mod) {
+                        Module.FACE -> FaceScreen(store, onOpen = { go(it) })
+                        Module.TOOLS -> ToolsScreen(store)
+                        Module.WEATHER -> WeatherScreen(store)
+                        Module.NOTES -> NotesScreen(store)
+                        Module.MEDIA -> MediaScreen()
+                        Module.APPS -> AppsScreen(store)
+                        Module.SYSTEM -> SystemScreen(store, act)
+                    }
                 }
             }
         }
+        PageDots(pages.size, pager.currentPage)
     }
 
-    if (portrait) {
-        Column(Modifier.fillMaxSize()) {
-            content(Modifier.weight(1f).fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 10.dp))
-            BottomRail(store, module, onSelect = { module = it }, onEscape = { escape = true })
-        }
-    } else {
-        Row(Modifier.fillMaxSize()) {
-            Rail(store, module, onSelect = { module = it }, onEscape = { escape = true })
-            content(Modifier.weight(1f).fillMaxHeight().padding(start = 8.dp, end = 24.dp, top = 14.dp, bottom = 18.dp))
-        }
+    val apps = remember(store.recentApps, store.allowed) {
+        store.recentApps.filter { blockReason(ctx, store, it) == null }.take(7)
     }
+    val all = remember(apps) { AppsRepo.all(ctx) }
+    EdgeWheels(
+        tabs = pages.map { m -> WheelItem(m.name, m.label) { mod, c -> Glyph(m.glyph, c, mod) } },
+        currentTab = module.name,
+        onTab = { k -> go(Module.valueOf(k), animate = false) },
+        apps = apps.mapNotNull { pkg ->
+            val e = all.firstOrNull { it.pkg == pkg } ?: return@mapNotNull null
+            WheelItem(pkg, e.label) { mod, _ -> Box(mod) { AppGlyph(e, store.iconStyle, 36.dp) } }
+        },
+        onApp = { pkg -> if (!launchApp(ctx, store, pkg)) store.forgetRecent(pkg) },
+        onAllApps = { go(Module.APPS, animate = false) },
+        onEscape = { escape = true },
+        enabled = !escape && !control,
+    )
 
+    ControlCentre(control, store, act, onClose = { control = false }, onSettings = { go(Module.SYSTEM, animate = false) }, onEscape = { escape = true })
     if (ambient) AmbientClock(store)
     if (escape) EscapeOverlay(store, act, onClose = { escape = false })
 }
 
-/** The VoidOS mark with the hidden three-second hold that opens the escape PIN. */
+/** Small dots under the screens, so swiping sideways explains itself. */
 @Composable
-private fun EscapeMark(size: androidx.compose.ui.unit.Dp, onEscape: () -> Unit) {
-    var holding by remember { mutableStateOf(false) }
-    val now = rememberNow(if (holding) 50 else 60_000)
-    var since by remember { mutableStateOf(0L) }
-    Box(
-        Modifier.size(size).pointerInput(Unit) {
-            awaitEachGesture {
-                awaitFirstDown(requireUnconsumed = false)
-                val start = System.currentTimeMillis()
-                since = start; holding = true
-                val up = withTimeoutOrNull(3_000) { waitForUpOrCancellation() }
-                holding = false
-                if (up == null && System.currentTimeMillis() - start >= 2_900) onEscape()
-            }
-        },
-        contentAlignment = Alignment.Center,
-    ) {
-        // the mark wipes in while you hold, so you can tell the hold is working
-        val p = if (holding) ((now - since) / 3000f).coerceIn(0f, 1f) else 1f
-        VoidMark(Modifier.size(size * 0.72f), progress = p)
-    }
-}
-
-/**
- * The rail, in the logo's language: the six-colour bar runs down its edge,
- * the selected screen gets the logo's teal-style pill in its own colour, and
- * nothing is boxed in.
- */
-@Composable
-private fun LapEdge(modifier: Modifier, vertical: Boolean) {
-    Canvas(modifier) {
-        val n = V.Lap.size
-        val gap = 6.dp.toPx()
-        val len = (if (vertical) size.height else size.width)
-        val seg = (len - gap * (n - 1)) / n
-        V.Lap.forEachIndexed { i, c ->
-            val a = i * (seg + gap)
-            if (vertical) drawLine(c.copy(alpha = 0.55f), Offset(size.width / 2, a), Offset(size.width / 2, a + seg), size.width, StrokeCap.Round)
-            else drawLine(c.copy(alpha = 0.55f), Offset(a, size.height / 2), Offset(a + seg, size.height / 2), size.height, StrokeCap.Round)
+private fun PageDots(n: Int, current: Int) {
+    Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 12.dp), horizontalArrangement = Arrangement.Center) {
+        repeat(n) { i ->
+            val w by animateDpAsState(if (i == current) 18.dp else 6.dp, label = "dot")
+            Box(
+                Modifier.padding(horizontal = 3.dp).size(w, 6.dp).clip(RoundedCornerShape(50))
+                    .background(if (i == current) V.White.copy(alpha = 0.85f) else V.White.copy(alpha = 0.22f))
+            )
         }
     }
 }
 
-/** Landscape: the left rail. */
-@Composable
-fun Rail(store: Store, current: Module, onSelect: (Module) -> Unit, onEscape: () -> Unit) {
-    Row(Modifier.width(96.dp).fillMaxHeight().background(V.Deep)) {
-        Column(
-            Modifier.weight(1f).fillMaxHeight().padding(vertical = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            EscapeMark(60.dp, onEscape)
-            BoxWithConstraints(Modifier.weight(1f)) {
-                // on a short screen (bigger display size) the labels go, so no item is squashed
-                val labels = store.railLabels && maxHeight / Module.entries.size >= 54.dp
-                Column(Modifier.fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly, horizontalAlignment = Alignment.CenterHorizontally) {
-                    Module.entries.forEach { m -> RailItem(m, m == current, labels, Modifier.fillMaxWidth(), vertical = true) { onSelect(m) } }
-                }
-            }
-        }
-        LapEdge(Modifier.width(3.dp).fillMaxHeight().padding(vertical = 18.dp), vertical = true)
-    }
-}
-
-/** Portrait: the same rail laid along the bottom edge. */
-@Composable
-fun BottomRail(store: Store, current: Module, onSelect: (Module) -> Unit, onEscape: () -> Unit) {
-    Column(Modifier.fillMaxWidth().background(V.Deep)) {
-        LapEdge(Modifier.fillMaxWidth().height(3.dp).padding(horizontal = 18.dp), vertical = false)
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            EscapeMark(52.dp, onEscape)
-            BoxWithConstraints(Modifier.weight(1f)) {
-                // narrow screens get a tighter label so KITCHEN still fits
-                val tight = maxWidth / Module.entries.size < 68.dp
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    Module.entries.forEach { m -> RailItem(m, m == current, store.railLabels, Modifier.weight(1f), tight, vertical = false) { onSelect(m) } }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RailItem(m: Module, sel: Boolean, labels: Boolean, modifier: Modifier, tight: Boolean = false, vertical: Boolean, onClick: () -> Unit) {
-    // the selection fades in rather than jumping
-    val tint by animateColorAsState(if (sel) m.accent else V.Muted.copy(alpha = 0.8f), tween(220), label = "railTint")
-    val pill by animateColorAsState(if (sel) m.accent else Color.Transparent, tween(220), label = "railPill")
-    val glow by animateColorAsState(if (sel) m.accent.copy(alpha = 0.10f) else Color.Transparent, tween(220), label = "railGlow")
-    val badge = railBadge(m)
-    Box(modifier.clickable(onClick = onClick)) {
-        // the pill: on the outer edge in landscape, on top in portrait
-        Canvas(Modifier.matchParentSize()) {
-            val w = 4.dp.toPx()
-            if (vertical) {
-                val h = size.height * 0.5f
-                drawLine(pill, Offset(w / 2, (size.height - h) / 2), Offset(w / 2, (size.height + h) / 2), w, StrokeCap.Round)
-            } else {
-                val l = size.width * 0.4f
-                drawLine(pill, Offset((size.width - l) / 2, w / 2), Offset((size.width + l) / 2, w / 2), w, StrokeCap.Round)
-            }
-            drawCircle(glow, size.minDimension * 0.42f, Offset(size.width / 2, size.height / 2 - if (labels) 6.dp.toPx() else 0f))
-        }
-        Column(
-            Modifier.fillMaxWidth().padding(vertical = if (labels) 7.dp else 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Glyph(m.glyph, tint, Modifier.size(if (sel) 27.dp else 24.dp))
-            if (labels) {
-                Gap(h = 5.dp)
-                VText(m.label.uppercase(), size = if (tight) 7.sp else 8.sp, color = tint, spacing = if (tight) 0.2.sp else 1.sp, maxLines = 1)
-            }
-        }
-        // a live badge: running timers on Kitchen (red while one rings), a dot on Sound while something plays
-        if (badge != null) Box(
-            Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = 10.dp)
-                .size(if (badge.first.isEmpty()) 8.dp else 16.dp).clip(RoundedCornerShape(50)).background(badge.second),
-            contentAlignment = Alignment.Center,
-        ) { if (badge.first.isNotEmpty()) VText(badge.first, size = 9.sp, color = V.Bg, maxLines = 1) }
-    }
-}
-
-/** What a rail item's badge shows, or null: (text, colour); empty text draws a dot. */
-@Composable
-private fun railBadge(m: Module): Pair<String, Color>? = when (m) {
-    Module.KITCHEN -> {
-        val timers by KTimers.list
-        val ringing by KTimers.ringing
-        val running = timers.count { it.running }
-        when {
-            ringing.isNotEmpty() -> "!" to V.Coral
-            running > 0 -> running.toString() to m.accent
-            else -> null
-        }
-    }
-    Module.MEDIA -> {
-        val local by Player.playing
-        val other by Now.playing
-        if (local || other?.playing == true) "" to m.accent else null
-    }
-    else -> null
-}
 
 // --------------------------------------------------------------- status strip
 
@@ -352,11 +269,16 @@ fun rememberNow(periodMs: Long = 1000): Long {
     return now
 }
 
+/**
+ * The thin status line along the top. Tap it, or pull down from it, for the
+ * control centre. The grabber in the middle says it can be pulled.
+ */
 @Composable
-fun StatusStrip(store: Store, module: Module) {
+fun StatusStrip(store: Store, module: Module, modifier: Modifier = Modifier, onPull: () -> Unit) {
     val ctx = LocalContext.current
     val now = rememberNow(10_000)
     val bat = rememberBattery()
+    val pull by rememberUpdatedState(onPull)
     val wifiOn = remember(now) {
         runCatching {
             val wm = ctx.applicationContext.getSystemService(WifiManager::class.java)
@@ -364,36 +286,50 @@ fun StatusStrip(store: Store, module: Module) {
             wm.isWifiEnabled && wm.connectionInfo?.networkId != -1
         }.getOrDefault(false)
     }
-    Row(Modifier.fillMaxWidth().height(28.dp), verticalAlignment = Alignment.CenterVertically) {
-        VText(module.label.uppercase(), size = 13.sp, color = module.accent, spacing = 3.sp)
-        Spacer(Modifier.weight(1f))
-        if (module != Module.FACE) {
-            val fmt = if (store.use24h) "HH:mm" else "h:mm"
-            VText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), size = 13.sp, color = V.Text, spacing = 1.sp)
-            Gap(w = 18.dp)
+    Box(
+        Modifier.fillMaxWidth().height(44.dp)
+            .systemGestureExclusion()
+            .pointerInput(Unit) {
+                var dy = 0f
+                detectVerticalDragGestures(onDragStart = { dy = 0f }) { ch, d ->
+                    dy += d; ch.consume()
+                    if (dy > 36f) { dy = -10_000f; pull() }
+                }
+            }
+            .tap { pull() }
+            .then(modifier),
+    ) {
+        Box(Modifier.align(Alignment.TopCenter).padding(top = 6.dp).size(36.dp, 4.dp).clip(RoundedCornerShape(50)).background(V.White.copy(alpha = 0.16f)))
+        Row(Modifier.fillMaxSize().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (module != Module.FACE) {
+                val fmt = if (store.use24h) "HH:mm" else "h:mm"
+                VText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), size = 15.sp, font = SansMedium, color = V.Text)
+            }
+            Spacer(Modifier.weight(1f))
+            Glyph(G.WIFI, if (wifiOn) V.Text else V.Tick, Modifier.size(17.dp))
+            Gap(w = 14.dp)
+            BatteryGlyph(bat)
         }
-        Glyph(G.WIFI, if (wifiOn) V.Teal else V.Tick, Modifier.size(18.dp))
-        Gap(w = 16.dp)
-        BatteryGlyph(bat)
     }
 }
 
 @Composable
 fun BatteryGlyph(b: Battery) {
     val col = when {
-        b.charging -> V.Green
-        b.pct in 0..15 -> V.Coral
+        b.pct in 0..15 && !b.charging -> V.Coral
         else -> V.Text
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Canvas(Modifier.size(30.dp, 15.dp)) {
-            drawRect(col, Offset(0f, 0f), Size(size.width - 4f, size.height), style = Stroke(2f))
-            drawRect(col, Offset(size.width - 3f, size.height * 0.3f), Size(3f, size.height * 0.4f))
-            val f = (b.pct.coerceIn(0, 100) / 100f)
-            drawRect(col, Offset(3f, 3f), Size((size.width - 10f) * f, size.height - 6f))
-        }
+        VText(if (b.pct >= 0) "${b.pct}%" else "--", size = 13.sp, color = V.Muted)
         Gap(w = 6.dp)
-        VText(if (b.pct >= 0) "${b.pct}%" else "--", size = 12.sp, color = col)
+        Canvas(Modifier.size(26.dp, 13.dp)) {
+            val r = CornerRadius(3.5.dp.toPx())
+            drawRoundRect(col.copy(alpha = 0.45f), Offset(0f, 0f), Size(size.width - 3.dp.toPx(), size.height), r, style = Stroke(1.2.dp.toPx()))
+            drawRoundRect(col.copy(alpha = 0.45f), Offset(size.width - 2.dp.toPx(), size.height * 0.32f), Size(2.dp.toPx(), size.height * 0.36f), CornerRadius(1.dp.toPx()))
+            val f = (b.pct.coerceIn(0, 100) / 100f)
+            val inset = 2.2.dp.toPx()
+            drawRoundRect(if (b.charging) V.Green else col, Offset(inset, inset), Size((size.width - 3.dp.toPx() - 2 * inset) * f, size.height - 2 * inset), CornerRadius(2.dp.toPx()))
+        }
     }
 }
 
@@ -409,18 +345,8 @@ fun AmbientClock(store: Store) {
     val fmt = if (store.use24h) "HH:mm" else "h:mm"
     Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
         Column(Modifier.offset((dx * 0.6f).dp, (dy * 0.8f).dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            VText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), size = if (LocalPortrait.current) 96.sp else 120.sp, color = V.Text.copy(alpha = 0.55f), font = Kenney)
-            Gap(h = 6.dp)
-            VText(SimpleDateFormat("EEE d MMM", Locale.UK).format(Date(now)).uppercase(), size = 18.sp, color = V.Muted.copy(alpha = 0.6f), spacing = 3.sp)
-            Gap(h = 18.dp)
-            Canvas(Modifier.size(260.dp, 6.dp)) {
-                val sec = (now / 1000 % 60).toInt()
-                for (i in 0 until 60) {
-                    val x = size.width * i / 60f
-                    val col = if (i <= sec) V.Lap[((minute) % 6).toInt()].copy(alpha = 0.5f) else V.Line.copy(alpha = 0.5f)
-                    drawLine(col, Offset(x, 0f), Offset(x, size.height), 2f)
-                }
-            }
+            VText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), size = if (LocalPortrait.current) 120.sp else 150.sp, color = V.Text.copy(alpha = 0.5f), font = SansThin)
+            VText(SimpleDateFormat("EEEE d MMMM", Locale.UK).format(Date(now)), size = 20.sp, color = V.Muted.copy(alpha = 0.6f))
         }
     }
 }

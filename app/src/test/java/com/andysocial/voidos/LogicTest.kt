@@ -47,14 +47,14 @@ class LogicTest {
     }
 
     @Test fun oven() {
-        assertEquals(356.0, conv("Oven", "Celsius", "Fahrenheit", 180.0), 1e-9)
-        assertEquals(160.0, conv("Oven", "Celsius", "Fan oven", 180.0), 1e-9)
-        assertEquals(4.0, conv("Oven", "Celsius", "Gas mark", 180.0), 1e-9)
-        assertEquals(6.0, conv("Oven", "Fahrenheit", "Gas mark", 400.0), 1e-9)
-        assertEquals(220.0, conv("Oven", "Gas mark", "Celsius", 7.0), 1e-9)
+        assertEquals(356.0, conv("Temperature", "Celsius", "Fahrenheit", 180.0), 1e-9)
+        assertEquals(160.0, conv("Temperature", "Celsius", "Fan oven", 180.0), 1e-9)
+        assertEquals(4.0, conv("Temperature", "Celsius", "Gas mark", 180.0), 1e-9)
+        assertEquals(6.0, conv("Temperature", "Fahrenheit", "Gas mark", 400.0), 1e-9)
+        assertEquals(220.0, conv("Temperature", "Gas mark", "Celsius", 7.0), 1e-9)
         // no gas mark for a fridge or a pizza oven
-        assertTrue(conv("Oven", "Celsius", "Gas mark", 20.0).isNaN())
-        assertTrue(conv("Oven", "Celsius", "Gas mark", 300.0).isNaN())
+        assertTrue(conv("Temperature", "Celsius", "Gas mark", 20.0).isNaN())
+        assertTrue(conv("Temperature", "Celsius", "Gas mark", 300.0).isNaN())
     }
 
     @Test fun length() {
@@ -233,7 +233,7 @@ class LogicTest {
             "hourly":{"time":["2026-11-17T21:00"],"temperature_2m":[7.0],"weather_code":[3],"precipitation_probability":[10]},
             "daily":{"time":["2026-11-17"],"weather_code":[61],"temperature_2m_max":[9.1],"temperature_2m_min":[3.2],"sunrise":["2026-11-17T07:31"],"sunset":["2026-11-17T16:12"],"precipitation_probability_max":[60]}}"""
         val wx = WeatherRepo.parse(raw, 1000L)
-        assertEquals(7.4, wx.temp, 0.01); assertEquals("07:31", wx.sunrise); assertEquals("TODAY", wx.days[0].label)
+        assertEquals(7.4, wx.temp, 0.01); assertEquals("07:31", wx.sunrise); assertEquals("Today", wx.days[0].label)
         assertEquals("just now", wxAge(0L, 30_000L))
         assertEquals("45m ago", wxAge(0L, 45 * 60_000L))
         assertEquals("3h ago", wxAge(0L, 3 * 3_600_000L))

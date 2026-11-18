@@ -81,23 +81,25 @@ fun HubPane(store: Store, act: MainActivity) {
     val ctx = LocalContext.current
     var name by remember { mutableStateOf(store.hubName) }
     val access = remember { mutableStateOf(VoidListener.enabled(ctx)) }
-    Head("Hub", "How VoidOS looks and behaves day to day.")
-    SettingRow("Hub name", "Shown on the lock screen, e.g. KITCHEN HUB.") {}
+    Head("Home & lock screen", "How VoidOS looks and moves day to day.")
+    SettingRow("Tablet name", "Shown on the lock screen.") {}
     Row(verticalAlignment = Alignment.CenterVertically) {
-        VField(name, { name = it.take(16) }, Modifier.weight(1f), placeholder = "Kitchen", onDone = { store.setHubName(name.ifBlank { "Kitchen" }) })
+        VField(name, { name = it.take(16) }, Modifier.weight(1f), placeholder = "Home", onDone = { store.setHubName(name.ifBlank { "Home" }) })
         Gap(w = 8.dp)
-        VButton("Save", accent = V.Teal) { store.setHubName(name.ifBlank { "Kitchen" }) }
+        VButton("Save") { store.setHubName(name.ifBlank { "Home" }) }
     }
-    SettingRow("App icons", "Void: VoidOS glyphs for apps it knows, the rest greyed in an octagon. Letters: initials. Colour: each app's own icon.") {}
+    SettingRow("Swipe between screens", "Swipe left or right on a screen to move to the next one. The edge wheels work either way.") {
+        VToggle(store.swipeScreens) { store.set("swipeScreens", it) }
+    }
+    SettingRow("App icons", "Void: VoidOS line icons for apps it knows, the rest greyed. Letters: initials. Colour: each app's own icon.") {}
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf("void" to "Void", "letter" to "Letters", "colour" to "Colour").forEach { (k, l) ->
             VButton(l, accent = V.Teal, filled = store.iconStyle == k) { store.setIconStyle(k) }
         }
     }
-    SettingRow("Face widgets", "Tap + on the face to add Sky, Sound, the list or a note. Hold one to drag it.") {
+    SettingRow("Home widgets", "Tap + on Home to add the weather, music, the list or a note. Hold one to drag it.") {
         VButton("Clear all", accent = V.Muted, enabled = store.widgets.isNotEmpty()) { store.saveWidgets(emptyList()) }
     }
-    SettingRow("Labels under rail icons") { VToggle(store.railLabels) { store.set("railLabels", it) } }
     SettingRow("Fahrenheit", "Weather in °F instead of °C.") { VToggle(store.tempF) { store.set("tempF", it) } }
     SettingRow("Timer alarm sound", "Loops until you press Stop. Uses the Alarms volume.") { VToggle(store.timerSound, V.Orange) { store.set("timerSound", it) } }
     Gap(h = 18.dp)
@@ -150,7 +152,7 @@ fun QuietPane(act: MainActivity) {
             Glyph(if (f == NotificationManager.INTERRUPTION_FILTER_ALL) G.BELL else G.MOON, if (sel) V.Teal else V.Muted, Modifier.size(22.dp))
             Gap(w = 12.dp)
             Column(Modifier.weight(1f)) {
-                VText(title.uppercase(), size = 13.sp, color = if (sel) V.Teal else V.Text, spacing = 1.sp)
+                VText(sentence(title), size = 13.sp, color = if (sel) V.Teal else V.Text)
                 VText(detail, size = 12.sp, color = V.Muted, font = FontFamily.Default)
             }
             if (sel) Glyph(G.CHECK, V.Teal, Modifier.size(20.dp))
@@ -221,7 +223,7 @@ fun BatteryPane() {
     val charging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
     Head("Battery", if (charging) "Charging" else "On battery")
     Row(verticalAlignment = Alignment.CenterVertically) {
-        VText(if (pct >= 0) "$pct%" else "--", size = 64.sp, color = V.White, font = Jupi)
+        VText(if (pct >= 0) "$pct%" else "--", size = 64.sp, color = V.White, font = SansLight)
         Gap(w = 20.dp)
         Box(Modifier.weight(1f).height(26.dp).clip(OctS).background(V.Panel2).border(1.dp, V.Line, OctS)) {
             Box(Modifier.fillMaxWidth((pct.coerceIn(0, 100)) / 100f).height(26.dp).background(if (pct < 20) V.Coral else if (charging) V.Green else V.Teal))
@@ -294,9 +296,9 @@ fun StoragePane(store: Store) {
         val used = d.totalBytes - d.availableBytes
         val frac = used.toFloat() / d.totalBytes.coerceAtLeast(1)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            VText(gb(d.availableBytes), size = 40.sp, color = V.White, font = Jupi)
+            VText(gb(d.availableBytes), size = 40.sp, color = V.White, font = SansLight)
             Gap(w = 10.dp)
-            VText("FREE OF ${gb(d.totalBytes)}", size = 12.sp, color = V.Muted, spacing = 1.sp)
+            VText("free of ${gb(d.totalBytes)}", size = 12.sp, color = V.Muted)
         }
         Gap(h = 8.dp)
         Box(Modifier.fillMaxWidth().height(16.dp).clip(OctS).background(V.Panel2)) {
@@ -350,7 +352,7 @@ fun AndroidPane(act: MainActivity) {
                         .clickable { if (!open(ctx, action)) open(ctx, Settings.ACTION_SETTINGS) }.padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    VText(label.uppercase(), size = 12.sp, color = V.Text, spacing = 1.sp, modifier = Modifier.weight(1f))
+                    VText(sentence(label), size = 12.sp, color = V.Text, modifier = Modifier.weight(1f))
                     Glyph(G.CHEV, V.Muted, Modifier.size(16.dp))
                 }
             }

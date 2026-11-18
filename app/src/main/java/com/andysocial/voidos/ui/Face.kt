@@ -1,5 +1,7 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.foundation.shape.CircleShape
+
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.Typeface
@@ -73,8 +75,8 @@ import kotlin.math.sin
 
 /**
  * The home face: the time and your timers, and nothing else unless you put
- * it there. The octagon clock sits dead centre with a field of small squares
- * around it. Running timers show as small pills above the time. Widgets
+ * it there. The date sits over a large, thin clock in the middle of the
+ * screen; running timers show as small pills underneath. Widgets
  * (weather, sound, the list, any note) are optional: add them with +, hold
  * one to drag it anywhere, and they stay where you leave them.
  */
@@ -88,8 +90,6 @@ fun FaceScreen(store: Store, onOpen: (Module) -> Unit) {
 
     Column(Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            val minute = Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.MINUTE)
-            SquareField(Modifier.fillMaxSize(), V.Lap[minute % 6])
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Dial(store, now, onOpen, Modifier.fillMaxSize())
             }
@@ -103,8 +103,8 @@ fun FaceScreen(store: Store, onOpen: (Module) -> Unit) {
         // favourites, only when you've starred some
         if (favs.isNotEmpty()) {
             Row(
-                Modifier.align(Alignment.CenterHorizontally).padding(top = 10.dp).clip(RoundedCornerShape(50))
-                    .background(V.Panel).border(1.dp, V.Line, RoundedCornerShape(50)).padding(horizontal = 18.dp, vertical = 6.dp),
+                Modifier.align(Alignment.CenterHorizontally).padding(top = 10.dp)
+                    .glass(RoundedCornerShape(30.dp), 0.7f).padding(horizontal = 18.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) { favs.take(6).forEach { app -> AppIcon(app, 42.dp) { launchApp(ctx, store, app.pkg) } } }
         }
@@ -119,46 +119,12 @@ internal fun octRadius(a: Float, t: Double): Float {
     return (a / cos(off)).toFloat()
 }
 
-/**
- * Small rounded squares on a grid around the clock: brightest near the dial,
- * fading out towards the edges, a few picked out in the six watch colours.
- */
+/** The system's thin and regular sans as Android typefaces, for text centred by its ink rather than its line box. */
 @Composable
-private fun SquareField(modifier: Modifier, lap: Color) {
-    Canvas(modifier) {
-        val pitch = 30.dp.toPx()
-        val sq = 9.dp.toPx()
-        val c = Offset(size.width / 2, size.height / 2)
-        val dial = size.minDimension / 2 * 0.98f
-        val far = hypot(size.width / 2, size.height / 2)
-        val cols = (size.width / pitch).toInt() + 1
-        val rows = (size.height / pitch).toInt() + 1
-        val ox = (size.width - (cols - 1) * pitch) / 2
-        val oy = (size.height - (rows - 1) * pitch) / 2
-        for (r in 0 until rows) for (k in 0 until cols) {
-            val p = Offset(ox + k * pitch, oy + r * pitch)
-            val d = hypot(p.x - c.x, p.y - c.y)
-            if (d < dial) continue
-            val fade = (1f - (d - dial) / (far - dial + 1f)).coerceIn(0f, 1f)
-            // a fixed scatter of coloured squares; the rest are plain
-            val h = (r * 73 + k * 151) % 23
-            val col = if (h == 0) V.Lap[(r + k) % 6] else if (h == 7) lap else V.Line
-            val a = (if (h == 0 || h == 7) 0.55f else 0.7f) * fade * fade
-            if (a < 0.03f) continue
-            drawRoundRect(col.copy(alpha = a), Offset(p.x - sq / 2, p.y - sq / 2), Size(sq, sq), CornerRadius(sq * 0.28f))
-        }
-    }
-}
-
-/** Kenney, as an Android typeface, for text centred by its ink rather than its line box. */
-@Composable
-private fun rememberKenney(): Typeface {
-    val ctx = LocalContext.current
-    return remember { runCatching { ResourcesCompat.getFont(ctx, R.font.kenney_future) }.getOrNull() ?: Typeface.DEFAULT_BOLD }
-}
+private fun rememberFace(name: String): Typeface = remember(name) { Typeface.create(name, Typeface.NORMAL) }
 
 /**
- * Text sized to its ink and drawn dead centre in it. Kenney's digits sit left
+ * Text sized to its ink and drawn dead centre in it. SansMedium's digits sit left
  * of their advance and its line box adds space above, so ordinary text drifts
  * left and down; this doesn't.
  */
@@ -185,68 +151,34 @@ private fun InkText(text: String, sizePx: Float, color: Color, face: Typeface, s
 }
 
 /**
- * The octagon clock: sixty second ticks run round an octagon and fill in the
- * minute's lap colour, with a bead on the second. Inside, centred on the
- * dial: the date, running timers as pills, the time, then the seconds.
+ * The clock: the date, then the time as large as the space allows in a thin
+ * face, then any running timers. Nothing around it.
  */
 @Composable
 private fun Dial(store: Store, now: Long, onOpen: (Module) -> Unit, modifier: Modifier) {
-    val cal = Calendar.getInstance().apply { timeInMillis = now }
-    val sec = cal.get(Calendar.SECOND)
-    val minute = cal.get(Calendar.MINUTE)
     val fmt = if (store.use24h) "HH:mm" else "h:mm"
     val timers by KTimers.list
     val running = timers.filter { it.running }.sortedBy { it.endAt }
-    val face = rememberKenney()
+    val thin = rememberFace("sans-serif-thin")
+    val regular = rememberFace("sans-serif")
     val d = LocalDensity.current
-    SquareFit(modifier) { side ->
-        Box(Modifier.size(side).testTag("dial"), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.fillMaxSize()) {
-                val c = Offset(size.width / 2, size.height / 2)
-                val R = size.minDimension / 2 * 0.96f
-                val apo = R * cos(PI / 8).toFloat()           // so the corners touch R
-                val cur = V.Lap[minute % 6]; val prev = V.Lap[(minute + 5) % 6]
-                for (i in 0 until 60) {
-                    val t = i / 60.0 * 2 * PI - PI / 2
-                    val quarter = i % 15 == 0
-                    val major = i % 5 == 0
-                    val outer = octRadius(apo, t)
-                    val len = R * when { quarter -> 0.13f; major -> 0.10f; else -> 0.065f }
-                    val col = if (i <= sec) cur else prev.copy(alpha = 0.30f)
-                    val dx = cos(t).toFloat(); val dy = sin(t).toFloat()
-                    drawLine(col, Offset(c.x + dx * (outer - len), c.y + dy * (outer - len)),
-                        Offset(c.x + dx * outer, c.y + dy * outer),
-                        R * when { quarter -> 0.026f; major -> 0.02f; else -> 0.012f }, StrokeCap.Round)
-                }
-                drawOct(c, R * 0.76f, V.Line, width = R * 0.008f)
-                drawOct(c, R * 0.72f, V.Panel, fill = true)
-                drawOct(c, R * 0.72f, cur.copy(alpha = 0.05f), fill = true)
-                drawOct(c, R * 0.72f, cur.copy(alpha = 0.35f), width = R * 0.006f)
-                val t = sec / 60.0 * 2 * PI - PI / 2
-                val br = octRadius(apo, t) - R * 0.17f
-                drawCircle(cur.copy(alpha = 0.25f), R * 0.045f, Offset(c.x + cos(t).toFloat() * br, c.y + sin(t).toFloat() * br))
-                drawCircle(cur, R * 0.022f, Offset(c.x + cos(t).toFloat() * br, c.y + sin(t).toFloat() * br))
-            }
-            val px = with(d) { side.toPx() } / 520f   // the design is drawn for a 520 px dial
-            val gap = with(d) { (12 * px).toDp() }
-            CentredStack(
-                gap = gap,
-                above = {
-                    InkText(SimpleDateFormat("EEE, MMM d", Locale.UK).format(Date(now)).uppercase(), 19 * px * 1.25f, V.Text, face, 0.1f)
-                    if (running.isNotEmpty()) TimerPills(running, now, px, onOpen)
-                },
-                centre = { InkText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), 112 * px * 1.25f, V.White, face, modifier = Modifier.testTag("time")) },
-                below = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (!store.use24h) {
-                            InkText(if (cal.get(Calendar.AM_PM) == Calendar.AM) "AM" else "PM", 18 * px * 1.25f, V.Muted, face, 0.1f)
-                            Gap(w = with(d) { (14 * px).toDp() })
-                        }
-                        InkText("%02d".format(sec), 22 * px * 1.25f, V.Lap[minute % 6], face)
-                    }
-                },
-            )
-        }
+    BoxWithConstraints(modifier.testTag("dial")) {
+        val w = with(d) { maxWidth.toPx() }
+        val h = with(d) { maxHeight.toPx() }
+        // the time takes about two thirds of the width, or less when the screen is short
+        val timePx = minOf(w * 0.30f, h * 0.36f)
+        val gap = with(d) { (timePx * 0.10f).toDp() }
+        CentredStack(
+            gap = gap,
+            above = {
+                InkText(SimpleDateFormat("EEEE d MMMM", Locale.UK).format(Date(now)), timePx * 0.115f, V.Text.copy(alpha = 0.78f), regular, 0.01f)
+            },
+            centre = {
+                // no AM/PM: the time alone, as big as it can be
+                InkText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), timePx, V.White, thin, -0.02f, modifier = Modifier.testTag("time"))
+            },
+            below = { if (running.isNotEmpty()) TimerPills(running, now, timePx / 400f, onOpen) },
+        )
     }
 }
 
@@ -278,22 +210,24 @@ private fun CentredStack(gap: Dp, above: @Composable () -> Unit, centre: @Compos
     }
 }
 
-/** Running timers, smallest first: up to two pills, then "+n". Tap one to open Kitchen. */
+/** Running timers, soonest first: up to two pills, then "+n". Tap one to open Tools. */
 @Composable
 private fun TimerPills(running: List<KTimer>, now: Long, px: Float, onOpen: (Module) -> Unit) {
     val d = LocalDensity.current
     val fs = with(d) { (15 * px * 1.25f).toSp() }
     Row(horizontalArrangement = Arrangement.spacedBy(with(d) { (8 * px).toDp() }), verticalAlignment = Alignment.CenterVertically) {
         running.take(2).forEach { t ->
-            val col = V.Lap[t.colour.mod(V.Lap.size)].let { if (t.remaining(now) < 60_000) V.Coral else it }
+            val soon = t.remaining(now) < 60_000
             Row(
-                Modifier.clip(RoundedCornerShape(50)).background(col.copy(alpha = 0.14f)).border(1.dp, col.copy(alpha = 0.7f), RoundedCornerShape(50))
-                    .tap { onOpen(Module.KITCHEN) }.padding(horizontal = with(d) { (12 * px).toDp() }, vertical = with(d) { (5 * px).toDp() }),
+                Modifier.glass(RoundedCornerShape(50), 0.8f)
+                    .tap { onOpen(Module.TOOLS) }.padding(horizontal = with(d) { (16 * px).toDp() }, vertical = with(d) { (7 * px).toDp() }),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                VText(t.label.uppercase().take(10), size = fs * 0.75f, color = col, spacing = 1.sp, maxLines = 1)
-                Gap(w = 8.dp)
-                VText(fmtDur(t.remaining(now)), size = fs, color = V.White, font = Jupi, maxLines = 1)
+                Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(if (soon) V.Coral else V.Teal))
+                Gap(w = 10.dp)
+                VText(t.label.take(14), size = fs * 0.85f, color = V.Muted, maxLines = 1)
+                Gap(w = 10.dp)
+                VText(fmtDur(t.remaining(now)), size = fs, color = V.White, font = SansLight, maxLines = 1)
             }
         }
         if (running.size > 2) VText("+${running.size - 2}", size = fs * 0.85f, color = V.Muted, maxLines = 1)
@@ -303,10 +237,9 @@ private fun TimerPills(running: List<KTimer>, now: Long, px: Float, onOpen: (Mod
 @Composable
 private fun FaceEditButton(editing: Boolean, onClick: () -> Unit) {
     Box(
-        Modifier.padding(4.dp).size(44.dp).clip(OctS).background(if (editing) V.Teal.copy(alpha = 0.2f) else V.Panel.copy(alpha = 0.7f))
-            .border(1.dp, if (editing) V.Teal else V.Line, OctS).tap(onClick),
+        Modifier.padding(4.dp).size(42.dp).clip(CircleShape).background(if (editing) V.Teal else V.Panel.copy(alpha = 0.7f)).tap(onClick),
         contentAlignment = Alignment.Center,
-    ) { Glyph(if (editing) G.CHECK else G.PLUS, if (editing) V.Teal else V.Muted, Modifier.size(22.dp)) }
+    ) { Glyph(if (editing) G.CHECK else G.PLUS, if (editing) V.Bg else V.Muted, Modifier.size(20.dp)) }
 }
 
 /** The widget picker: what you can put on the face, and a tick for what's already there. */
@@ -332,9 +265,9 @@ private fun WidgetMenu(store: Store, modifier: Modifier, onDone: () -> Unit) {
                     if (has) Glyph(G.CHECK, accent, Modifier.size(18.dp))
                 }
             }
-            row("Sky", G.WEATHER, V.Sun, "sky")
-            row("Sound", G.MEDIA, V.Purple, "sound")
-            row("Shopping list", G.LIST, V.Green, "list")
+            row("Weather", G.WEATHER, V.Teal, "sky")
+            row("Music", G.MEDIA, V.Teal, "sound")
+            row("List", G.LIST, V.Teal, "list")
             store.notes.take(8).forEach { n ->
                 row(n.text.lineSequence().firstOrNull()?.ifBlank { null } ?: if (n.ink.isNotEmpty()) "Drawing" else "Empty note", G.NOTES, V.Yellow, "note", n.id)
             }
@@ -394,13 +327,13 @@ private fun widgetSize(wd: FaceWidget): Pair<Dp, Dp> = when (wd.kind) {
 
 @Composable
 private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module) -> Unit, lifted: Boolean) {
-    val accent = when (wd.kind) { "sky" -> V.Sun; "sound" -> V.Purple; "list" -> V.Green; else -> V.Yellow }
+    val accent = V.Teal
     val shape = RoundedCornerShape(18.dp)
     Column(
         Modifier.fillMaxSize().clip(shape).background(V.Panel.copy(alpha = if (lifted) 1f else 0.92f))
             .border(if (lifted) 2.dp else 1.dp, if (lifted) accent else V.Line, shape)
             .tap {
-                onOpen(when (wd.kind) { "sky" -> Module.WEATHER; "sound" -> Module.MEDIA; "list" -> Module.KITCHEN; else -> Module.NOTES })
+                onOpen(when (wd.kind) { "sky" -> Module.WEATHER; "sound" -> Module.MEDIA; "list" -> Module.TOOLS; else -> Module.NOTES })
             }
             .padding(14.dp),
     ) {
@@ -418,13 +351,13 @@ private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module)
                     else Column {
                         Glyph(wxGlyph(w.code, w.isDay), wxColour(w.code, w.isDay), Modifier.size(40.dp))
                         Gap(h = 4.dp)
-                        VText(t(w.temp), size = 34.sp, color = V.White, font = Jupi, maxLines = 1)
+                        VText(t(w.temp), size = 34.sp, color = V.White, font = SansLight, maxLines = 1)
                     }
                 }
                 VText(
-                    if (off && w != null) "OFFLINE " + wxAge(w.fetched, now).uppercase()
+                    if (off && w != null) "Offline \u00b7 " + wxAge(w.fetched, now)
                     else w?.let { "${t(it.days.firstOrNull()?.max ?: it.temp)} / ${t(it.days.firstOrNull()?.min ?: it.temp)}" } ?: "",
-                    size = 10.sp, color = if (off) V.Coral else V.Muted, spacing = 1.sp, maxLines = 1,
+                    size = 10.sp, color = if (off) V.Coral else V.Muted, maxLines = 1,
                 )
             }
             "sound" -> {
@@ -432,22 +365,22 @@ private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module)
                 val p = playing
                 Label(if (p != null) p.appName.take(18) else "Sound")
                 Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    if (p == null || p.title.isBlank()) VText("NOTHING PLAYING", size = 11.sp, color = V.Muted, spacing = 1.sp, modifier = Modifier.weight(1f))
+                    if (p == null || p.title.isBlank()) VText("Nothing playing", size = 11.sp, color = V.Muted, modifier = Modifier.weight(1f))
                     else Column(Modifier.weight(1f)) {
                         VText(p.title, size = 15.sp, color = V.White, font = FontFamily.Default, maxLines = 1)
                         VText(p.artist, size = 12.sp, color = V.Muted, font = FontFamily.Default, maxLines = 1)
                     }
-                    if (p != null) IconTap(if (p.playing) G.PAUSE else G.PLAY, V.Purple, 44.dp) { Now.playPause() }
+                    if (p != null) IconTap(if (p.playing) G.PAUSE else G.PLAY, V.White, 44.dp) { Now.playPause() }
                 }
             }
             "list" -> {
                 val left = store.shopping.filter { !it.done }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Label("List", Modifier.weight(1f))
-                    VText("${left.size}", size = 18.sp, color = V.Green, font = Jupi)
+                    VText("${left.size}", size = 18.sp, color = V.White, font = SansLight)
                 }
                 Gap(h = 6.dp)
-                if (left.isEmpty()) VText("ALL BOUGHT", size = 11.sp, color = V.Muted, spacing = 1.sp)
+                if (left.isEmpty()) VText("All bought", size = 11.sp, color = V.Muted)
                 left.take(4).forEach { VText(it.text, size = 13.sp, color = V.Text, font = FontFamily.Default, maxLines = 1, lineHeight = 17.sp) }
             }
             else -> {

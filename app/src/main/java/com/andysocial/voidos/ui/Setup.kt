@@ -37,13 +37,13 @@ fun Setup(store: Store, act: MainActivity) {
     // landscape: the story on the left, the PIN pad on the right; portrait: stacked
     Split(Modifier.fillMaxSize().padding(if (LocalPortrait.current) 28.dp else 48.dp), spacing = 24.dp) {
         Column(Modifier.main().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.Center) {
-            VText("VOIDOS", size = 54.sp, color = V.White, spacing = 10.sp)
-            VText("TAB EDITION", size = 14.sp, color = V.Teal, spacing = 5.sp)
+            VText("Voidos", size = 54.sp, color = V.White)
+            VText("Tab edition", size = 14.sp, color = V.Teal)
             Gap(h = 28.dp)
             VPanel(Modifier.widthIn(max = 520.dp).fillMaxWidth(), accent = if (owner) V.Green else V.Yellow) {
                 Label("Device owner")
                 Gap(h = 6.dp)
-                VText(if (owner) "YES. VOIDOS CAN RUN THE WHOLE TABLET." else "NOT YET", size = 16.sp, color = if (owner) V.Green else V.Yellow)
+                VText(if (owner) "Yes. VoidOS can run the whole tablet." else "Not yet", size = 16.sp, color = if (owner) V.Green else V.Yellow)
                 Gap(h = 8.dp)
                 VText(
                     if (owner) "Lock mode, hidden extras, update blocking and the Wi-Fi and brightness controls are available."

@@ -96,11 +96,11 @@ fun NotesScreen(store: Store) {
     Split(Modifier.fillMaxSize()) {
         Column(Modifier.side(300.dp, portraitWeight = 0.3f)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                VButton("New note", Modifier.weight(1f), accent = V.Yellow, filled = true) {
+                VButton("New note", Modifier.weight(1f), filled = true) {
                     val id = System.currentTimeMillis()
                     store.saveNote(Note(id, "", 0, id)); openId = id; drawing = false
                 }
-                VButton("Sketch", Modifier.weight(1f), accent = V.Yellow) {
+                VButton("Sketch", Modifier.weight(1f)) {
                     val id = System.currentTimeMillis()
                     store.saveNote(Note(id, "", 0, id)); openId = id; drawing = true
                 }
@@ -130,7 +130,7 @@ fun NotesScreen(store: Store) {
         VPanel(Modifier.main(0.7f), accent = if (open != null) V.Lap[colour % V.Lap.size] else null, padding = 14.dp) {
             if (open == null) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    VText("PICK A NOTE OR START A NEW ONE", size = 14.sp, color = V.Muted, spacing = 1.sp)
+                    VText("Pick a note or start a new one", size = 14.sp, color = V.Muted)
                 }
             } else {
                 var pen by remember { mutableIntStateOf(0) }
@@ -167,7 +167,7 @@ fun NotesScreen(store: Store) {
                         onValueChange = { text = it },
                         enabled = !drawing,
                         textStyle = TextStyle(color = V.Text, fontSize = 20.sp, lineHeight = 30.sp),
-                        cursorBrush = SolidColor(V.Yellow),
+                        cursorBrush = SolidColor(V.Teal),
                         modifier = Modifier.fillMaxSize().padding(12.dp),
                     )
                     InkPage(ink, drawing, Inks[pen].toArgb(), PenSizes[size], style, eraser, Modifier.fillMaxSize()) { inkVersion++ }
@@ -188,7 +188,7 @@ private fun Segment(options: List<String>, sel: Int, accent: Color, onSelect: (I
             Box(
                 Modifier.clip(RoundedCornerShape(50)).background(if (i == sel) accent.copy(alpha = 0.22f) else Color.Transparent)
                     .clickable { onSelect(i) }.padding(horizontal = 16.dp, vertical = 8.dp),
-            ) { VText(o.uppercase(), size = 11.sp, color = if (i == sel) accent else V.Muted, spacing = 1.sp, maxLines = 1) }
+            ) { VText(sentence(o), size = 11.sp, color = if (i == sel) accent else V.Muted, maxLines = 1) }
         }
     }
 }
@@ -247,7 +247,7 @@ private fun Tool(label: String, on: Boolean, accent: Color, onClick: () -> Unit,
     Box(
         Modifier.clip(OctS).background(if (on) accent.copy(alpha = 0.2f) else Color.Transparent).border(1.dp, if (on) accent else V.Line, OctS)
             .clickable(enabled = enabled, onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
-    ) { VText(label.uppercase(), size = 11.sp, color = if (enabled) accent else V.Tick, spacing = 1.sp, maxLines = 1) }
+    ) { VText(sentence(label), size = 11.sp, color = if (enabled) accent else V.Tick, maxLines = 1) }
 }
 
 /** Dotted: round dots one pen-width apart. Dashed: dashes three widths long. */

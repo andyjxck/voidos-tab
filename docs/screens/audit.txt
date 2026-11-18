@@ -2,23 +2,19 @@
 [land] 20_system_wifi: ok
 [land] 21_system_bluetooth: ok
 [land] 22_system_network: ok
-[land] 23_system_screen_sound: ok
+[land] 23_system_display_sound: ok
 [land] 24_system_do_not_disturb: ok
 [land] 25_system_battery: ok
-[land] 26_system_look_lock: ok
+[land] 26_system_home_lock_screen: ok
 [land] 27_system_date_time: ok
-[land] 28_system_lock_mode_rules: ok
+[land] 28_system_lock_mode: ok
 [land] 29_system_storage: ok
 [land] 30_system_boot_root: ok
 [land] 31_system_android_settings: ok
 [land] 32_system_about: ok
-[land] 02_kitchen_timers: ok
-[land] 03_kitchen_convert: ok
-[land] 04_kitchen_convert_oven: ok
-[land] 05_kitchen_convert_cups: ok
-[land] 06_kitchen_list: ok
 [land] 01b_face_widgets: ok
-[land] 07_sky: ok
+[land] 07_sky: 1 issue(s)
+  TEXT CUT  "OPEN-METEO" box=106 x 0 text=106 x 0 lines=1 (taller than its box)
 [land] 12_apps: ok
 [land] 13_apps_manage: ok
 [land] 14_apps_icons_letters: ok
@@ -30,27 +26,35 @@
 [land] 08b_notes_draw: ok
 [land] 43_setup: ok
 [land] 09_media: ok
+[land] 02_tools_timers: ok
+[land] 03_tools_convert: ok
+[land] 04_tools_convert_temperature: ok
+[land] 06_tools_list: ok
+[land] 17_tab_wheel: ok
+[land] 17b_tab_wheel_up: 1 issue(s)
+  OVERLAP   "Settings" / "Home"
+[land] 18_app_wheel: ok
 [land] 41_lock_pin: ok
-[land] 12b_apps_blocked: ok
+[land] 16_control_centre: 4 issue(s)
+  OVERLAP   "Laundry" / "Auto brightness"
+  OVERLAP   "9:00" / "Auto brightness"
+  OVERLAP   "Call Maya" / "Auto brightness"
+  OVERLAP   "22:00" / "Auto brightness"
+[land] 12b_apps_hidden: ok
 [port] 44_escape_pin: ok
 [port] 20_system_wifi: ok
 [port] 21_system_bluetooth: ok
 [port] 22_system_network: ok
-[port] 23_system_screen_sound: ok
+[port] 23_system_display_sound: ok
 [port] 24_system_do_not_disturb: ok
 [port] 25_system_battery: ok
-[port] 26_system_look_lock: ok
+[port] 26_system_home_lock_screen: ok
 [port] 27_system_date_time: ok
-[port] 28_system_lock_mode_rules: ok
+[port] 28_system_lock_mode: ok
 [port] 29_system_storage: ok
 [port] 30_system_boot_root: ok
 [port] 31_system_android_settings: ok
 [port] 32_system_about: ok
-[port] 02_kitchen_timers: ok
-[port] 03_kitchen_convert: ok
-[port] 04_kitchen_convert_oven: ok
-[port] 05_kitchen_convert_cups: ok
-[port] 06_kitchen_list: ok
 [port] 01b_face_widgets: ok
 [port] 07_sky: ok
 [port] 12_apps: ok
@@ -64,5 +68,13 @@
 [port] 08b_notes_draw: ok
 [port] 43_setup: ok
 [port] 09_media: ok
+[port] 02_tools_timers: ok
+[port] 03_tools_convert: ok
+[port] 04_tools_convert_temperature: ok
+[port] 06_tools_list: ok
+[port] 17_tab_wheel: ok
+[port] 17b_tab_wheel_up: ok
+[port] 18_app_wheel: ok
 [port] 41_lock_pin: ok
-[port] 12b_apps_blocked: ok
+[port] 16_control_centre: ok
+[port] 12b_apps_hidden: ok

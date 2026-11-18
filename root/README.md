@@ -4,7 +4,7 @@
 
 | File | What it is | Used in |
 | --- | --- | --- |
-| `voidos-tab-1.3.0.apk` | The VoidOS app, release build (same fixed key as every build, so it installs over any earlier one and keeps device owner) | main README, Install; after unlocking (section 1) |
+| `voidos-tab-1.4.0.apk` | The VoidOS app, release build (same fixed key as every build, so it installs over any earlier one and keeps device owner) | main README, Install; after unlocking (section 1) |
 | `voidos-boot-magisk.zip` | Magisk module: the Android boot animation | section 3 |
 | `bootanimation.zip` | The boot animation on its own, for a hand copy or your own firmware | section 3 |
 | `voidos-system-magisk.zip` | Magisk module: VoidOS as a system app (optional) | section 4 |
@@ -29,7 +29,7 @@ steps).
 | 4. Home screen | VoidOS (device owner, persistent Home) | No root needed | Ready |
 | VoidOS as part of the system | Android package manager | `voidos-system-magisk.zip` (section 4, optional) | Built and checked; not yet run on the tablet |
 
-VoidOS > System > Boot + root shows stages 2 to 4 live on the tablet ("What
+VoidOS > Settings > Boot & root shows stages 2 to 4 live on the tablet ("What
 the tablet shows"), plus the firmware, bootloader, Magisk and module status.
 It can't see the logo partition, so it never claims stage 1.
 
@@ -43,7 +43,7 @@ screen at power-on and every time the screen goes off, in front of whatever
 app was open. So Android's lock screen never appears. Two limits:
 
 * It only works while Android itself has **no** PIN, pattern or password. If
-  one is set, Android's keyguard stays in force and Boot + root says so. Use
+  one is set, Android's keyguard stays in force and Boot & root says so. Use
   VoidOS's own "PIN to unlock" instead.
 * VoidOS's PIN keeps people out of the hub, not out of the data: anyone with
   USB debugging access or a recovery can still get in. That's the trade for
@@ -93,7 +93,7 @@ unlock and flash steps are different: look up your own model first.**
 2. Settings > System > Developer options: turn on **OEM unlocking** and
    **USB debugging**.
    VoidOS hides Settings: open it from the escape hatch (hold the VoidOS mark
-   on the rail for 3 seconds, enter your PIN, "Open Android settings").
+   in the middle of the left-edge wheel for 3 seconds (or tap Leave VoidOS in the control centre), enter your PIN, "Open Android settings").
 3. On the computer:
    ```
    adb reboot bootloader
@@ -107,7 +107,7 @@ unlock and flash steps are different: look up your own model first.**
    download folder then has the stock `boot.img` and `vbmeta.img` for **the
    exact build on your tablet**. Check that build with
    `adb shell getprop ro.build.display.id` (also shown in VoidOS under
-   System > Boot + root); a `boot.img` from another build can boot-loop.
+   Settings > Boot & root); a `boot.img` from another build can boot-loop.
 2. Copy `boot.img` to the tablet, install the Magisk app, then Magisk >
    Install > **Select and patch a file** > `boot.img`. Copy the
    `magisk_patched-....img` it writes to Downloads back to the computer.
@@ -119,7 +119,7 @@ unlock and flash steps are different: look up your own model first.**
    fastboot flash boot magisk_patched-XXXXX.img
    fastboot reboot
    ```
-4. Open Magisk: it should show it's installed. VoidOS > System > Boot + root
+4. Open Magisk: it should show it's installed. VoidOS > Settings > Boot & root
    should now say Root (Magisk): Yes and Bootloader: Unlocked.
 
 ## 3. Install the boot animation
@@ -131,7 +131,7 @@ adb push root/voidos-boot-magisk.zip /sdcard/Download/
 ```
 
 Magisk > Modules > **Install from storage** > `voidos-boot-magisk.zip`,
-then reboot. VoidOS > System > Boot + root shows "VoidOS boot module: 1.0"
+then reboot. VoidOS > Settings > Boot & root shows "VoidOS boot module: 1.0"
 once it's in. To undo, remove the module in Magisk and reboot.
 
 The module overlays `/system/media/bootanimation.zip` and
@@ -197,7 +197,7 @@ the tablet still sticks on the boot animation after installing it:
 
 Install the same way as the boot module: `adb push
 root/voidos-system-magisk.zip /sdcard/Download/`, Magisk > Modules > Install
-from storage, reboot. Boot + root then shows "VoidOS is a system app: Yes".
+from storage, reboot. Boot & root then shows "VoidOS is a system app: Yes".
 Remove the module and reboot to make VoidOS an ordinary app again.
 
 After a VoidOS update (`adb install -r -t ...`) rebuild the module too
@@ -280,7 +280,7 @@ tablet's bootloader.
 1. Back up and download the RSA firmware (Before you start).
 2. Unlock (section 1, wipes), set VoidOS up again as device owner (main README).
 3. Root (section 2).
-4. Boot animation module (section 3). Reboot, check Boot + root.
+4. Boot animation module (section 3). Reboot, check Boot & root.
 5. Boot logo (section 5).
 6. Optional: system app module (section 4).
 

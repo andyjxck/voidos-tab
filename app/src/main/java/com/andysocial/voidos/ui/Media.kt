@@ -224,7 +224,7 @@ fun MediaScreen() {
             ) {
                 Glyph(G.VOLUME, V.Muted, Modifier.size(22.dp))
                 Gap(w = 10.dp)
-                VSlider(vol, Modifier.weight(1f), accent = V.Purple) {
+                VSlider(vol, Modifier.weight(1f), accent = V.Teal) {
                     vol = it
                     am.setStreamVolume(AudioManager.STREAM_MUSIC, (it * maxVol).toInt(), 0)
                 }
@@ -232,7 +232,7 @@ fun MediaScreen() {
                 VButton(if (noiseOn) "Noise off" else "Brown noise", accent = V.Teal, filled = noiseOn) { if (noiseOn) Noise.stop() else Noise.start() }
                 if (noiseOn) {
                     Gap(w = 10.dp)
-                    VText("SWELL", size = 10.sp, color = V.Muted)
+                    VText("Swell", size = 10.sp, color = V.Muted)
                     Gap(w = 6.dp)
                     VToggle(swell) { swell = it; Noise.swell = it }
                 }
@@ -255,12 +255,12 @@ fun MediaScreen() {
                     itemsIndexed(tracks, key = { _, t -> t.uri.toString() }) { i, t ->
                         val sel = i == idx
                         Row(
-                            Modifier.fillMaxWidth().clip(OctS).background(if (sel) V.Purple.copy(alpha = 0.12f) else V.Panel2)
-                                .border(1.dp, if (sel) V.Purple else V.Line, OctS).clickable { Player.play(ctx, i) }.padding(12.dp),
+                            Modifier.fillMaxWidth().clip(OctS).background(if (sel) V.Teal.copy(alpha = 0.12f) else V.Panel2)
+                                .border(1.dp, if (sel) V.Teal else V.Line, OctS).clickable { Player.play(ctx, i) }.padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(Modifier.weight(1f)) {
-                                VText(t.title, size = 14.sp, color = if (sel) V.Purple else V.Text, font = FontFamily.Default, maxLines = 1)
+                                VText(t.title, size = 14.sp, color = if (sel) V.Teal else V.Text, font = FontFamily.Default, maxLines = 1)
                                 if (t.artist.isNotEmpty()) VText(t.artist, size = 11.sp, color = V.Muted, font = FontFamily.Default, maxLines = 1)
                             }
                             val s = t.ms / 1000
@@ -285,7 +285,7 @@ private fun NowPlayingPanel(modifier: Modifier, hasFiles: Boolean, filesOpen: Bo
     val now = rememberNow(500)
     val access = remember(now / 5000) { com.andysocial.voidos.VoidListener.enabled(ctx) }
     val src = currentSource(now)
-    VPanel(modifier, accent = V.Purple) {
+    VPanel(modifier, accent = V.Teal) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Label(if (src != null) "Playing on ${src.app}" else "Sound", Modifier.weight(1f))
             if (hasFiles) VButton(if (filesOpen) "Hide files" else "Files", accent = V.Muted) { onFiles() }
@@ -303,7 +303,7 @@ private fun NowPlayingPanel(modifier: Modifier, hasFiles: Boolean, filesOpen: Bo
             val info: @Composable (Modifier) -> Unit = { m ->
                 Column(m.verticalScroll(rememberScrollState()), horizontalAlignment = if (wide) Alignment.Start else Alignment.CenterHorizontally) {
                     if (src == null) {
-                        VText("NOTHING PLAYING", size = 22.sp, color = V.White)
+                        VText("Nothing playing", size = 22.sp, color = V.White)
                         Gap(h = 6.dp)
                         VText(
                             if (access || connected) "Play something in YouTube, Spotify or any app and it shows here."
@@ -312,7 +312,7 @@ private fun NowPlayingPanel(modifier: Modifier, hasFiles: Boolean, filesOpen: Bo
                         )
                         if (!access && !connected) {
                             Gap(h = 10.dp)
-                            VButton("Turn on access", accent = V.Purple) {
+                            VButton("Turn on access", accent = V.Teal) {
                                 runCatching { ctx.startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                             }
                         }
@@ -321,7 +321,7 @@ private fun NowPlayingPanel(modifier: Modifier, hasFiles: Boolean, filesOpen: Bo
                         if (src.artist.isNotBlank()) VText(src.artist, size = 16.sp, color = V.Muted, font = FontFamily.Default, maxLines = 1)
                         Gap(h = 14.dp)
                         if (src.dur > 0) {
-                            VSlider((src.pos.toFloat() / src.dur).coerceIn(0f, 1f), Modifier.fillMaxWidth(), accent = V.Purple) {
+                            VSlider((src.pos.toFloat() / src.dur).coerceIn(0f, 1f), Modifier.fillMaxWidth(), accent = V.Teal) {
                                 val to = (it * src.dur).toLong()
                                 if (src.local) Player.seekTo(to) else com.andysocial.voidos.Now.seekTo(to)
                             }
@@ -345,12 +345,12 @@ private fun NowPlayingPanel(modifier: Modifier, hasFiles: Boolean, filesOpen: Bo
             val live = src != null && !local
             IconTap(G.PREV, V.Text, 56.dp) { if (local) Player.prev(ctx) else if (live) com.andysocial.voidos.Now.prev() else mediaKey(ctx, KeyEvent.KEYCODE_MEDIA_PREVIOUS) }
             SmallKey("-10S") { if (local) Player.skip(-10_000) else com.andysocial.voidos.Now.skip(-10_000) }
-            IconTap(if (src?.playing == true) G.PAUSE else G.PLAY, V.Purple, 72.dp) {
+            IconTap(if (src?.playing == true) G.PAUSE else G.PLAY, V.Teal, 72.dp) {
                 if (local) Player.toggle(ctx) else if (live) com.andysocial.voidos.Now.playPause() else mediaKey(ctx, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
             }
             SmallKey("+10S") { if (local) Player.skip(10_000) else com.andysocial.voidos.Now.skip(10_000) }
             IconTap(G.NEXT, V.Text, 56.dp) { if (local) Player.next(ctx) else if (live) com.andysocial.voidos.Now.next() else mediaKey(ctx, KeyEvent.KEYCODE_MEDIA_NEXT) }
-            if (live) { Gap(w = 8.dp); VButton("Open app", accent = V.Purple) { com.andysocial.voidos.Now.open(ctx) } }
+            if (live) { Gap(w = 8.dp); VButton("Open app", accent = V.Teal) { com.andysocial.voidos.Now.open(ctx) } }
         }
     }
 }

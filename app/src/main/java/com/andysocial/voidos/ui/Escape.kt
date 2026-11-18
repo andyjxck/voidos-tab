@@ -46,16 +46,16 @@ fun PinPad(title: String, subtitle: String, error: String?, onPin: (String) -> U
     var entry by remember { mutableStateOf("") }
     LaunchedEffect(error) { if (error != null) entry = "" }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        VText(title.uppercase(), size = 22.sp, color = V.White, spacing = 3.sp)
+        VText(sentence(title), size = 22.sp, color = V.White)
         Gap(h = 6.dp)
         VText(subtitle, size = 13.sp, color = V.Muted, font = FontFamily.Default, align = TextAlign.Center)
         Gap(h = 18.dp)
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             repeat(4) { i ->
                 Box(
-                    Modifier.size(22.dp).clip(CutCornerShape(6.dp))
+                    Modifier.size(22.dp).clip(androidx.compose.foundation.shape.CircleShape)
                         .background(if (i < entry.length) V.Teal else Color.Transparent)
-                        .border(1.5.dp, if (i < entry.length) V.Teal else V.Tick, CutCornerShape(6.dp))
+                        .border(1.5.dp, if (i < entry.length) V.Teal else V.Tick, androidx.compose.foundation.shape.CircleShape)
                 )
             }
         }
@@ -80,7 +80,7 @@ fun PinPad(title: String, subtitle: String, error: String?, onPin: (String) -> U
                         contentAlignment = Alignment.Center,
                     ) {
                         if (k == "<") Glyph(G.BACK, V.Muted, Modifier.size(22.dp))
-                        else VText(k, size = 24.sp, color = V.Text, font = Jupi)
+                        else VText(k, size = 24.sp, color = V.Text, font = SansLight)
                     }
                 }
             }
@@ -127,7 +127,7 @@ fun EscapeOverlay(store: Store, act: MainActivity, onClose: () -> Unit) {
             )
         } else if (released != null) {
             Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                VText("RELEASED", size = 26.sp, color = V.Coral, spacing = 4.sp)
+                VText("Released", size = 26.sp, color = V.Coral)
                 Gap(h = 12.dp)
                 VText(released!!, size = 14.sp, color = V.Text, font = FontFamily.Default, align = TextAlign.Center, lineHeight = 20.sp)
                 Gap(h = 20.dp)
@@ -135,7 +135,7 @@ fun EscapeOverlay(store: Store, act: MainActivity, onClose: () -> Unit) {
             }
         } else {
             Column(Modifier.widthIn(max = 620.dp).fillMaxWidth().padding(horizontal = 24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                VText("ESCAPE HATCH", size = 24.sp, color = V.White, spacing = 4.sp)
+                VText("Escape hatch", size = 24.sp, color = V.White)
                 VText("Pick how far out you want to go. Pressing Home always brings you back to VoidOS while it's still device owner.", size = 13.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 18.sp)
                 Gap(h = 4.dp)
                 EscapeOption("Visit Android settings", "Leaves lock mode for this trip and opens stock Settings.", V.Teal) {
@@ -150,7 +150,7 @@ fun EscapeOverlay(store: Store, act: MainActivity, onClose: () -> Unit) {
                     }
                 } else {
                     VPanel(accent = V.Coral) {
-                        VText("SURE? THIS HANDS THE TABLET BACK TO STOCK ANDROID.", size = 13.sp, color = V.Coral, spacing = 1.sp)
+                        VText("Sure? this hands the tablet back to stock Android.", size = 13.sp, color = V.Coral)
                         Gap(h = 12.dp)
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             VButton("Release", accent = V.Coral, filled = true) {
@@ -175,7 +175,7 @@ private fun EscapeOption(title: String, detail: String, accent: Color, onClick: 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            VText(title.uppercase(), size = 15.sp, color = accent, spacing = 1.sp)
+            VText(sentence(title), size = 15.sp, color = accent)
             Gap(h = 4.dp)
             VText(detail, size = 12.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 16.sp)
         }

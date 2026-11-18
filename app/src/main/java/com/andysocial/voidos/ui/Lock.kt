@@ -124,28 +124,19 @@ fun LockScreen(store: Store, onUnlock: () -> Unit) {
         }
         if (askPin) {
             Box(Modifier.fillMaxSize().background(V.Bg.copy(alpha = 0.97f))) {
-                LockPin(store, title = "ENTER PIN TO UNLOCK", onOk = { askPin = false; onUnlock() }, onCancel = { askPin = false })
+                LockPin(store, title = "Enter PIN to unlock", onOk = { askPin = false; onUnlock() }, onCancel = { askPin = false })
             }
         }
     }
 }
 
-/** Slow drifting lap ticks and a faint mark: the screen is alive but dark, kind to an always-on panel. */
+/** A faint glow behind the clock: dark and calm, kind to an always-on panel. */
 @Composable
 private fun LockBackdrop(now: Long) {
     Canvas(Modifier.fillMaxSize()) {
         val w = size.width; val h = size.height
-        val unit = minOf(w, h)
         val c = Offset(w * (if (w > h) 0.27f else 0.5f), h * (if (w > h) 0.5f else 0.28f))
-        val drift = ((now / 1000) % 600) / 600f * 2 * PI
-        val ring = unit * 0.42f
-        for (i in 0 until 120) {
-            val a = i / 120.0 * 2 * PI + drift * 0.1
-            val col = V.Lap[(i / 20) % 6].copy(alpha = 0.10f)
-            drawLine(col, Offset(c.x + (ring * cos(a)).toFloat(), c.y + (ring * sin(a)).toFloat()),
-                Offset(c.x + ((ring + unit * 0.03f) * cos(a)).toFloat(), c.y + ((ring + unit * 0.03f) * sin(a)).toFloat()), unit * 0.004f, StrokeCap.Round)
-        }
-        drawOct(c, ring * 0.92f, V.Line.copy(alpha = 0.5f), width = 2f)
+        drawCircle(androidx.compose.ui.graphics.Brush.radialGradient(listOf(V.Teal.copy(alpha = 0.07f), androidx.compose.ui.graphics.Color.Transparent), center = c, radius = minOf(w, h) * 0.6f), minOf(w, h) * 0.6f, c)
     }
 }
 
@@ -156,29 +147,18 @@ private fun LockClock(store: Store, now: Long, big: Boolean, start: Boolean = fa
     val wx by WeatherRepo.state
     val bat = rememberBattery()
     Column(horizontalAlignment = if (start) Alignment.Start else Alignment.CenterHorizontally) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            VoidMark(Modifier.size(30.dp))
-            Gap(w = 12.dp)
-            VText(store.hubName.uppercase() + " HUB", size = 14.sp, color = V.Muted, spacing = 4.sp)
-        }
-        Gap(h = 12.dp)
-        VText(SimpleDateFormat(if (store.use24h) "HH:mm" else "h:mm", Locale.UK).format(Date(now)), size = if (big) 128.sp else 80.sp, color = V.White)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(10.dp).clip(OctS).background(V.Lap[minute % 6]))
-            Gap(w = 10.dp)
-            VText(SimpleDateFormat("EEEE d MMMM", Locale.UK).format(Date(now)).uppercase(), size = 18.sp, color = V.Text, spacing = 2.sp)
-        }
-        Gap(h = 14.dp)
+        VText(SimpleDateFormat("EEEE d MMMM", Locale.UK).format(Date(now)), size = 20.sp, color = V.Text.copy(alpha = 0.8f))
+        VText(SimpleDateFormat(if (store.use24h) "HH:mm" else "h:mm", Locale.UK).format(Date(now)), size = if (big) 150.sp else 96.sp, color = V.White, font = SansThin)
+        Gap(h = 10.dp)
         Row(verticalAlignment = Alignment.CenterVertically) {
             wx?.let { w ->
                 Glyph(wxGlyph(w.code, w.isDay), wxColour(w.code, w.isDay), Modifier.size(28.dp))
                 Gap(w = 8.dp)
-                VText("${t(w.temp)}  ${wxWords(w.code).uppercase()}", size = 14.sp, color = V.Text, spacing = 1.sp)
+                VText("${t(w.temp)}  ${wxWords(w.code)}", size = 15.sp, color = V.Text)
                 Gap(w = 22.dp)
             }
-            Glyph(G.BATTERY, if (bat.charging) V.Green else V.Muted, Modifier.size(24.dp))
-            Gap(w = 8.dp)
-            VText(if (bat.pct >= 0) "${bat.pct}%" + if (bat.charging) " CHARGING" else "" else "--", size = 14.sp, color = V.Text, spacing = 1.sp)
+            BatteryGlyph(bat)
+            if (bat.charging) { Gap(w = 8.dp); VText("Charging", size = 15.sp, color = V.Muted) }
         }
     }
 }
@@ -190,12 +170,12 @@ private fun LockCards(store: Store, now: Long) {
     val notices by VoidListener.notices
     p?.takeIf { it.title.isNotBlank() }?.let { np ->
         Row(
-            Modifier.fillMaxWidth().clip(Oct).background(V.Panel).border(1.dp, V.Purple.copy(alpha = 0.6f), Oct).padding(12.dp),
+            Modifier.fillMaxWidth().glass(Oct, 0.8f).padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.size(56.dp).clip(OctS).background(V.Panel2), contentAlignment = Alignment.Center) {
                 val art = np.art
-                if (art != null) Image(art.asImageBitmap(), null, Modifier.fillMaxSize()) else Glyph(G.MEDIA, V.Purple, Modifier.size(28.dp))
+                if (art != null) Image(art.asImageBitmap(), null, Modifier.fillMaxSize()) else Glyph(G.MEDIA, V.Muted, Modifier.size(28.dp))
             }
             Gap(w = 12.dp)
             Column(Modifier.weight(1f)) {
@@ -204,32 +184,32 @@ private fun LockCards(store: Store, now: Long) {
             }
             IconTap(G.PREV, V.Text, 44.dp) { Now.prev() }
             Gap(w = 6.dp)
-            IconTap(if (np.playing) G.PAUSE else G.PLAY, V.Purple, 44.dp) { Now.playPause() }
+            IconTap(if (np.playing) G.PAUSE else G.PLAY, V.White, 44.dp) { Now.playPause() }
             Gap(w = 6.dp)
             IconTap(G.NEXT, V.Text, 44.dp) { Now.next() }
         }
     }
     timers.take(3).forEach { tm ->
         Row(
-            Modifier.fillMaxWidth().clip(OctS).background(V.Panel).border(1.dp, V.Lap[tm.colour % 6].copy(alpha = 0.6f), OctS).padding(horizontal = 14.dp, vertical = 10.dp),
+            Modifier.fillMaxWidth().glass(OctS, 0.8f).padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Glyph(G.TIMER, V.Lap[tm.colour % 6], Modifier.size(22.dp))
-            Gap(w = 10.dp)
-            VText(tm.label.uppercase(), size = 13.sp, color = V.Text, spacing = 1.sp, modifier = Modifier.weight(1f))
-            VText(fmtDur(tm.remaining(now)), size = 22.sp, color = V.White, font = Jupi)
+            Glyph(G.TIMER, V.Teal, Modifier.size(20.dp))
+            Gap(w = 12.dp)
+            VText(tm.label, size = 15.sp, color = V.Text, modifier = Modifier.weight(1f))
+            VText(fmtDur(tm.remaining(now)), size = 22.sp, color = V.White, font = SansLight)
         }
     }
     if (store.lockNotices) {
         notices.take(if (LocalPortrait.current) 5 else 3).forEach { n ->
             Row(
-                Modifier.fillMaxWidth().clip(OctS).background(V.Panel).border(1.dp, V.Line, OctS).padding(horizontal = 14.dp, vertical = 10.dp),
+                Modifier.fillMaxWidth().glass(OctS, 0.8f).padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Glyph(G.BELL, V.Teal, Modifier.size(20.dp))
-                Gap(w = 10.dp)
+                Glyph(G.BELL, V.Muted, Modifier.size(20.dp))
+                Gap(w = 12.dp)
                 Column(Modifier.weight(1f)) {
-                    VText("${n.appName.uppercase()} / ${n.title}", size = 11.sp, color = V.Teal, maxLines = 1, spacing = 1.sp)
+                    VText("${n.appName} \u00b7 ${n.title}", size = 13.sp, color = V.Muted, maxLines = 1)
                     if (n.text.isNotBlank()) VText(n.text, size = 13.sp, color = V.Text, font = FontFamily.Default, maxLines = 1)
                 }
             }
@@ -244,7 +224,7 @@ private fun SwipeHint() {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Glyph(G.CHEV, V.Teal, Modifier.size(26.dp).graphicsLayer { rotationZ = -90f; translationY = bob * 8f })
         Gap(h = 4.dp)
-        VText("SWIPE UP TO OPEN", size = 12.sp, color = V.Muted, spacing = 3.sp, align = TextAlign.Center)
+        VText("Swipe up to open", size = 12.sp, color = V.Muted, align = TextAlign.Center)
         Gap(h = 8.dp)
         Box(Modifier.width(120.dp).size(120.dp, 4.dp).clip(OctS).background(V.Line))
     }
@@ -268,13 +248,13 @@ fun LockPin(store: Store, title: String, onOk: () -> Unit, onCancel: () -> Unit)
     val now = rememberNow(1000)
     val waiting = now < waitUntil
     Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        VText(title, size = 16.sp, color = V.Text, spacing = 2.sp)
+        VText(title, size = 16.sp, color = V.Text)
         Gap(h = 14.dp)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             repeat(maxOf(4, entry.length)) { i -> Box(Modifier.size(16.dp).clip(OctS).background(if (i < entry.length) V.Teal else V.Line)) }
         }
         Gap(h = 6.dp)
-        VText(if (waiting) "TRY AGAIN IN ${(waitUntil - now + 999) / 1000}S" else if (wrong) "WRONG PIN" else " ", size = 11.sp, color = V.Coral, spacing = 1.sp)
+        VText(if (waiting) "TRY AGAIN IN ${(waitUntil - now + 999) / 1000}S" else if (wrong) "WRONG PIN" else " ", size = 11.sp, color = V.Coral)
         Gap(h = 10.dp)
         Box(Modifier.width(300.dp).size(300.dp, 340.dp)) {
             NumPad(Modifier.fillMaxSize()) { k ->

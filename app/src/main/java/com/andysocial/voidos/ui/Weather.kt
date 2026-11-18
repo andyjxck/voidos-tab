@@ -129,7 +129,7 @@ object WeatherRepo {
         }
         val days = (0 until d.getJSONArray("time").length()).map { i ->
             val t = isoD.parse(d.getJSONArray("time").getString(i))!!
-            Day(if (i == 0) "TODAY" else SimpleDateFormat("EEE", Locale.UK).format(t).uppercase(),
+            Day(if (i == 0) "Today" else SimpleDateFormat("EEE", Locale.UK).format(t),
                 d.getJSONArray("weather_code").getInt(i), d.getJSONArray("temperature_2m_max").getDouble(i),
                 d.getJSONArray("temperature_2m_min").getDouble(i), d.getJSONArray("precipitation_probability_max").optInt(i, 0))
         }
@@ -173,7 +173,7 @@ fun OfflineBadge(wx: Wx?, modifier: Modifier = Modifier) {
     ) {
         Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(V.Coral))
         Gap(w = 8.dp)
-        VText(if (wx == null) "OFFLINE" else "OFFLINE / ${wxAge(wx.fetched).uppercase()}", size = 11.sp, color = V.Coral, spacing = 1.5.sp, maxLines = 1)
+        VText(if (wx == null) "Offline" else "Offline \u00b7 ${wxAge(wx.fetched)}", size = 11.sp, color = V.Coral, maxLines = 1)
     }
 }
 
@@ -201,7 +201,7 @@ fun wxWords(code: Int): String = when (code) {
 }
 
 fun wxColour(code: Int, day: Boolean = true): Color = when (wxGlyph(code, day)) {
-    G.SUN -> V.Sun; G.MOON -> V.Text; G.RAIN -> V.Teal; G.SNOW -> V.White; G.STORM -> V.Purple; else -> V.Muted
+    G.SUN -> V.Sun; else -> V.Text
 }
 
 fun t(d: Double) = "${d.roundToInt()}°"
@@ -230,8 +230,8 @@ fun WeatherScreen(store: Store) {
     val now: @Composable (Modifier) -> Unit = { mod ->
         VPanel(mod, accent = wx?.let { wxColour(it.code, it.isDay) }) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (store.autoPlace) { Glyph(G.GLOBE, V.Sun, Modifier.size(16.dp)); Gap(w = 6.dp) }
-                VText(store.city.uppercase(), size = 16.sp, color = V.Text, spacing = 2.sp, modifier = Modifier.weight(1f), maxLines = 1)
+                if (store.autoPlace) { Glyph(G.GLOBE, V.Muted, Modifier.size(16.dp)); Gap(w = 6.dp) }
+                VText(store.city, size = 16.sp, color = V.Text, modifier = Modifier.weight(1f), maxLines = 1)
                 VButton(if (editing) "Cancel" else "Place", accent = V.Muted) { editing = !editing; findErr = null }
             }
             if (off || (wx == null && err != null)) { Gap(h = 10.dp); OfflineBadge(wx) }
@@ -239,7 +239,7 @@ fun WeatherScreen(store: Store) {
                 Gap(h = 12.dp)
                 VField(query, { query = it }, Modifier.fillMaxWidth(), placeholder = "Town or city")
                 Gap(h = 8.dp)
-                VButton("Find", accent = V.Sun, filled = true) {
+                VButton("Find", filled = true) {
                     scope.launch {
                         val r = WeatherRepo.find(query.trim())
                         if (r == null) findErr = "Couldn't find that place" else {
@@ -252,7 +252,7 @@ fun WeatherScreen(store: Store) {
                 findErr?.let { Gap(h = 6.dp); VText(it, size = 12.sp, color = V.Coral, font = FontFamily.Default) }
                 if (!store.autoPlace) {
                     Gap(h = 8.dp)
-                    VButton("Use my location", accent = V.Sun) {
+                    VButton("Use my location") {
                         store.chooseAutoPlace(true); editing = false
                     }
                 }
@@ -268,8 +268,8 @@ fun WeatherScreen(store: Store) {
                     Glyph(wxGlyph(w.code, w.isDay), wxColour(w.code, w.isDay), Modifier.size(84.dp), weight = 3f)
                     Gap(w = 14.dp)
                     Column {
-                        VText(t(w.temp), size = 72.sp, color = V.White, font = Jupi)
-                        VText(wxWords(w.code).uppercase(), size = 14.sp, color = wxColour(w.code, w.isDay), spacing = 2.sp, maxLines = 1)
+                        VText(t(w.temp), size = 72.sp, color = V.White, font = SansLight)
+                        VText(wxWords(w.code), size = 14.sp, color = wxColour(w.code, w.isDay), maxLines = 1)
                     }
                     Box(Modifier.weight(1f))
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -285,8 +285,8 @@ fun WeatherScreen(store: Store) {
                 Gap(h = 24.dp)
                 Glyph(wxGlyph(w.code, w.isDay), wxColour(w.code, w.isDay), Modifier.size(110.dp), weight = 3f)
                 Gap(h = 10.dp)
-                VText(t(w.temp), size = 96.sp, color = V.White, font = Jupi)
-                VText(wxWords(w.code).uppercase(), size = 16.sp, color = wxColour(w.code, w.isDay), spacing = 2.sp)
+                VText(t(w.temp), size = 96.sp, color = V.White, font = SansLight)
+                VText(wxWords(w.code), size = 16.sp, color = wxColour(w.code, w.isDay))
                 Gap(h = 20.dp)
                 Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
                     Stat("Feels", t(w.feels)); Stat("Wind", "${w.wind.roundToInt()} km/h"); Stat("Humid", "${w.humidity}%")
@@ -312,12 +312,12 @@ fun WeatherScreen(store: Store) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 wx?.days?.forEach { d ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        VText(d.label, size = 12.sp, color = V.Muted, spacing = 1.sp)
+                        VText(d.label, size = 12.sp, color = V.Muted)
                         Gap(h = 8.dp)
                         Glyph(wxGlyph(d.code), wxColour(d.code), Modifier.size(38.dp))
                         Gap(h = 8.dp)
-                        VText(t(d.max), size = 20.sp, color = V.White, font = Jupi)
-                        VText(t(d.min), size = 14.sp, color = V.Muted, font = Jupi)
+                        VText(t(d.max), size = 20.sp, color = V.White, font = SansLight)
+                        VText(t(d.min), size = 14.sp, color = V.Muted, font = SansLight)
                         VText("${d.rain}%", size = 11.sp, color = V.Teal)
                     }
                 }
@@ -362,8 +362,8 @@ fun TempGraph(hours: List<Hour>, modifier: Modifier) {
             }
             val path = Path()
             hours.forEachIndexed { i, h -> if (i == 0) path.moveTo(0f, y(h.temp)) else path.lineTo(i * stepX, y(h.temp)) }
-            drawPath(path, V.Sun, style = Stroke(4f, cap = StrokeCap.Round))
-            hours.forEachIndexed { i, h -> drawOct(Offset(i * stepX, y(h.temp)), 7f, V.Bg, fill = true); drawOct(Offset(i * stepX, y(h.temp)), 7f, V.Sun) }
+            drawPath(path, V.Text.copy(alpha = 0.85f), style = Stroke(4f, cap = StrokeCap.Round))
+            hours.forEachIndexed { i, h -> drawOct(Offset(i * stepX, y(h.temp)), 7f, V.Bg, fill = true); drawOct(Offset(i * stepX, y(h.temp)), 7f, V.Text) }
         }
         Gap(h = 6.dp)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

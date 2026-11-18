@@ -12,24 +12,29 @@ bars and pin itself in lock mode. No root needed.
 
 ## What's in it
 
-| Module | What it does |
+| Screen | What it does |
 | --- | --- |
-| Face | Octagon clock (sixty ticks round an octagon fill in the minute's lap colour; AM/PM, next timer), sky, day progress, tiles for timers, the list and notes |
-| Kitchen | Several named kitchen timers that ring over everything (and keep going in the background), a unit converter (weight, volume, oven incl. gas marks, length, cups to grams) and a shopping list sorted by aisle |
-| Sky | Open-Meteo weather (no key): now, 12-hour graph, six days. Place is changeable |
-| Notes | Notes saved on the tablet, autosave, six colours |
-| Sound | Media controls for whatever is playing (Spotify, YouTube, BBC Sounds...: needs notification access), music files on the tablet, brown "void noise" made on-device |
-| Focus | Octagon focus timer that keeps running in the background |
-| House | Reserved slot for Void Home. Not connected yet |
-| Apps | Android app drawer: only the apps you've allowed, with search, recents, and a Manage view. Icons in three styles: VoidOS glyphs, letters, or the apps' own |
-| System | Wi-Fi, Bluetooth, screen + sound, hub + lock, do not disturb, date + time, battery, network, storage + apps, Android settings, boot + root, VoidOS rules, About |
+| Home | The date and a large, thin clock, running timers as small pills underneath, and optional widgets (weather, music, the list, notes) you hold to drag anywhere |
+| Tools | Timers that ring over everything (and keep going in the background), a unit converter (weight, volume, temperature incl. gas marks, length) and a list sorted by aisle |
+| Weather | Open-Meteo weather (no key): now, 12-hour graph, six days; last known weather when offline |
+| Notes | Notes saved on the tablet, autosave, sketching |
+| Music | Media controls for whatever is playing (needs notification access), music files on the tablet, brown "void noise" made on-device |
+| Apps | Only the apps you choose in Manage; every other app is hidden from VoidOS. Search, starred apps, quick actions |
+| Settings | A grouped list (Connections, Screen, VoidOS, Tablet) with the page beside it, or over it when upright |
+
+Getting around (no sidebar):
+
+- **Swipe left or right** on a screen to move to the next one (Settings > Home & lock screen can turn this off).
+- **Left edge: the tab wheel.** Put a finger on the left edge and a glass wheel of every screen opens under it. Slide down, up or out to pick; let go to open it. A tap on the edge leaves the wheel open so you can tap a screen instead.
+- **Right edge: the app wheel.** The same for apps you've opened from VoidOS. Its centre opens Apps. It only works while VoidOS is on screen: once another app is in front, Android gives the edges to that app.
+- **Top edge: the control centre.** Pull down from the status line, or tap it: brightness (and auto), volume, Wi-Fi, Bluetooth, do not disturb, rotation lock, stay awake, screen off, what's playing, Settings, Lock and Leave VoidOS.
 
 Also: the VoidOS logo (`docs/logo`, drawn in `ui/Logo.kt`; the square root
 and its o on their own are the launcher icon, with a themed monochrome
 version), an in-app start animation once per power-on, the VoidOS lock screen (every time the screen
 goes off; optional PIN), a drifting ambient desk clock, desk mode (screen
 stays on while charging), and every screen works in portrait as well as
-landscape (System > Screen + sound > Rotation).
+landscape (Settings > Display & sound > Rotation, or Rotation lock in the control centre).
 
 **Root/flash only:** the power-on logo (a VoidOS `logo.bin` built from your
 tablet's own logo partition), the Android boot animation, and VoidOS as a
@@ -39,8 +44,9 @@ and the steps, is in [`root/README.md`](root/README.md).
 
 ## Escape hatch (you can't get locked out)
 
-1. **On the tablet:** hold the VoidOS mark at the top of the left rail for
-   3 seconds, enter your PIN. From there: visit Android settings, turn lock mode
+1. **On the tablet:** pull down the control centre and tap Leave VoidOS, or
+   tap the left edge and hold the VoidOS mark in the middle of the wheel for
+   3 seconds. Enter your PIN. From there: visit Android settings, turn lock mode
    off, or release VoidOS completely (removes device owner).
 2. **From a computer (adb):**
    ```
@@ -59,7 +65,7 @@ Device owner can only be set when no account (Google or other) has been added
 to the tablet. If one has, factory reset and skip every account during setup.
 
 ```
-adb install -t root/voidos-tab-1.3.0.apk
+adb install -t root/voidos-tab-1.4.0.apk
 adb shell dpm set-device-owner com.andysocial.voidos/.VoidAdmin
 adb shell am start -n com.andysocial.voidos/.MainActivity
 ```
