@@ -125,6 +125,7 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     private var wheel: ComposeView? = null
     private var wheelShown = false
     private var top: View? = null
+    private var bottom: View? = null
     private var cc: ComposeView? = null
     private var ccShown = false
 
@@ -147,6 +148,7 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         EdgeOverlay.service = this
         addStrips()
         addTop()
+        addBottom()
         EdgeSwipe.log("overlay: on")
     }
 
@@ -159,8 +161,8 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         EdgeOverlay.service = null
         hideWheel()
         hideControl()
-        listOfNotNull(left, right, top).forEach { runCatching { wm.removeView(it) } }
-        left = null; right = null; top = null
+        listOfNotNull(left, right, top, bottom).forEach { runCatching { wm.removeView(it) } }
+        left = null; right = null; top = null; bottom = null
         registry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         EdgeSwipe.log("overlay: off")
         super.onDestroy()
@@ -171,6 +173,7 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         // the strips cover the middle of the side edges, so they follow the screen round
         listOfNotNull(left, right).forEach { v -> runCatching { wm.updateViewLayout(v, stripParams(v === left)) } }
         top?.let { v -> runCatching { wm.updateViewLayout(v, topParams()) } }
+        bottom?.let { v -> runCatching { wm.updateViewLayout(v, bottomParams()) } }
     }
 
     private fun note(): Notification {
@@ -219,6 +222,7 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             left?.visibility = vis
             right?.visibility = vis
             top?.visibility = vis
+            bottom?.visibility = vis
             if (EdgeOverlay.hostInFront && wheelShown) EdgeSwipe.overlaySink?.cancel()
             if (EdgeOverlay.hostInFront && ccShown) hideControl()
         }
@@ -247,6 +251,52 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         runCatching { wm.addView(v, topParams()) }
             .onSuccess { top = v }
             .onFailure { EdgeSwipe.log("overlay: top strip refused (${it.message})") }
+    }
+
+    /** A strip across the middle of the bottom edge: swipe up from it inside any app for VoidOS's app switcher. */
+    private fun bottomParams(): WindowManager.LayoutParams = topParams().apply {
+        gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL; title = "VoidOS edge bottom"
+    }
+
+    private fun addBottom() {
+        val v = BottomStrip(this)
+        v.visibility = if (EdgeOverlay.hostInFront) View.GONE else View.VISIBLE
+        runCatching { wm.addView(v, bottomParams()) }
+            .onSuccess { bottom = v }
+            .onFailure { EdgeSwipe.log("overlay: bottom strip refused (${it.message})") }
+    }
+
+    /** Opens the app switcher only for a push upwards. */
+    @SuppressLint("ViewConstructor", "ClickableViewAccessibility")
+    private inner class BottomStrip(ctx: Context) : View(ctx) {
+        private var downX = 0f
+        private var downY = 0f
+        private var done = false
+        private val slop = SWIPE_DP * resources.displayMetrics.density
+
+        override fun onTouchEvent(ev: MotionEvent): Boolean {
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { downX = ev.rawX; downY = ev.rawY; done = false }
+                MotionEvent.ACTION_MOVE -> if (!done) {
+                    val dy = downY - ev.rawY
+                    val dx = abs(ev.rawX - downX)
+                    if (dx > slop * 2 && dx > dy) done = true
+                    else if (dy >= slop && dy > dx) { done = true; showSwitcher() }
+                }
+            }
+            return true
+        }
+    }
+
+    /** VoidOS's app switcher, over whatever app is in front: VoidOS comes forward with it open. */
+    internal fun showSwitcher() {
+        EdgeSwipe.log("overlay: app switcher")
+        runCatching {
+            startActivity(
+                Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_SWITCHER, true)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
+            )
+        }
     }
 
     /** Opens the control centre only for a pull downwards; a tap or a sideways touch does nothing. */

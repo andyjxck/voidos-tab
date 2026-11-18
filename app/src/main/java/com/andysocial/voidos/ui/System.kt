@@ -464,7 +464,7 @@ private fun VoidPane(store: Store, act: MainActivity) {
     SettingRow("Lock mode") {
         VToggle(store.kiosk, V.Coral, enabled = owner) { toggle("kiosk", it) }
     }
-    SettingRow("Hide system bars") {
+    SettingRow("Hide Android") {
         VToggle(store.hideBars, enabled = true) { toggle("hideBars", it) }
     }
     SettingRow("No lock screen") {

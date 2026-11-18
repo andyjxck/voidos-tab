@@ -59,6 +59,7 @@ object Policy {
 
     fun applyAll(c: Context) {
         val store = (c.applicationContext as VoidApp).store
+        Stealth.sync(c, store)
         if (!isOwner(c)) return
         val d = dpm(c)
         val a = admin(c)
@@ -190,6 +191,7 @@ object Policy {
         val d = dpm(c)
         val a = admin(c)
         val store = (c.applicationContext as VoidApp).store
+        Thread { runCatching { Stealth.apply(c.applicationContext, false) } }.start()
         safe("locktask clear") { d.setLockTaskPackages(a, arrayOf()) }
         // un-hide anything hidden, ours or not
         val all = c.packageManager.getInstalledApplications(PackageManager.MATCH_UNINSTALLED_PACKAGES)

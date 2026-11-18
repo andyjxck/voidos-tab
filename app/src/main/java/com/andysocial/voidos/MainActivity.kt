@@ -40,6 +40,7 @@ class MainActivity : ComponentActivity() {
         EdgeOverlay.sync(this, store)
         intent?.getStringExtra(EXTRA_MODULE)?.let { com.andysocial.voidos.ui.Idle.openModule.value = it }
         if (intent?.getBooleanExtra(EXTRA_CONTROL, false) == true) com.andysocial.voidos.ui.EdgeSwipe.controlRequest.value = true
+        if (intent?.getBooleanExtra(EXTRA_SWITCHER, false) == true) com.andysocial.voidos.ui.Switcher.shown.value = true
         setContent {
             LaunchedEffect(Unit) {
                 snapshotFlow { VoidApp.releaseSignal.value }.collect { if (it > 0) leaveLockTask() }
@@ -79,6 +80,7 @@ class MainActivity : ComponentActivity() {
         // a screen picked on the wheel over another app
         intent.getStringExtra(EXTRA_MODULE)?.let { com.andysocial.voidos.ui.Idle.openModule.value = it }
         if (intent.getBooleanExtra(EXTRA_CONTROL, false)) com.andysocial.voidos.ui.EdgeSwipe.controlRequest.value = true
+        if (intent.getBooleanExtra(EXTRA_SWITCHER, false)) com.andysocial.voidos.ui.Switcher.shown.value = true
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
@@ -207,6 +209,8 @@ class MainActivity : ComponentActivity() {
     /** Escape screen: step out to stock Android Settings. Home brings you back. */
     fun openAndroidSettings() {
         visitAndroid()
+        // Hide Android switches Settings off: switch it back on for this trip first
+        runCatching { Stealth.openSettingsDoors(this) }
         runCatching {
             startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
@@ -243,6 +247,8 @@ class MainActivity : ComponentActivity() {
         @Volatile var live: java.lang.ref.WeakReference<MainActivity>? = null
         /** Opens the control centre when VoidOS comes back (the fallback when it isn't running behind another app). */
         const val EXTRA_CONTROL = "com.andysocial.voidos.CONTROL"
+        /** Open VoidOS's app switcher (from the bottom edge over another app). */
+        const val EXTRA_SWITCHER = "com.andysocial.voidos.SWITCHER"
         /** The screen to open, when the wheel over another app brings VoidOS back. */
         const val EXTRA_MODULE = "com.andysocial.voidos.MODULE"
     }
