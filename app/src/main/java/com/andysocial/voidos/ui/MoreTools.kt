@@ -92,7 +92,7 @@ fun StopwatchPane() {
         Spacer(Modifier.weight(0.6f))
         VText(stopwatchText(t), size = 84.sp, font = SansLight, color = V.White, spacing = (-1).sp)
         Gap(h = 28.dp)
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             if (Stopwatch.running) {
                 VButton("Lap") { Stopwatch.lap() }
                 VButton("Stop", filled = true, accent = V.Coral) { Stopwatch.stop() }
@@ -107,8 +107,8 @@ fun StopwatchPane() {
             laps.forEachIndexed { i, total ->
                 val split = total - (laps.getOrNull(i + 1) ?: 0L)
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                    VText("Lap ${laps.size - i}", size = 16.sp, color = V.Muted, modifier = Modifier.weight(1f))
-                    VText(stopwatchText(split), size = 16.sp, color = V.Text)
+                    VText("Lap ${laps.size - i}", size = Type.headline, color = V.Muted, modifier = Modifier.weight(1f))
+                    VText(stopwatchText(split), size = Type.headline, color = V.Text)
                 }
             }
         }
@@ -154,34 +154,34 @@ fun WorldClockPane(store: Store) {
             val day = when (t.toLocalDate().compareTo(java.time.LocalDate.now())) { 0 -> "Today"; in 1..9 -> "Tomorrow"; else -> "Yesterday" }
             Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    VText(name, size = 22.sp, color = V.White, maxLines = 1)
-                    VText("$day, ${zoneDiff(zone, now)}", size = 14.sp, color = V.Muted, maxLines = 1)
+                    VText(name, size = Type.title2, color = V.White, maxLines = 1)
+                    VText("$day, ${zoneDiff(zone, now)}", size = Type.body, color = V.Muted, maxLines = 1)
                 }
                 VText(t.format(fmt).lowercase(Locale.UK).let { if (store.use24h) it else it.replace(" ", "\u2009") }, size = 44.sp, font = SansLight, color = V.White)
                 Spacer(Modifier.size(12.dp))
                 Box(Modifier.size(36.dp).tap { store.removeWorldClock(i) }, contentAlignment = Alignment.Center) { Glyph(G.CLOSE, V.Muted, Modifier.size(16.dp)) }
             }
         }
-        Gap(h = 14.dp)
+        Gap(h = 16.dp)
         if (!adding) VButton("Add city") { adding = true }
         else {
             VField(q, { q = it }, Modifier.fillMaxWidth(), placeholder = "Search a city")
-            Gap(h = 6.dp)
+            Gap(h = 8.dp)
             val local = CITIES.filter { q.isBlank() || it.first.contains(q.trim(), true) }.take(6)
             var online by remember { mutableStateOf<List<WeatherRepo.Place>>(emptyList()) }
             LaunchedEffect(q) { online = if (q.trim().length < 3) emptyList() else { delay(300); WeatherRepo.search(q.trim(), 6).filter { it.tz != null } } }
             (local.map { Triple(it.first, "", it.second) } + online.filter { o -> local.none { it.first == o.name } }.map { Triple(it.name, it.where, it.tz!!) })
                 .forEach { (name, where, zone) ->
                     Row(
-                        Modifier.fillMaxWidth().tap { store.addWorldClock(name, zone); adding = false; q = "" }.padding(vertical = 10.dp),
+                        Modifier.fillMaxWidth().tap { store.addWorldClock(name, zone); adding = false; q = "" }.padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Glyph(G.WORLD, V.Muted, Modifier.size(18.dp)); Spacer(Modifier.size(12.dp))
                         Column(Modifier.weight(1f)) {
-                            VText(name, size = 16.sp, color = V.Text)
-                            if (where.isNotBlank()) VText(where, size = 13.sp, color = V.Muted, maxLines = 1)
+                            VText(name, size = Type.headline, color = V.Text)
+                            if (where.isNotBlank()) VText(where, size = Type.label, color = V.Muted, maxLines = 1)
                         }
-                        VText(zoneDiff(zone, now), size = 14.sp, color = V.Muted)
+                        VText(zoneDiff(zone, now), size = Type.body, color = V.Muted)
                     }
                 }
         }
@@ -269,10 +269,10 @@ fun SoundMeterPane() {
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 VText("%.0f".format(db), size = 72.sp, font = SansLight, color = V.White)
-                VText("dB", size = 16.sp, color = V.Muted)
+                VText("dB", size = Type.headline, color = V.Muted)
             }
         }
-        VText("Peak %.0f dB".format(peak), size = 15.sp, color = V.Muted)
+        VText("Peak %.0f dB".format(peak), size = Type.body, color = V.Muted)
     }
 }
 
@@ -286,7 +286,7 @@ private fun MicAsk(onDone: () -> Unit) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.andysocial.voidos.Policy.grantSelf(ctx, Manifest.permission.RECORD_AUDIO) }
         onDone()
     }
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { VText("Needs the microphone", size = 16.sp, color = V.Muted) }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { VText("Needs the microphone", size = Type.headline, color = V.Muted) }
 }
 
 // ================================================================ voice memos
@@ -328,7 +328,7 @@ fun VoiceMemoPane() {
             contentAlignment = Alignment.Center,
         ) { Glyph(if (rec != null) G.RECORD else G.MIC, Color.White, Modifier.size(36.dp)) }
         Gap(h = 12.dp)
-        VText(if (rec != null) stopwatchText(now - started).substringBefore('.') else "Tap to record", size = 18.sp, color = if (rec != null) V.White else V.Muted)
+        VText(if (rec != null) stopwatchText(now - started).substringBefore('.') else "Tap to record", size = Type.title, color = if (rec != null) V.White else V.Muted)
         Gap(h = 20.dp)
         Column(Modifier.weight(1f).widthIn(max = 520.dp).fillMaxWidth().verticalScroll(rememberScrollState())) {
             files.forEach { f ->
@@ -344,7 +344,7 @@ fun VoiceMemoPane() {
                         contentAlignment = Alignment.Center,
                     ) { Glyph(if (playing == f) G.PAUSE else G.PLAY, V.Text, Modifier.size(18.dp)) }
                     Spacer(Modifier.size(14.dp))
-                    VText(f.nameWithoutExtension, size = 16.sp, color = V.Text, modifier = Modifier.weight(1f), maxLines = 1)
+                    VText(f.nameWithoutExtension, size = Type.headline, color = V.Text, modifier = Modifier.weight(1f), maxLines = 1)
                     Box(Modifier.size(40.dp).tap { if (playing == f) { player[0]?.release(); player[0] = null; playing = null }; f.delete(); files = files - f }, contentAlignment = Alignment.Center) {
                         Glyph(G.TRASH, V.Muted, Modifier.size(18.dp))
                     }
@@ -365,14 +365,14 @@ fun CalendarPane() {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(Modifier.widthIn(max = 520.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(44.dp).tap { offset-- }, contentAlignment = Alignment.Center) { Glyph(G.BACK, V.Text, Modifier.size(20.dp)) }
-            VText(month.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.UK)), size = 22.sp, color = V.White, align = TextAlign.Center, modifier = Modifier.weight(1f).tap { offset = 0 })
+            VText(month.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.UK)), size = Type.title2, color = V.White, align = TextAlign.Center, modifier = Modifier.weight(1f).tap { offset = 0 })
             Box(Modifier.size(44.dp).tap { offset++ }, contentAlignment = Alignment.Center) { Glyph(G.NEXT, V.Text, Modifier.size(20.dp)) }
         }
         Gap(h = 12.dp)
         BoxWithConstraints(Modifier.widthIn(max = 520.dp).fillMaxWidth().weight(1f)) {
             val cell = min(maxWidth.value / 7f, maxHeight.value / 7f).dp
             Column {
-                Row { listOf("M", "T", "W", "T", "F", "S", "S").forEach { VText(it, size = 13.sp, color = V.Muted, align = TextAlign.Center, modifier = Modifier.size(cell, cell * 0.6f)) } }
+                Row { listOf("M", "T", "W", "T", "F", "S", "S").forEach { VText(it, size = Type.label, color = V.Muted, align = TextAlign.Center, modifier = Modifier.size(cell, cell * 0.6f)) } }
                 val lead = month.dayOfWeek.value - 1
                 val days = month.lengthOfMonth()
                 for (w in 0 until (lead + days + 6) / 7) {
@@ -383,7 +383,7 @@ fun CalendarPane() {
                                 if (n in 1..days) {
                                     val isToday = month.withDayOfMonth(n) == today
                                     if (isToday) Box(Modifier.size(cell * 0.8f).droplet(androidx.compose.foundation.shape.CircleShape, V.Teal, 1f))
-                                    VText("$n", size = 18.sp, color = if (isToday) Color.White else if (d >= 5) V.Muted else V.Text)
+                                    VText("$n", size = Type.title, color = if (isToday) Color.White else if (d >= 5) V.Muted else V.Text)
                                 }
                             }
                         }

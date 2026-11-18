@@ -75,10 +75,10 @@ fun ToolsScreen(store: Store) {
     var tab by rememberSaveable { mutableStateOf(KTab.TIMERS) }
     Column(Modifier.fillMaxSize()) {
         // ten tools: a scrolling row of glass chips rather than one cramped bar
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             KTab.entries.forEach { t -> Chip(t.label, t == tab, V.Teal, glyph = t.glyph) { tab = t } }
         }
-        Gap(h = 18.dp)
+        Gap(h = 16.dp)
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (tab) {
                 KTab.TIMERS -> TimersPane()
@@ -118,7 +118,7 @@ fun Chip(text: String, selected: Boolean, accent: Color, modifier: Modifier = Mo
         horizontalArrangement = Arrangement.Center,
     ) {
         if (glyph != null) { Glyph(glyph, if (selected) V.Teal else V.Muted, Modifier.size(18.dp)); Gap(w = 8.dp) }
-        VText(sentence(text), size = 14.sp, color = if (selected) V.White else V.Text.copy(alpha = 0.75f), maxLines = 1)
+        VText(sentence(text), size = Type.body, color = if (selected) V.White else V.Text.copy(alpha = 0.75f), maxLines = 1)
     }
 }
 
@@ -150,10 +150,10 @@ fun TimersPane() {
             Box(Modifier.horizontalScroll(rememberScrollState())) {
                 QuickBar(quickMinutes, keyWidth = 84.dp) { m -> KTimers.add(ctx, "$m min", m * 60_000L) }
             }
-            Gap(h = 14.dp)
+            Gap(h = 16.dp)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Stepper(mins, "min", { mins = (mins + it).coerceIn(0, 240) }, 1)
-                Gap(w = 10.dp)
+                Gap(w = 8.dp)
                 Stepper(secs, "sec", { secs = (secs + it).coerceIn(0, 50) }, 10)
                 Gap(w = 12.dp)
                 VButton("Start", Modifier.weight(1f), filled = true, enabled = total > 0) { start() }
@@ -167,14 +167,14 @@ fun TimersPane() {
                     Stepper(mins, "min", { mins = (mins + it).coerceIn(0, 240) }, 1)
                     Stepper(secs, "sec", { secs = (secs + it).coerceIn(0, 50) }, 10)
                 }
-                Gap(h = 14.dp)
+                Gap(h = 16.dp)
                 VField(label, { label = it }, Modifier.fillMaxWidth(), placeholder = "Label (optional)", onDone = start)
                 Gap(h = 12.dp)
                 VButton("Start", Modifier.fillMaxWidth(), filled = true, enabled = total > 0) { start() }
             }
             Gap(h = 20.dp)
             Label("Quick start", Modifier.padding(start = 4.dp))
-            Gap(h = 10.dp)
+            Gap(h = 8.dp)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 quickMinutes.chunked(3).forEach { row ->
                     QuickBar(row, Modifier.fillMaxWidth()) { m -> KTimers.add(ctx, "$m min", m * 60_000L) }
@@ -186,9 +186,9 @@ fun TimersPane() {
             if (timers.isEmpty()) {
                 Centered(Modifier.fillMaxSize()) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        VText("No timers", size = 22.sp, font = SansMedium, color = V.Text)
-                        Gap(h = 6.dp)
-                        VText("Pick a length to start one.", size = 15.sp, color = V.Muted, align = TextAlign.Center)
+                        VText("No timers", size = Type.title2, font = SansMedium, color = V.Text)
+                        Gap(h = 8.dp)
+                        VText("Pick a length to start one.", size = Type.body, color = V.Muted, align = TextAlign.Center)
                     }
                 }
             } else {
@@ -235,13 +235,13 @@ private fun QuickBar(mins: List<Int>, modifier: Modifier = Modifier, keyWidth: D
 @Composable
 private fun QuickKey(mins: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
-        modifier.clickable(onClick = onClick).padding(horizontal = 10.dp),
+        modifier.clickable(onClick = onClick).padding(horizontal = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
         Row(verticalAlignment = Alignment.Bottom) {
-            VText(if (mins >= 60) "${mins / 60}" else "$mins", size = 20.sp, font = SansLight, color = V.White, maxLines = 1)
+            VText(if (mins >= 60) "${mins / 60}" else "$mins", size = Type.title, font = SansLight, color = V.White, maxLines = 1)
             Gap(w = 4.dp)
-            VText(if (mins >= 60) "hr" else "min", size = 13.sp, color = V.Muted, maxLines = 1, modifier = Modifier.padding(bottom = 2.dp))
+            VText(if (mins >= 60) "hr" else "min", size = Type.label, color = V.Muted, maxLines = 1, modifier = Modifier.padding(bottom = 2.dp))
         }
     }
 }
@@ -252,8 +252,8 @@ private fun Stepper(value: Int, unit: String, onChange: (Int) -> Unit, step: Int
     Row(verticalAlignment = Alignment.CenterVertically) {
         RoundKey("\u2212") { onChange(-step) }
         Column(Modifier.width(56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            VText(String.format(Locale.UK, "%02d", value), size = 26.sp, color = V.White, font = SansLight, maxLines = 1)
-            VText(unit, size = 12.sp, color = V.Muted)
+            VText(String.format(Locale.UK, "%02d", value), size = Type.large, color = V.White, font = SansLight, maxLines = 1)
+            VText(unit, size = Type.caption, color = V.Muted)
         }
         RoundKey("+") { onChange(step) }
     }
@@ -264,16 +264,16 @@ private fun RoundKey(text: String, onClick: () -> Unit) {
     Box(
         Modifier.size(40.dp).clip(CircleShape).background(V.Panel2).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { VText(text, size = 20.sp, color = V.Text, font = SansLight) }
+    ) { VText(text, size = Type.title, color = V.Text, font = SansLight) }
 }
 
 /** A small grey pill key. */
 @Composable
 fun SmallKey(text: String, accent: Color = V.Muted, onClick: () -> Unit) {
     Box(
-        Modifier.height(36.dp).glass(Pill, 0.7f).clickable(onClick = onClick).padding(horizontal = 14.dp),
+        Modifier.height(36.dp).glass(Pill, 0.7f).clickable(onClick = onClick).padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center,
-    ) { VText(text.lowercase(), size = 13.sp, color = V.Text) }
+    ) { VText(text.lowercase(), size = Type.label, color = V.Text) }
 }
 
 /** A running timer: a ring that empties as time runs out, the time inside it. */
@@ -287,8 +287,8 @@ private fun TimerCard(t: KTimer, now: Long) {
         val ringSide = minOf(maxWidth - 32.dp, maxHeight - 120.dp).coerceAtLeast(90.dp)
         val digits = fmtDur(left).length
         val big = (ringSide.value * (if (digits > 5) 0.17f else 0.24f)).coerceIn(22f, 150f).sp
-        Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 6.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            VText(t.label, size = 15.sp, font = SansMedium, color = V.Text, modifier = Modifier.weight(1f), maxLines = 1)
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 6.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            VText(t.label, size = Type.body, font = SansMedium, color = V.Text, modifier = Modifier.weight(1f), maxLines = 1)
             Box(Modifier.size(40.dp).clip(CircleShape).clickable { KTimers.remove(ctx, t.id) }, contentAlignment = Alignment.Center) {
                 Glyph(G.CLOSE, V.Muted, Modifier.size(16.dp))
             }
@@ -313,10 +313,10 @@ private fun TimerCard(t: KTimer, now: Long) {
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 VText(if (t.rang) "Done" else fmtDur(left), size = big, color = if (t.rang) V.Coral else if (t.running) V.White else V.Muted, font = SansThin, maxLines = 1)
-                if (!t.running && !t.rang) VText("Paused", size = 13.sp, color = V.Muted)
+                if (!t.running && !t.rang) VText("Paused", size = Type.label, color = V.Muted)
             }
         }
-        Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             SmallKey("+1 min") { KTimers.addTime(ctx, t.id, 60_000) }
             Box(
                 Modifier.size(48.dp).clip(CircleShape).background(if (t.running) Brush.verticalGradient(listOf(V.Panel2, V.Panel2)) else Brush.verticalGradient(listOf(lerp(V.Coral, Color.White, 0.2f), V.Coral))).clickable { KTimers.toggle(ctx, t.id) },
@@ -340,10 +340,10 @@ fun TimerAlert() {
             Glyph(G.BELL, if (flash) V.Coral else V.Text, Modifier.size(72.dp))
             Gap(h = 20.dp)
             VText(ringing.joinToString(" + ") { it.label }, size = 40.sp, color = V.White, font = SansMedium, align = TextAlign.Center)
-            Gap(h = 6.dp)
-            VText("Time's up", size = 18.sp, color = V.Muted)
+            Gap(h = 8.dp)
+            VText("Time's up", size = Type.title, color = V.Muted)
             Gap(h = 32.dp)
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 VButton("Stop", Modifier.width(200.dp), accent = V.Coral, filled = true) { KTimers.silence(ctx) }
                 VButton("+1 minute", Modifier.width(200.dp)) { ringing.forEach { KTimers.addTime(ctx, it.id, 60_000) } }
             }
@@ -404,9 +404,9 @@ fun ConvertPane() {
             Gap(h = 12.dp)
             Row(verticalAlignment = Alignment.Bottom) {
                 VText(entry.ifEmpty { "0" }, size = 46.sp, color = V.White, font = SansLight, maxLines = 1, modifier = Modifier.weight(1f))
-                VText(units[from].short, size = 18.sp, color = V.Muted)
+                VText(units[from].short, size = Type.title, color = V.Muted)
             }
-            Gap(h = 10.dp)
+            Gap(h = 8.dp)
             NumPad(Modifier.weight(1f).fillMaxWidth()) { k ->
                 entry = when (k) {
                     "<" -> entry.dropLast(1)
@@ -419,8 +419,8 @@ fun ConvertPane() {
         Column(Modifier.main()) {
             if (cups) {
                 Label("${fmtNum(value)} US cup${if (value == 1.0) "" else "s"} weighs about")
-                Gap(h = 10.dp)
-                LazyVerticalGrid(GridCells.Adaptive(190.dp), verticalArrangement = Arrangement.spacedBy(10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Gap(h = 8.dp)
+                LazyVerticalGrid(GridCells.Adaptive(190.dp), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(cupGrams) { (n, g) -> ResultTile(n, "${fmtNum(g * value)} g", V.White) }
                 }
             } else {
@@ -429,9 +429,9 @@ fun ConvertPane() {
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     units.forEachIndexed { i, u -> Chip(u.short, i == from, V.Teal) { from = i } }
                 }
-                Gap(h = 14.dp)
+                Gap(h = 16.dp)
                 val base = units[from].toBase(value)
-                LazyVerticalGrid(GridCells.Adaptive(190.dp), verticalArrangement = Arrangement.spacedBy(10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                LazyVerticalGrid(GridCells.Adaptive(190.dp), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(units.filterIndexed { i, _ -> i != from }) { u ->
                         val out = u.fromBase(base)
                         ResultTile(u.name, if (u.short == "gas") (if (out.isNaN()) "Off the scale" else "Gas ${out.toInt()}") else "${fmtNum(out)} ${u.short}", V.White)
@@ -444,10 +444,10 @@ fun ConvertPane() {
 
 @Composable
 private fun ResultTile(name: String, value: String, accent: Color) {
-    Column(Modifier.fillMaxWidth().clip(Oct).background(V.Panel).padding(horizontal = 18.dp, vertical = 16.dp)) {
-        VText(name, size = 13.sp, color = V.Muted)
+    Column(Modifier.fillMaxWidth().clip(Oct).background(V.Panel).padding(horizontal = 16.dp, vertical = 16.dp)) {
+        VText(name, size = Type.label, color = V.Muted)
         Gap(h = 4.dp)
-        VText(value, size = 26.sp, color = accent, font = SansLight, maxLines = 1)
+        VText(value, size = Type.large, color = accent, font = SansLight, maxLines = 1)
     }
 }
 
@@ -463,7 +463,7 @@ fun NumPad(modifier: Modifier, onKey: (String) -> Unit) {
                             .clickable { onKey(k) },
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (k == "<") Glyph(G.BACK, V.Muted, Modifier.size(20.dp)) else VText(k, size = 22.sp, color = V.Text, font = SansLight)
+                        if (k == "<") Glyph(G.BACK, V.Muted, Modifier.size(20.dp)) else VText(k, size = Type.title2, color = V.Text, font = SansLight)
                     }
                 }
             }
@@ -481,17 +481,17 @@ fun ShoppingPane(store: Store) {
     Column(Modifier.fillMaxSize().widthIn(max = 760.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             VField(text, { text = it }, Modifier.weight(1f), placeholder = "Add an item", onDone = add)
-            Gap(w = 10.dp)
+            Gap(w = 8.dp)
             VButton("Add", filled = true, enabled = text.isNotBlank()) { add() }
         }
-        Gap(h = 14.dp)
+        Gap(h = 16.dp)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            VText("${items.count { !it.done }} to get", size = 14.sp, color = V.Muted, modifier = Modifier.weight(1f))
+            VText("${items.count { !it.done }} to get", size = Type.body, color = V.Muted, modifier = Modifier.weight(1f))
             if (items.any { it.done }) VButton("Clear ticked") { store.clearDone() }
         }
         Gap(h = 8.dp)
         if (items.isEmpty()) {
-            Centered(Modifier.fillMaxSize()) { VText("Nothing on the list", size = 16.sp, color = V.Muted) }
+            Centered(Modifier.fillMaxSize()) { VText("Nothing on the list", size = Type.headline, color = V.Muted) }
         } else {
             val groups = items.filter { !it.done }.groupBy { it.aisle }.toSortedMap() + (if (items.any { it.done }) mapOf("Ticked" to items.filter { it.done }) else emptyMap())
             LazyColumn(contentPadding = PaddingValues(bottom = 12.dp)) {
@@ -510,7 +510,7 @@ fun ShoppingPane(store: Store) {
                                         contentAlignment = Alignment.Center,
                                     ) { if (it2.done) Glyph(G.CHECK, V.Bg, Modifier.size(15.dp)) }
                                     Gap(w = 16.dp)
-                                    VText(it2.text, size = 16.sp, color = if (it2.done) V.Muted else V.Text, modifier = Modifier.weight(1f))
+                                    VText(it2.text, size = Type.headline, color = if (it2.done) V.Muted else V.Text, modifier = Modifier.weight(1f))
                                     Box(Modifier.size(44.dp).clip(CircleShape).clickable { store.removeItem(it2.id) }, contentAlignment = Alignment.Center) {
                                         Glyph(G.CLOSE, V.Tick, Modifier.size(15.dp))
                                     }
@@ -524,5 +524,5 @@ fun ShoppingPane(store: Store) {
     }
 }
 
-val CutCorner6 = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+val CutCorner6 = androidx.compose.foundation.shape.RoundedCornerShape(Radius.chip)
 

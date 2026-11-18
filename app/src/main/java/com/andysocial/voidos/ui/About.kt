@@ -147,9 +147,9 @@ fun AboutTabletPane(store: Store, act: MainActivity) {
 
     Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         VoidMark(Modifier.size(64.dp))
-        Gap(h = 14.dp)
-        VText("VoidOS", size = 30.sp, font = SansLight, color = V.White, spacing = (-0.3).sp)
-        VText(BuildConfig.VERSION_NAME, size = 14.sp, color = V.Muted)
+        Gap(h = 16.dp)
+        VText("VoidOS", size = Type.large, font = SansLight, color = V.White, spacing = (-0.3).sp)
+        VText(BuildConfig.VERSION_NAME, size = Type.body, color = V.Muted)
     }
     GlassGroup {
         AboutLine("Device", store.hubName.ifBlank { "Void Tab" }, Modifier.pointerInput(Unit) { detectTapGestures { EscapeDoor.tap() } }.testTag("about-device"))
@@ -161,9 +161,9 @@ fun AboutTabletPane(store: Store, act: MainActivity) {
 
 @Composable
 private fun AboutLine(k: String, v: String, modifier: Modifier = Modifier) {
-    Row(modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-        VText(k, size = 15.sp, color = V.Muted, modifier = Modifier.width(170.dp))
-        VText(v, size = 15.sp, color = V.Text, maxLines = 2, modifier = Modifier.weight(1f))
+    Row(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+        VText(k, size = Type.body, color = V.Muted, modifier = Modifier.width(170.dp))
+        VText(v, size = Type.body, color = V.Text, maxLines = 2, modifier = Modifier.weight(1f))
     }
     Spacer(Modifier.height(2.dp))
 }

@@ -212,7 +212,8 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
 
     private fun expect(vararg text: String) {
         text.forEach { t ->
-            val found = rule.onAllNodesWithText(t, substring = true, ignoreCase = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+            val found = rule.onAllNodesWithText(t, substring = true, ignoreCase = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() ||
+                rule.onAllNodes(hasContentDescription(t, substring = true, ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
             if (!found) {
                 val all = rule.onAllNodes(androidx.compose.ui.test.SemanticsMatcher("any text") {
                     it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.Text) }, useUnmergedTree = true)
@@ -436,7 +437,8 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
             show { Shell(store, act, Module.APPS) }
             expect("Spotify")
             listOf("WhatsApp", "Chrome", "Netflix").forEach { gone ->
-                val left = rule.onAllNodesWithText(gone, useUnmergedTree = true).fetchSemanticsNodes()
+                val left = rule.onAllNodesWithText(gone, useUnmergedTree = true).fetchSemanticsNodes() +
+                    rule.onAllNodes(hasContentDescription(gone), useUnmergedTree = true).fetchSemanticsNodes()
                 assertTrue("[$tag] hidden app $gone is still in the drawer (kiosk=$kiosk)", left.isEmpty())
             }
         }

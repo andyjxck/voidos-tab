@@ -145,10 +145,10 @@ fun SystemScreen(store: Store, act: MainActivity) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Glyph(G.BACK, V.Teal, Modifier.size(20.dp))
-                    Gap(w = 6.dp)
-                    VText("All settings", size = 16.sp, color = V.Teal)
+                    Gap(w = 8.dp)
+                    VText("All settings", size = Type.headline, color = V.Teal)
                 }
-                Gap(h = 10.dp)
+                Gap(h = 8.dp)
                 page(Modifier.weight(1f).fillMaxWidth())
             }
         }
@@ -166,19 +166,19 @@ private fun NavItem(t: Tab, sel: Boolean, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth()
             .background(if (sel) Brush.horizontalGradient(listOf(t.accent.copy(alpha = 0.26f), t.accent.copy(alpha = 0.06f))) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)))
-            .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 11.dp),
+            .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // a lit glass tile in the page's colour, like the icons in an iPad's settings
         Box(
-            Modifier.size(32.dp).droplet(RoundedCornerShape(10.dp), t.accent, 2.2f),
+            Modifier.size(32.dp).droplet(RoundedCornerShape(Radius.chip), t.accent, 2.2f),
             contentAlignment = Alignment.Center,
         ) {
             Glyph(t.g, Color.White, Modifier.size(18.dp))
         }
         Gap(w = 16.dp)
-        VText(t.label, size = 16.sp, color = V.Text, maxLines = 1, modifier = Modifier.weight(1f))
-        VText("\u203A", size = 22.sp, color = V.Tick, font = SansLight)
+        VText(t.label, size = Type.headline, color = V.Text, maxLines = 1, modifier = Modifier.weight(1f))
+        VText("\u203A", size = Type.title2, color = V.Tick, font = SansLight)
     }
 }
 
@@ -189,13 +189,13 @@ private fun NavItem(t: Tab, sel: Boolean, onClick: () -> Unit) {
  */
 @Composable
 internal fun Head(@Suppress("UNUSED_PARAMETER") title: String, status: String? = null) {
-    if (status != null) { VText(status, size = 15.sp, color = V.Muted, maxLines = 1); Gap(h = 10.dp) }
+    if (status != null) { VText(status, size = Type.body, color = V.Muted, maxLines = 1); Gap(h = 8.dp) }
 }
 
 /** A small label between groups of rows on one settings page. */
 @Composable
 internal fun SetSection(text: String) {
-    Gap(h = 18.dp)
+    Gap(h = 16.dp)
     Label(text)
     Gap(h = 4.dp)
 }
@@ -248,15 +248,15 @@ private fun WifiPane(act: MainActivity) {
             }
         }
     }
-    msg?.let { VText(it, size = 12.sp, color = V.Coral, font = FontFamily.Default); Gap(h = 8.dp) }
+    msg?.let { VText(it, size = Type.caption, color = V.Coral, font = Sans); Gap(h = 8.dp) }
 
     joining?.let { net ->
         VPanel(Modifier.fillMaxWidth(), accent = V.Teal, padding = 14.dp) {
-            VText("Join ${net.SSID}", size = 14.sp, color = V.Teal)
-            Gap(h = 10.dp)
+            VText("Join ${net.SSID}", size = Type.body, color = V.Teal)
+            Gap(h = 8.dp)
             if (isSecured(net)) VField(pass, { pass = it }, Modifier.fillMaxWidth(), placeholder = "Password", password = true)
-            Gap(h = 10.dp)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Gap(h = 8.dp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 VButton("Connect", accent = V.Teal, filled = true) {
                     msg = connect(wm, net, pass)
                     joining = null; pass = ""
@@ -267,7 +267,7 @@ private fun WifiPane(act: MainActivity) {
         Gap(h = 12.dp)
     }
 
-    if (enabled && results.isEmpty()) VText("Scanning", size = 12.sp, color = V.Muted)
+    if (enabled && results.isEmpty()) VText("Scanning", size = Type.caption, color = V.Muted)
     results.forEach { r ->
         val isCur = r.SSID == current
         Row(
@@ -275,12 +275,12 @@ private fun WifiPane(act: MainActivity) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             val bars = WifiManager.calculateSignalLevel(r.level, 4)
-            Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.Bottom) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.Bottom) {
                 for (i in 0..3) Box(Modifier.size(5.dp, (6 + i * 4).dp).background(if (i <= bars) V.Teal else V.Line))
             }
-            Gap(w = 14.dp)
-            VText(r.SSID, size = 15.sp, color = V.Text, font = FontFamily.Default, modifier = Modifier.weight(1f), maxLines = 1)
-            VText(if (isCur) "CONNECTED" else if (isSecured(r)) "LOCKED" else "OPEN", size = 10.sp, color = if (isCur) V.Teal else V.Muted)
+            Gap(w = 16.dp)
+            VText(r.SSID, size = Type.body, color = V.Text, font = Sans, modifier = Modifier.weight(1f), maxLines = 1)
+            VText(if (isCur) "CONNECTED" else if (isSecured(r)) "LOCKED" else "OPEN", size = Type.caption, color = if (isCur) V.Teal else V.Muted)
         }
     }
 }
@@ -353,7 +353,7 @@ private fun DisplayPane(store: Store, act: MainActivity) {
         listOf("30000" to "30 s", "60000" to "1 min", "300000" to "5 min", "600000" to "10 min", "1800000" to "30 min"),
         timeout.toString(), Modifier.widthIn(max = 620.dp), enabled = owner,
     ) { k -> if (sys(Settings.System.SCREEN_OFF_TIMEOUT, k)) timeout = k.toInt() }
-    Gap(h = 18.dp)
+    Gap(h = 16.dp)
     SettingRow("Rotation") {}
     GlassSegments(
         listOf("auto" to "Auto", "land" to "Landscape", "port" to "Portrait"), store.rotation, Modifier.widthIn(max = 520.dp),
@@ -368,7 +368,7 @@ private fun DisplayPane(store: Store, act: MainActivity) {
     ).forEach { (label, stream, col) ->
         val max = remember { am.getStreamMaxVolume(stream).coerceAtLeast(1) }
         var v by remember { mutableFloatStateOf(am.getStreamVolume(stream).toFloat() / max) }
-        SettingRow(label) { VText("${(v * 100).toInt()}%", size = 12.sp, color = col) }
+        SettingRow(label) { VText("${(v * 100).toInt()}%", size = Type.caption, color = col) }
         VSlider(v, Modifier.fillMaxWidth(), accent = col) {
             v = it
             runCatching { am.setStreamVolume(stream, (it * max).toInt(), 0) }
@@ -427,8 +427,8 @@ private fun BtPane() {
     }
     if (!on) return
     Label("Paired")
-    Gap(h = 6.dp)
-    if (bonded.isEmpty()) VText("Nothing paired yet.", size = 13.sp, color = V.Muted, font = FontFamily.Default)
+    Gap(h = 8.dp)
+    if (bonded.isEmpty()) VText("Nothing paired yet.", size = Type.label, color = V.Muted, font = Sans)
     bonded.forEach { d -> BtRow(d.name ?: d.address, "PAIRED", V.Teal) {} }
     Gap(h = 16.dp)
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -437,7 +437,7 @@ private fun BtPane() {
             found = emptyList(); scanning = runCatching { bt.startDiscovery() }.getOrDefault(false)
         }
     }
-    Gap(h = 6.dp)
+    Gap(h = 8.dp)
     found.forEach { d -> BtRow(d.name ?: d.address, "TAP TO PAIR", V.Muted) { runCatching { bt.cancelDiscovery(); d.createBond() } } }
 }
 
@@ -449,8 +449,8 @@ private fun BtRow(name: String, state: String, col: Color, onClick: () -> Unit) 
     ) {
         Glyph(G.BT, col, Modifier.size(20.dp))
         Gap(w = 12.dp)
-        VText(name, size = 15.sp, color = V.Text, font = FontFamily.Default, modifier = Modifier.weight(1f), maxLines = 1)
-        VText(state, size = 10.sp, color = col)
+        VText(name, size = Type.body, color = V.Text, font = Sans, modifier = Modifier.weight(1f), maxLines = 1)
+        VText(state, size = Type.caption, color = col)
     }
 }
 
@@ -486,6 +486,6 @@ private fun VoidPane(store: Store, act: MainActivity) {
     GlassSegments(
         listOf("0" to "Never", "1" to "1 min", "5" to "5 min", "15" to "15 min"), store.ambientMinutes.toString(), Modifier.widthIn(max = 520.dp),
     ) { store.setAmbient(it.toInt()) }
-    Gap(h = 18.dp)
+    Gap(h = 16.dp)
 
 }

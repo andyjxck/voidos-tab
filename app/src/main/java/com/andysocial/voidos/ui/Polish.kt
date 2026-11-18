@@ -61,14 +61,14 @@ fun RoundIcon(
 @Composable
 fun SearchPill(query: String, onChange: (String) -> Unit, modifier: Modifier = Modifier, hint: String = "Search") {
     Row(
-        modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.07f))
+        modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(Radius.control)).background(Color.White.copy(alpha = 0.07f))
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Glyph(G.SEARCH, V.Muted, Modifier.size(16.dp))
         Gap(w = 8.dp)
         Box(Modifier.weight(1f)) {
-            if (query.isEmpty()) VText(hint, size = 15.sp, color = V.Muted)
+            if (query.isEmpty()) VText(hint, size = Type.body, color = V.Muted)
             BasicTextField(
                 query, onChange, singleLine = true,
                 textStyle = TextStyle(color = V.Text, fontSize = 15.sp, fontFamily = Sans),
@@ -85,12 +85,12 @@ fun SearchPill(query: String, onChange: (String) -> Unit, modifier: Modifier = M
 @Composable
 fun BackLink(text: String, onClick: () -> Unit) {
     Row(
-        Modifier.height(42.dp).clip(Pill).clickable(onClick = onClick).padding(end = 10.dp),
+        Modifier.height(42.dp).clip(Pill).clickable(onClick = onClick).padding(end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        VText("‹", size = 30.sp, color = V.Teal, font = SansLight)
+        VText("‹", size = Type.large, color = V.Teal, font = SansLight)
         Gap(w = 4.dp)
-        VText(text, size = 17.sp, color = V.Teal)
+        VText(text, size = Type.headline, color = V.Teal)
     }
 }
 

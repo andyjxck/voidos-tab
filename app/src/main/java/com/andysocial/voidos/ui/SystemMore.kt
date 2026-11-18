@@ -58,9 +58,9 @@ import java.util.TimeZone
 
 @Composable
 private fun InfoRow(k: String, v: String, col: Color = V.Text) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Label(k, Modifier.width(170.dp))
-        VText(v, size = 14.sp, color = col, font = FontFamily.Default, maxLines = 2, modifier = Modifier.weight(1f))
+        VText(v, size = Type.body, color = col, font = Sans, maxLines = 2, modifier = Modifier.weight(1f))
     }
 }
 
@@ -104,7 +104,7 @@ fun HubPane(store: Store, act: MainActivity) {
     }
     SettingRow("Fahrenheit") { VToggle(store.tempF) { store.set("tempF", it) } }
     SettingRow("Timer alarm sound") { VToggle(store.timerSound, V.Orange) { store.set("timerSound", it) } }
-    Gap(h = 18.dp)
+    Gap(h = 16.dp)
     SetSection("Lock screen")
     SettingRow("VoidOS lock screen") {
         VToggle(store.voidLock) { store.set("voidLock", it) }
@@ -112,10 +112,10 @@ fun HubPane(store: Store, act: MainActivity) {
     PinSettings(store)
     SettingRow("Notifications on the lock screen") { VToggle(store.lockNotices) { store.set("lockNotices", it) } }
     SettingRow("Show it now") { VButton("Lock", accent = V.Teal) { LockState.locked.value = true } }
-    Gap(h = 18.dp)
+    Gap(h = 16.dp)
     SetSection("Media and notifications")
     SettingRow("Access") {
-        if (access.value) VText("On", size = 15.sp, color = V.Muted)
+        if (access.value) VText("On", size = Type.body, color = V.Muted)
         else VButton("Allow", accent = V.Purple) { Thread { com.andysocial.voidos.Stealth.grant(ctx) }.start() }
     }
     if (act.isFinishing) Unit
@@ -163,7 +163,7 @@ private fun PinSettings(store: Store) {
                 }
                 PinStep.NEW -> {
                     GlassSegments(listOf("4" to "4 digits", "6" to "6 digits"), len.toString(), Modifier.widthIn(max = 320.dp)) { len = it.toInt() }
-                    Gap(h = 14.dp)
+                    Gap(h = 16.dp)
                     key(len) {
                         GlassPinPad(title = "Choose a new PIN", length = len, error = err, keySize = 64.dp) { p ->
                             first = p; err = null; step = PinStep.AGAIN
@@ -248,7 +248,7 @@ fun TimePane(store: Store, act: MainActivity) {
             }
         }
     }
-    msg?.let { Gap(h = 8.dp); VText(it, size = 12.sp, color = V.Coral, font = FontFamily.Default) }
+    msg?.let { Gap(h = 8.dp); VText(it, size = Type.caption, color = V.Coral, font = Sans) }
 }
 
 // ---------------------------------------------------------------------- battery
@@ -286,7 +286,7 @@ fun BatteryPane() {
         BatteryManager.BATTERY_HEALTH_GOOD -> "Good"; BatteryManager.BATTERY_HEALTH_OVERHEAT -> "Overheating"; BatteryManager.BATTERY_HEALTH_DEAD -> "Dead"
         BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "Over voltage"; BatteryManager.BATTERY_HEALTH_COLD -> "Cold"; else -> "Unknown"
     })
-    Gap(h = 10.dp)
+    Gap(h = 8.dp)
     VButton("Battery usage", accent = V.Muted) { open(ctx, Intent.ACTION_POWER_USAGE_SUMMARY) }
 }
 
@@ -341,21 +341,21 @@ fun StoragePane(store: Store) {
         val frac = used.toFloat() / d.totalBytes.coerceAtLeast(1)
         Row(verticalAlignment = Alignment.CenterVertically) {
             VText(gb(d.availableBytes), size = 40.sp, color = V.White, font = SansLight)
-            Gap(w = 10.dp)
-            VText("free of ${gb(d.totalBytes)}", size = 12.sp, color = V.Muted)
+            Gap(w = 8.dp)
+            VText("free of ${gb(d.totalBytes)}", size = Type.caption, color = V.Muted)
         }
         Gap(h = 8.dp)
         Box(Modifier.fillMaxWidth().height(16.dp).clip(OctS).background(V.Panel2)) {
             Box(Modifier.fillMaxWidth(frac).height(16.dp).background(if (frac > 0.9f) V.Coral else V.Teal))
         }
     }
-    Gap(h = 14.dp)
+    Gap(h = 16.dp)
     InfoRow("Apps you can open", "${apps.size}")
     InfoRow("Allowed in lock mode", "${store.allowed.size}")
     InfoRow("Starred", "${store.favs.size}")
     InfoRow("Shopping list", "${store.shopping.size} items")
     InfoRow("Notes", "${store.notes.size}")
-    Gap(h = 10.dp)
+    Gap(h = 8.dp)
     GlassActions(
         listOf(
             GlassAction("Play Store") { runQuickPkg(ctx, store, "com.android.vending") },

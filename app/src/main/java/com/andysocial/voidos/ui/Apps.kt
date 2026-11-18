@@ -322,14 +322,14 @@ fun AppsScreen(store: Store) {
                 Spacer(Modifier.weight(1f))
                 VText(
                     if (managing) "Done" else "Manage",
-                    size = 17.sp, color = V.Teal, font = if (managing) SansMedium else Sans,
+                    size = Type.headline, color = V.Teal, font = if (managing) SansMedium else Sans,
                     modifier = Modifier.clip(Pill).clickable {
                         if (managing) (ctx as? MainActivity)?.applyPolicies()
                         managing = !managing; query = ""
                     }.padding(horizontal = 12.dp, vertical = 8.dp),
                 )
             }
-            Gap(h = 14.dp)
+            Gap(h = 16.dp)
             SearchPill(query, { query = it }, hint = if (managing) "Search all ${all.size} apps" else "Search")
             if (managing) ManageList(store, match, reasons, Modifier.weight(1f))
             else {
@@ -344,10 +344,10 @@ fun AppsScreen(store: Store) {
                     Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                         Glyph(G.APPS, V.Tick, Modifier.size(44.dp))
                         Gap(h = 12.dp)
-                        VText(if (q.isNotEmpty()) "No app matches \"$q\"" else "No apps chosen yet", size = 18.sp, font = SansMedium, color = V.Text)
+                        VText(if (q.isNotEmpty()) "No app matches \"$q\"" else "No apps chosen yet", size = Type.title, font = SansMedium, color = V.Text)
                         if (q.isEmpty()) {
-                            Gap(h = 6.dp)
-                            VText("Tap Manage to pick the apps that appear here.", size = 14.sp, color = V.Muted)
+                            Gap(h = 8.dp)
+                            VText("Tap Manage to pick the apps that appear here.", size = Type.body, color = V.Muted)
                         }
                     }
                 } else if (q.isEmpty()) {
@@ -363,7 +363,7 @@ fun AppsScreen(store: Store) {
                     LazyVerticalGrid(
                         columns = GridCells.Adaptive(if (portrait) 104.dp else 118.dp),
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
                         contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
                     ) {
                         items(open, key = { it.pkg }) { app -> AppTile(app, store, starred = app.pkg in store.favs) }
@@ -371,20 +371,20 @@ fun AppsScreen(store: Store) {
                 }
             }
         }
-        if (!managing && q.isEmpty() && favs.isNotEmpty()) Dock(favs.take(if (portrait) 6 else 9), store, Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp))
+        if (!managing && q.isEmpty() && favs.isNotEmpty()) Dock(favs.take(if (portrait) 6 else 9), store, Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp))
         // a stopped launch: a floating note with the fix right there
         msg?.let { m ->
             Row(
-                Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp, start = 16.dp, end = 16.dp).widthIn(max = 620.dp)
+                Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp, start = 16.dp, end = 16.dp).widthIn(max = 620.dp)
                     .liquidGlass(Pill, GlassLook(smoke = 1.25f, depth = 1.2f))
                     .padding(start = 20.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                VText(m, size = 14.sp, color = V.Text, modifier = Modifier.weight(1f, fill = false), maxLines = 2)
+                VText(m, size = Type.body, color = V.Text, modifier = Modifier.weight(1f, fill = false), maxLines = 2)
                 if (stopped != null && reasons[stopped] == HIDDEN) {
-                    Gap(w = 10.dp)
-                    VText("Manage", size = 14.sp, color = V.Teal, font = SansMedium,
-                        modifier = Modifier.clip(Pill).clickable { managing = true; launchMsg.value = null }.padding(horizontal = 10.dp, vertical = 8.dp))
+                    Gap(w = 8.dp)
+                    VText("Manage", size = Type.body, color = V.Teal, font = SansMedium,
+                        modifier = Modifier.clip(Pill).clickable { managing = true; launchMsg.value = null }.padding(horizontal = 8.dp, vertical = 8.dp))
                 }
                 RoundIcon(G.CLOSE, "Dismiss", size = 34.dp) { launchMsg.value = null; blocked.value = null }
             }
@@ -395,12 +395,12 @@ fun AppsScreen(store: Store) {
 @Composable
 private fun QuickTile(q: Quick, onClick: () -> Unit) {
     Row(
-        Modifier.clip(Pill).background(Color.White.copy(alpha = 0.06f)).tap(onClick).padding(horizontal = 14.dp, vertical = 8.dp),
+        Modifier.clip(Pill).background(Color.White.copy(alpha = 0.06f)).tap(onClick).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Glyph(q.glyph, V.Muted, Modifier.size(16.dp))
         Gap(w = 8.dp)
-        VText(q.label, size = 14.sp, color = V.Text, maxLines = 1)
+        VText(q.label, size = Type.body, color = V.Text, maxLines = 1)
     }
 }
 
@@ -410,7 +410,7 @@ private fun QuickTile(q: Quick, onClick: () -> Unit) {
 private fun AppTile(app: AppEntry, store: Store, starred: Boolean) {
     val ctx = LocalContext.current
     Column(
-        Modifier.fillMaxWidth().squish().clip(RoundedCornerShape(18.dp))
+        Modifier.fillMaxWidth().squish().clip(RoundedCornerShape(Radius.card))
             .combinedClickable(onClick = { launchApp(ctx, store, app.pkg) }, onLongClick = { store.toggleFav(app.pkg) })
             .padding(vertical = 8.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -428,7 +428,7 @@ private fun AppTile(app: AppEntry, store: Store, starred: Boolean) {
             if (starred) Box(Modifier.align(Alignment.TopEnd).size(10.dp).clip(CircleShape).background(Brush.radialGradient(listOf(Color.White, V.Teal))))
         }
         Gap(h = 8.dp)
-        VText(app.label, size = 13.sp, color = V.Text, maxLines = 1, align = TextAlign.Center)
+        VText(app.label, size = Type.label, color = V.Text, maxLines = 1, align = TextAlign.Center)
     }
 }
 
@@ -437,15 +437,15 @@ private fun AppTile(app: AppEntry, store: Store, starred: Boolean) {
 @Composable
 private fun Dock(apps: List<AppEntry>, store: Store, modifier: Modifier) {
     val ctx = LocalContext.current
-    val shape = RoundedCornerShape(30.dp)
+    val shape = RoundedCornerShape(Radius.panel)
     Row(
         modifier.glass(shape, 0.92f)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         apps.forEach { app ->
             Box(
-                Modifier.size(64.dp).squish(0.88f).clip(RoundedCornerShape(16.dp))
+                Modifier.size(64.dp).squish(0.88f).clip(RoundedCornerShape(Radius.control))
                     .semantics { contentDescription = app.label }
                     .combinedClickable(onClick = { launchApp(ctx, store, app.pkg) }, onLongClick = { store.toggleFav(app.pkg) }),
                 contentAlignment = Alignment.Center,
@@ -467,13 +467,13 @@ private fun ManageList(store: Store, apps: List<AppEntry>, reasons: Map<String, 
         item(key = "intro") {
             VText(
                 "Only the apps you switch on appear in VoidOS. Hidden apps don't show anywhere and can't be opened from it.",
-                size = 13.sp, color = V.Muted, lineHeight = 18.sp, modifier = Modifier.padding(start = 4.dp, top = 6.dp, bottom = 4.dp),
+                size = Type.label, color = V.Muted, lineHeight = 18.sp, modifier = Modifier.padding(start = 4.dp, top = 6.dp, bottom = 4.dp),
             )
         }
         listOf("Shown" to shown, "Hidden" to hidden).forEach { (title, list) ->
             if (list.isEmpty()) return@forEach
             item(key = "h-$title") {
-                VText(title, size = 15.sp, font = SansMedium, color = V.Text, modifier = Modifier.padding(start = 4.dp, top = 18.dp, bottom = 8.dp))
+                VText(title, size = Type.body, font = SansMedium, color = V.Text, modifier = Modifier.padding(start = 4.dp, top = 18.dp, bottom = 8.dp))
             }
             itemsIndexed(list, key = { _, a -> "m-" + a.pkg }) { i, app ->
                 val why = reasons[app.pkg]?.takeIf { it != HIDDEN }
@@ -487,12 +487,12 @@ private fun ManageList(store: Store, apps: List<AppEntry>, reasons: Map<String, 
 private fun ManageRow(app: AppEntry, store: Store, on: Boolean, starred: Boolean, why: String?, first: Boolean, last: Boolean) {
     Column(Modifier.fillMaxWidth().clip(groupShape(first, last)).background(GroupFill).clickable { store.setAllowed(app.pkg, !on) }) {
         if (!first) Spacer(Modifier.height(4.dp))
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.alpha(if (on) 1f else 0.55f)) { AppGlyph(app, store.iconStyle, 40.dp) }
             Gap(w = 16.dp)
             Column(Modifier.weight(1f)) {
-                VText(app.label, size = 16.sp, color = V.Text, maxLines = 1)
-                if (why != null) VText(sentence(why) + ", so it won't open", size = 12.sp, color = V.Coral, maxLines = 1)
+                VText(app.label, size = Type.headline, color = V.Text, maxLines = 1)
+                if (why != null) VText(sentence(why) + ", so it won't open", size = Type.caption, color = V.Coral, maxLines = 1)
             }
             if (on) {
                 Box(

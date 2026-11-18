@@ -92,16 +92,16 @@ fun EscapeOverlay(store: Store, act: MainActivity, onClose: () -> Unit) {
             )
         } else if (released != null) {
             Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                VText("Released", size = 26.sp, color = V.Coral)
+                VText("Released", size = Type.large, color = V.Coral)
                 Gap(h = 12.dp)
-                VText(released!!, size = 14.sp, color = V.Text, font = FontFamily.Default, align = TextAlign.Center, lineHeight = 20.sp)
+                VText(released!!, size = Type.body, color = V.Text, font = Sans, align = TextAlign.Center, lineHeight = 20.sp)
                 Gap(h = 20.dp)
                 VButton("Open Android settings", accent = V.Teal, filled = true) { act.openAndroidSettings(); onClose() }
             }
         } else {
-            Column(Modifier.widthIn(max = 620.dp).fillMaxWidth().padding(horizontal = 24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                VText("Out of VoidOS", size = 26.sp, font = SansLight, color = V.White)
-                VText("Pick how far out you want to go. Pressing Home always brings you back to VoidOS while it's still device owner.", size = 13.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 18.sp)
+            Column(Modifier.widthIn(max = 620.dp).fillMaxWidth().padding(horizontal = 24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                VText("Out of VoidOS", size = Type.large, font = SansLight, color = V.White)
+                VText("Pick how far out you want to go. Pressing Home always brings you back to VoidOS while it's still device owner.", size = Type.label, color = V.Muted, font = Sans, lineHeight = 18.sp)
                 Gap(h = 4.dp)
                 EscapeOption("Visit Android settings", "Leaves lock mode for this trip and opens stock Settings.", V.Teal) {
                     act.openAndroidSettings(); onClose()
@@ -115,7 +115,7 @@ fun EscapeOverlay(store: Store, act: MainActivity, onClose: () -> Unit) {
                     }
                 } else {
                     VPanel(accent = V.Coral) {
-                        VText("Sure? this hands the tablet back to stock Android.", size = 13.sp, color = V.Coral)
+                        VText("Sure? this hands the tablet back to stock Android.", size = Type.label, color = V.Coral)
                         Gap(h = 12.dp)
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             VButton("Release", accent = V.Coral, filled = true) {
@@ -136,13 +136,13 @@ fun EscapeOverlay(store: Store, act: MainActivity, onClose: () -> Unit) {
 @Composable
 private fun EscapeOption(title: String, detail: String, accent: Color, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().liquidGlass(Oct, GlassLook(smoke = 0.7f, depth = 0.6f, stain = accent, stainAlpha = 0.16f)).clickable(onClick = onClick).padding(18.dp),
+        Modifier.fillMaxWidth().liquidGlass(Oct, GlassLook(smoke = 0.7f, depth = 0.6f, stain = accent, stainAlpha = 0.16f)).clickable(onClick = onClick).padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            VText(sentence(title), size = 15.sp, color = accent)
+            VText(sentence(title), size = Type.body, color = accent)
             Gap(h = 4.dp)
-            VText(detail, size = 12.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 16.sp)
+            VText(detail, size = Type.caption, color = V.Muted, font = Sans, lineHeight = 16.sp)
         }
         Glyph(G.NEXT, accent, Modifier.size(20.dp))
     }

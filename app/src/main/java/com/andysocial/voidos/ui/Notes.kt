@@ -115,7 +115,7 @@ fun NotesScreen(store: Store) {
                 else Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                     Glyph(G.NOTES, V.Tick, Modifier.size(44.dp))
                     Gap(h = 12.dp)
-                    VText("No note open", size = 17.sp, color = V.Muted)
+                    VText("No note open", size = Type.headline, color = V.Muted)
                 }
             }
         }
@@ -136,18 +136,18 @@ private fun NoteList(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Spacer(Modifier.weight(1f))
             RoundIcon(G.PEN, "Sketch") { onNew(true) }
-            Gap(w = 10.dp)
+            Gap(w = 8.dp)
             RoundIcon(G.COMPOSE, "New note", active = true) { onNew(false) }
         }
-        Gap(h = 14.dp)
+        Gap(h = 16.dp)
         SearchPill(query, onQuery)
-        Gap(h = 6.dp)
+        Gap(h = 8.dp)
         if (shown.isEmpty()) {
             Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                VText(if (query.isBlank()) "No notes yet" else "No matches", size = 17.sp, color = V.Muted)
+                VText(if (query.isBlank()) "No notes yet" else "No matches", size = Type.headline, color = V.Muted)
                 if (query.isBlank()) {
-                    Gap(h = 6.dp)
-                    VText("Tap the pencil to write one, or the pen to sketch.", size = 13.sp, color = V.Tick, align = TextAlign.Center)
+                    Gap(h = 8.dp)
+                    VText("Tap the pencil to write one, or the pen to sketch.", size = Type.label, color = V.Tick, align = TextAlign.Center)
                 }
             }
             return@Column
@@ -156,7 +156,7 @@ private fun NoteList(
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 24.dp)) {
             groups.forEach { (bucket, list) ->
                 item(key = "h-$bucket") {
-                    VText(bucket, size = 15.sp, font = SansMedium, color = V.Text, modifier = Modifier.padding(start = 4.dp, top = 16.dp, bottom = 8.dp))
+                    VText(bucket, size = Type.body, font = SansMedium, color = V.Text, modifier = Modifier.padding(start = 4.dp, top = 16.dp, bottom = 8.dp))
                 }
                 itemsIndexed(list, key = { _, n -> n.id }) { i, n ->
                     NoteRow(n, n.id == selected, first = i == 0, last = i == list.lastIndex) { onOpen(n.id) }
@@ -179,19 +179,19 @@ private fun NoteRow(n: Note, selected: Boolean, first: Boolean, last: Boolean, o
             .clickable(onClick = onClick),
     ) {
         if (!first) Spacer(Modifier.height(4.dp))
-        Row(Modifier.padding(start = 18.dp, end = 14.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(start = 16.dp, end = 14.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                VText(title, size = 16.sp, font = SansMedium, color = V.White, maxLines = 1)
-                Gap(h = 3.dp)
+                VText(title, size = Type.headline, font = SansMedium, color = V.White, maxLines = 1)
+                Gap(h = 4.dp)
                 Row {
-                    VText(shortWhen(n.updated), size = 13.sp, color = V.Text.copy(alpha = 0.75f), maxLines = 1)
+                    VText(shortWhen(n.updated), size = Type.label, color = V.Text.copy(alpha = 0.75f), maxLines = 1)
                     Gap(w = 8.dp)
-                    VText(rest, size = 13.sp, color = V.Muted, maxLines = 1)
+                    VText(rest, size = Type.label, color = V.Muted, maxLines = 1)
                 }
             }
             if (n.ink.isNotEmpty()) {
-                Gap(w = 10.dp)
-                InkPreview(n.ink, Modifier.size(42.dp).clip(RoundedCornerShape(8.dp)).background(Color.White.copy(alpha = 0.05f)).padding(4.dp))
+                Gap(w = 8.dp)
+                InkPreview(n.ink, Modifier.size(42.dp).clip(RoundedCornerShape(Radius.chip)).background(Color.White.copy(alpha = 0.05f)).padding(4.dp))
             }
         }
     }
@@ -245,14 +245,14 @@ private fun NotePage(
                     .clickable { colour = (colour + 1) % V.Lap.size },
                 contentAlignment = Alignment.Center,
             ) { Box(Modifier.size(14.dp).clip(CircleShape).background(V.Lap[colour % V.Lap.size])) }
-            Gap(w = 10.dp)
+            Gap(w = 8.dp)
             RoundIcon(G.FACE, if (onHome) "Remove from Home" else "Show on Home", active = onHome) {
                 if (onHome) store.widgets.filter { it.kind == "note" && it.ref == id }.forEach { store.removeWidget(it.id) }
                 else store.addWidget("note", id)
             }
-            Gap(w = 10.dp)
+            Gap(w = 8.dp)
             RoundIcon(G.PEN, if (drawing) "Done drawing" else "Draw", active = drawing) { setDrawing(!drawing); eraser = false }
-            Gap(w = 10.dp)
+            Gap(w = 8.dp)
             RoundIcon(G.TRASH, "Delete note", tint = V.Coral) {
                 store.widgets.filter { it.kind == "note" && it.ref == id }.forEach { store.removeWidget(it.id) }
                 store.deleteNote(id); onDeleted()
@@ -262,11 +262,11 @@ private fun NotePage(
         val words = text.trim().split(Regex("\\s+")).count { it.isNotEmpty() }
         VText(
             longWhen(open.updated) + if (words > 0) "  \u00b7  $words word${if (words == 1) "" else "s"}" else "",
-            size = 12.sp, color = V.Muted, align = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+            size = Type.caption, color = V.Muted, align = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
         )
-        Gap(h = 10.dp)
+        Gap(h = 8.dp)
         Box(Modifier.fillMaxWidth().weight(1f)) {
-            if (text.isEmpty() && !drawing) VText(if (ink.isEmpty()) "Title" else "", size = 28.sp, font = SansMedium, color = V.Tick, modifier = Modifier.padding(horizontal = 4.dp))
+            if (text.isEmpty() && !drawing) VText(if (ink.isEmpty()) "Title" else "", size = Type.large, font = SansMedium, color = V.Tick, modifier = Modifier.padding(horizontal = 4.dp))
             BasicTextField(
                 value = text,
                 onValueChange = { text = it },
@@ -284,7 +284,7 @@ private fun NotePage(
                     onEraser = { eraser = !eraser },
                     onUndo = { if (ink.isNotEmpty()) { ink.removeAt(ink.lastIndex); inkVersion++ } },
                     onClear = { ink.clear(); inkVersion++ },
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
                 )
             }
         }
@@ -301,11 +301,11 @@ private fun PenCapsule(
     Row(
         modifier.widthIn(max = 820.dp).liquidGlass(Pill, GlassLook(smoke = 1.1f, depth = 1.2f))
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        PenTool("Undo", false, hasInk, onUndo) { c -> VText("\u21b6", size = 22.sp, color = c) }
+        PenTool("Undo", false, hasInk, onUndo) { c -> VText("\u21b6", size = Type.title2, color = c) }
         Hair()
         Inks.forEachIndexed { i, c ->
             val on = i == pen && !eraser
@@ -357,7 +357,7 @@ private fun TextTool(label: String, on: Boolean, enabled: Boolean, onClick: () -
         Modifier.height(36.dp).clip(Pill).background(if (on) V.Teal.copy(alpha = 0.18f) else Color.Transparent)
             .clickable(enabled = enabled, onClick = onClick).padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center,
-    ) { VText(label, size = 14.sp, color = c, maxLines = 1) }
+    ) { VText(label, size = Type.body, color = c, maxLines = 1) }
 }
 
 /** Dotted: round dots one pen-width apart. Dashed: dashes three widths long. */

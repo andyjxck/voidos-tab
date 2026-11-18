@@ -182,15 +182,15 @@ fun wxAge(fetched: Long, now: Long = System.currentTimeMillis()): String {
 fun OfflineBadge(wx: Wx?, modifier: Modifier = Modifier) {
     // a full-width banner: no Wi-Fi is the first thing you see on the page
     Row(
-        modifier.fillMaxWidth().droplet(RoundedCornerShape(22.dp), V.Coral, 2.2f)
-            .padding(horizontal = 22.dp, vertical = 16.dp),
+        modifier.fillMaxWidth().droplet(RoundedCornerShape(Radius.card), V.Coral, 2.2f)
+            .padding(horizontal = 24.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Glyph(G.WIFI_OFF, V.Coral, Modifier.size(30.dp))
         Gap(w = 16.dp)
         Column(Modifier.weight(1f)) {
-            VText("No Wi-Fi", size = 22.sp, font = SansMedium, color = V.White, maxLines = 1)
-            VText(if (wx == null) "No weather saved yet" else "Showing the weather from ${wxAge(wx.fetched)}", size = 15.sp, color = V.Text, maxLines = 1)
+            VText("No Wi-Fi", size = Type.title2, font = SansMedium, color = V.White, maxLines = 1)
+            VText(if (wx == null) "No weather saved yet" else "Showing the weather from ${wxAge(wx.fetched)}", size = Type.body, color = V.Text, maxLines = 1)
         }
     }
 }
@@ -248,11 +248,11 @@ fun WeatherScreen(store: Store) {
     val now: @Composable (Modifier) -> Unit = { mod ->
         VPanel(mod, accent = wx?.let { wxColour(it.code, it.isDay) }) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (store.autoPlace) { Glyph(G.GLOBE, V.Muted, Modifier.size(16.dp)); Gap(w = 6.dp) }
-                VText(store.city, size = 16.sp, color = V.Text, modifier = Modifier.weight(1f), maxLines = 1)
+                if (store.autoPlace) { Glyph(G.GLOBE, V.Muted, Modifier.size(16.dp)); Gap(w = 8.dp) }
+                VText(store.city, size = Type.headline, color = V.Text, modifier = Modifier.weight(1f), maxLines = 1)
                 VButton(if (editing) "Cancel" else "Place", accent = V.Muted) { editing = !editing; findErr = null }
             }
-            if (off || (wx == null && err != null)) { Gap(h = 10.dp); OfflineBadge(wx) }
+            if (off || (wx == null && err != null)) { Gap(h = 8.dp); OfflineBadge(wx) }
             if (editing) {
                 Gap(h = 12.dp)
                 PlaceSearch(query, { query = it }) { r ->
@@ -260,7 +260,7 @@ fun WeatherScreen(store: Store) {
                     store.setPlace(r.name, r.lat, r.lon); editing = false; query = ""
                     scope.launch { WeatherRepo.refresh(store, force = true) }
                 }
-                findErr?.let { Gap(h = 6.dp); VText(it, size = 12.sp, color = V.Coral, font = FontFamily.Default) }
+                findErr?.let { Gap(h = 8.dp); VText(it, size = Type.caption, color = V.Coral, font = Sans) }
                 if (!store.autoPlace) {
                     Gap(h = 8.dp)
                     VButton("Use my location") {
@@ -271,23 +271,23 @@ fun WeatherScreen(store: Store) {
             val w = wx
             if (w == null) {
                 Gap(h = if (portrait) 16.dp else 40.dp)
-                VText(if (err != null) "NO WI-FI, NO SAVED FORECAST YET" else "LOADING SKY", size = 14.sp, color = V.Muted)
+                VText(if (err != null) "NO WI-FI, NO SAVED FORECAST YET" else "LOADING SKY", size = Type.body, color = V.Muted)
             } else if (portrait && !editing) {
                 // portrait: glyph and temperature on the left, the numbers on the right
-                Gap(h = 10.dp)
+                Gap(h = 8.dp)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Glyph(wxGlyph(w.code, w.isDay), wxColour(w.code, w.isDay), Modifier.size(84.dp), weight = 3f)
-                    Gap(w = 14.dp)
+                    Gap(w = 16.dp)
                     Column {
                         VText(t(w.temp), size = 72.sp, color = V.White, font = SansLight)
-                        VText(wxWords(w.code), size = 14.sp, color = wxColour(w.code, w.isDay), maxLines = 1)
+                        VText(wxWords(w.code), size = Type.body, color = wxColour(w.code, w.isDay), maxLines = 1)
                     }
                     Box(Modifier.weight(1f))
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                             Stat("Feels", t(w.feels)); Stat("Wind", "${w.wind.roundToInt()} km/h"); Stat("Humid", "${w.humidity}%")
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) { Stat("Sunrise", w.sunrise); Stat("Sunset", w.sunset) }
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) { Stat("Sunrise", w.sunrise); Stat("Sunset", w.sunset) }
                     }
                 }
                 Gap(h = 8.dp)
@@ -295,16 +295,16 @@ fun WeatherScreen(store: Store) {
             } else if (!portrait) {
                 Gap(h = 24.dp)
                 Glyph(wxGlyph(w.code, w.isDay), wxColour(w.code, w.isDay), Modifier.size(110.dp), weight = 3f)
-                Gap(h = 10.dp)
+                Gap(h = 8.dp)
                 VText(t(w.temp), size = 96.sp, color = V.White, font = SansLight)
-                VText(wxWords(w.code), size = 16.sp, color = wxColour(w.code, w.isDay))
+                VText(wxWords(w.code), size = Type.headline, color = wxColour(w.code, w.isDay))
                 Gap(h = 20.dp)
-                Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                     Stat("Feels", t(w.feels)); Stat("Wind", "${w.wind.roundToInt()} km/h"); Stat("Humid", "${w.humidity}%")
                 }
-                Gap(h = 14.dp)
-                Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) { Stat("Sunrise", w.sunrise); Stat("Sunset", w.sunset) }
-                Gap(h = 14.dp)
+                Gap(h = 16.dp)
+                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) { Stat("Sunrise", w.sunrise); Stat("Sunset", w.sunset) }
+                Gap(h = 16.dp)
                 Label("Open-Meteo", color = V.Tick)
             }
         }
@@ -312,7 +312,7 @@ fun WeatherScreen(store: Store) {
     val graph: @Composable (Modifier) -> Unit = { mod ->
         VPanel(mod) {
             Label("Next 12 hours")
-            Gap(h = 10.dp)
+            Gap(h = 8.dp)
             wx?.let { TempGraph(it.hours, Modifier.fillMaxWidth().weight(1f)) }
         }
     }
@@ -323,13 +323,13 @@ fun WeatherScreen(store: Store) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 wx?.days?.forEach { d ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        VText(d.label, size = 12.sp, color = V.Muted)
+                        VText(d.label, size = Type.caption, color = V.Muted)
                         Gap(h = 8.dp)
                         Glyph(wxGlyph(d.code), wxColour(d.code), Modifier.size(38.dp))
                         Gap(h = 8.dp)
-                        VText(t(d.max), size = 20.sp, color = V.White, font = SansLight)
-                        VText(t(d.min), size = 14.sp, color = V.Muted, font = SansLight)
-                        VText("${d.rain}%", size = 11.sp, color = V.Teal)
+                        VText(t(d.max), size = Type.title, color = V.White, font = SansLight)
+                        VText(t(d.min), size = Type.body, color = V.Muted, font = SansLight)
+                        VText("${d.rain}%", size = Type.caption, color = V.Teal)
                     }
                 }
             }
@@ -355,7 +355,7 @@ fun WeatherScreen(store: Store) {
 
 @Composable
 private fun Stat(label: String, value: String) {
-    Column { Label(label); Gap(h = 2.dp); VText(value, size = 16.sp, color = V.Text) }
+    Column { Label(label); Gap(h = 2.dp); VText(value, size = Type.headline, color = V.Text) }
 }
 
 @Composable
@@ -376,12 +376,12 @@ fun TempGraph(hours: List<Hour>, modifier: Modifier) {
             drawPath(path, V.Text.copy(alpha = 0.85f), style = Stroke(4f, cap = StrokeCap.Round))
             hours.forEachIndexed { i, h -> drawOct(Offset(i * stepX, y(h.temp)), 7f, V.Bg, fill = true); drawOct(Offset(i * stepX, y(h.temp)), 7f, V.Text) }
         }
-        Gap(h = 6.dp)
+        Gap(h = 8.dp)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             hours.forEach { h ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    VText(t(h.temp), size = 13.sp, color = V.Text)
-                    VText(h.label, size = 11.sp, color = V.Muted)
+                    VText(t(h.temp), size = Type.label, color = V.Text)
+                    VText(h.label, size = Type.caption, color = V.Muted)
                 }
             }
         }
@@ -402,18 +402,18 @@ fun PlaceSearch(query: String, onQuery: (String) -> Unit, onPick: (WeatherRepo.P
         results = WeatherRepo.search(query.trim()); looked = true
     }
     VField(query, onQuery, Modifier.fillMaxWidth(), placeholder = "Search a town or city")
-    Gap(h = 6.dp)
+    Gap(h = 8.dp)
     results.forEach { r ->
         Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).tap { onPick(r) }.padding(horizontal = 6.dp, vertical = 10.dp),
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.control)).tap { onPick(r) }.padding(horizontal = 8.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Glyph(G.PIN, V.Muted, Modifier.size(18.dp)); Gap(w = 12.dp)
             Column(Modifier.weight(1f)) {
-                VText(r.name, size = 16.sp, color = V.Text, maxLines = 1)
-                if (r.where.isNotBlank()) VText(r.where, size = 13.sp, color = V.Muted, maxLines = 1)
+                VText(r.name, size = Type.headline, color = V.Text, maxLines = 1)
+                if (r.where.isNotBlank()) VText(r.where, size = Type.label, color = V.Muted, maxLines = 1)
             }
         }
     }
-    if (looked && results.isEmpty()) VText("No places found", size = 13.sp, color = V.Muted)
+    if (looked && results.isEmpty()) VText("No places found", size = Type.label, color = V.Muted)
 }

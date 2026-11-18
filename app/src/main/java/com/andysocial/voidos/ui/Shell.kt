@@ -356,14 +356,14 @@ fun StatusStrip(store: Store, module: Module, modifier: Modifier = Modifier, onP
             .tap { pull() }
             .then(modifier),
     ) {
-        Row(Modifier.fillMaxSize().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxSize().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             if (module != Module.FACE) {
                 val fmt = if (store.use24h) "HH:mm" else "h:mm"
-                VText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), size = 15.sp, font = SansMedium, color = V.Text)
+                VText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), size = Type.body, font = SansMedium, color = V.Text)
             }
             Spacer(Modifier.weight(1f))
             Glyph(G.WIFI, if (wifiOn) V.Text else V.Tick, Modifier.size(17.dp))
-            Gap(w = 14.dp)
+            Gap(w = 16.dp)
             BatteryGlyph(bat)
         }
     }
@@ -376,8 +376,8 @@ fun BatteryGlyph(b: Battery) {
         else -> V.Text
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        VText(if (b.pct >= 0) "${b.pct}%" else "--", size = 13.sp, color = V.Muted)
-        Gap(w = 6.dp)
+        VText(if (b.pct >= 0) "${b.pct}%" else "--", size = Type.label, color = V.Muted)
+        Gap(w = 8.dp)
         Canvas(Modifier.size(26.dp, 13.dp)) {
             val r = CornerRadius(3.5.dp.toPx())
             drawRoundRect(col.copy(alpha = 0.45f), Offset(0f, 0f), Size(size.width - 3.dp.toPx(), size.height), r, style = Stroke(1.2.dp.toPx()))
@@ -402,7 +402,7 @@ fun AmbientClock(store: Store) {
     Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
         Column(Modifier.offset((dx * 0.6f).dp, (dy * 0.8f).dp), horizontalAlignment = Alignment.CenterHorizontally) {
             VText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), size = if (LocalPortrait.current) 120.sp else 150.sp, color = V.Text.copy(alpha = 0.5f), font = SansThin)
-            VText(SimpleDateFormat("EEEE d MMMM", Locale.UK).format(Date(now)), size = 20.sp, color = V.Muted.copy(alpha = 0.6f))
+            VText(SimpleDateFormat("EEEE d MMMM", Locale.UK).format(Date(now)), size = Type.title, color = V.Muted.copy(alpha = 0.6f))
         }
     }
 }

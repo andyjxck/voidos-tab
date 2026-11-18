@@ -139,11 +139,11 @@ fun GlassActions(actions: List<GlassAction>, modifier: Modifier = Modifier, heig
             ) {
                 if (stacked && a.glyph != null) Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Glyph(a.glyph, tint, Modifier.size(22.dp))
-                    Gap(h = 5.dp)
-                    VText(a.label, size = 12.sp, color = tint.copy(alpha = if (a.warn || a.active) 1f else 0.8f), maxLines = 1)
-                } else Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 6.dp)) {
+                    Gap(h = 4.dp)
+                    VText(a.label, size = Type.caption, color = tint.copy(alpha = if (a.warn || a.active) 1f else 0.8f), maxLines = 1)
+                } else Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp)) {
                     if (a.glyph != null) { Glyph(a.glyph, tint, Modifier.size(18.dp)); Gap(w = 8.dp) }
-                    VText(a.label, size = 15.sp, color = tint, maxLines = 1)
+                    VText(a.label, size = Type.body, color = tint, maxLines = 1)
                 }
             }
         }
@@ -156,7 +156,7 @@ fun GlassActions(actions: List<GlassAction>, modifier: Modifier = Modifier, heig
  */
 @Composable
 fun GlassGroup(modifier: Modifier = Modifier, content: @Composable GlassGroupScope.() -> Unit) {
-    Column(modifier.fillMaxWidth().pane(Oct).padding(vertical = 6.dp)) {
+    Column(modifier.fillMaxWidth().pane(Oct).padding(vertical = 8.dp)) {
         val scope = remember { GlassGroupScope() }
         scope.count = 0
         scope.content()
@@ -173,20 +173,20 @@ class GlassGroupScope internal constructor() {
         count++
         Row(
             Modifier.fillMaxWidth()
-                .padding(horizontal = 6.dp, vertical = 2.dp)
-                .then(if (selected) Modifier.droplet(RoundedCornerShape(20.dp), V.Teal, 0.6f) else Modifier.clip(RoundedCornerShape(20.dp)))
+                .padding(horizontal = 8.dp, vertical = 2.dp)
+                .then(if (selected) Modifier.droplet(RoundedCornerShape(Radius.card), V.Teal, 0.6f) else Modifier.clip(RoundedCornerShape(Radius.card)))
                 .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-                .padding(horizontal = 14.dp, vertical = if (detail != null) 12.dp else 14.dp),
+                .padding(horizontal = 16.dp, vertical = if (detail != null) 12.dp else 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (glyph != null) { Glyph(glyph, if (selected) V.Teal else V.Text.copy(alpha = 0.8f), Modifier.size(20.dp)); Gap(w = 16.dp) }
             Column(Modifier.weight(1f)) {
-                VText(sentence(title), size = 16.sp, color = if (selected) V.White else V.Text, maxLines = 2)
-                if (detail != null) { Gap(h = 2.dp); VText(detail, size = 13.sp, color = V.Muted, lineHeight = 18.sp) }
+                VText(sentence(title), size = Type.headline, color = if (selected) V.White else V.Text, maxLines = 2)
+                if (detail != null) { Gap(h = 2.dp); VText(detail, size = Type.label, color = V.Muted, lineHeight = 18.sp) }
             }
             if (trailing != null) { Gap(w = 12.dp); trailing() }
             else if (selected) Glyph(G.CHECK, V.Teal, Modifier.size(20.dp))
-            else if (chevron) VText("\u203A", size = 22.sp, color = V.Tick, font = SansLight)
+            else if (chevron) VText("\u203A", size = Type.title2, color = V.Tick, font = SansLight)
         }
     }
 }

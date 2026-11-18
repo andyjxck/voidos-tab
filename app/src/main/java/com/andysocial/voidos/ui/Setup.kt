@@ -38,23 +38,23 @@ fun Setup(store: Store, act: MainActivity) {
     Split(Modifier.fillMaxSize().padding(if (LocalPortrait.current) 28.dp else 48.dp), spacing = 24.dp) {
         Column(Modifier.main().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.Center) {
             VText("Voidos", size = 54.sp, color = V.White)
-            VText("Tab edition", size = 14.sp, color = V.Teal)
+            VText("Tab edition", size = Type.body, color = V.Teal)
             Gap(h = 28.dp)
             VPanel(Modifier.widthIn(max = 520.dp).fillMaxWidth(), accent = if (owner) V.Green else V.Yellow) {
                 Label("Device owner")
-                Gap(h = 6.dp)
-                VText(if (owner) "Yes. VoidOS can run the whole tablet." else "Not yet", size = 16.sp, color = if (owner) V.Green else V.Yellow)
+                Gap(h = 8.dp)
+                VText(if (owner) "Yes. VoidOS can run the whole tablet." else "Not yet", size = Type.headline, color = if (owner) V.Green else V.Yellow)
                 Gap(h = 8.dp)
                 VText(
                     if (owner) "Lock mode, hidden extras, update blocking and the Wi-Fi and brightness controls are available."
                     else "VoidOS works as a normal home screen until you run this from your Mac's platform-tools folder:\n\n${Policy.SET_OWNER_CMD}\n\nIt only works while no Google or other account is on the tablet.",
-                    size = 13.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 19.sp,
+                    size = Type.label, color = V.Muted, font = Sans, lineHeight = 19.sp,
                 )
             }
-            Gap(h = 18.dp)
+            Gap(h = 16.dp)
             VText(
                 "Your PIN is the way out. Hold the VoidOS mark (top left) for three seconds any time, then enter it.",
-                size = 13.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 19.sp, modifier = Modifier.widthIn(max = 520.dp),
+                size = Type.label, color = V.Muted, font = Sans, lineHeight = 19.sp, modifier = Modifier.widthIn(max = 520.dp),
             )
         }
         Box(Modifier.main(1.1f), contentAlignment = Alignment.Center) {

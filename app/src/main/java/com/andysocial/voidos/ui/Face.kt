@@ -156,7 +156,7 @@ fun FaceScreen(store: Store, onOpen: (Module) -> Unit) {
                     Modifier.offset { IntOffset((clockBox.cx - clockBox.w / 2f).roundToInt(), (clockBox.cy - clockBox.h / 2f).roundToInt()) }
                         .size(with(d) { clockBox.w.toDp() }, with(d) { clockBox.h.toDp() })
                         .graphicsLayer { rotationZ = clockBox.rot }
-                        .background(Brush.radialGradient(listOf(V.Teal.copy(alpha = 0.16f), Color.Transparent)), RoundedCornerShape(28.dp)),
+                        .background(Brush.radialGradient(listOf(V.Teal.copy(alpha = 0.16f), Color.Transparent)), RoundedCornerShape(Radius.panel)),
                 )
                 WidgetLayer(store, now, editing, onOpen, faceW, faceH, live)
             }
@@ -169,9 +169,9 @@ fun FaceScreen(store: Store, onOpen: (Module) -> Unit) {
         // favourites, only when you've starred some
         if (favs.isNotEmpty()) {
             Row(
-                Modifier.align(Alignment.CenterHorizontally).padding(top = 10.dp)
-                    .glass(RoundedCornerShape(30.dp), 0.7f).padding(horizontal = 18.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp)
+                    .glass(RoundedCornerShape(Radius.panel), 0.7f).padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) { favs.take(6).forEach { app -> AppIcon(app, 42.dp) { launchApp(ctx, store, app.pkg) } } }
         }
     }
@@ -317,9 +317,9 @@ private fun TimerPills(running: List<KTimer>, now: Long, px: Float, onOpen: (Mod
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(if (soon) V.Coral else V.Teal))
-                Gap(w = 10.dp)
+                Gap(w = 8.dp)
                 VText(t.label.take(14), size = fs * 0.85f, color = V.Muted, maxLines = 1)
-                Gap(w = 10.dp)
+                Gap(w = 8.dp)
                 VText(fmtDur(t.remaining(now)), size = fs, color = V.White, font = SansLight, maxLines = 1)
             }
         }
@@ -341,9 +341,9 @@ private fun WidgetMenu(store: Store, modifier: Modifier, onDone: () -> Unit) {
     VPanel(modifier.width(260.dp), padding = 14.dp) {
         Label("Add to face")
         Gap(h = 4.dp)
-        VText("Hold a widget or the clock to move it. Pinch to stretch it, twist to turn it.", size = 12.sp, color = V.Muted, lineHeight = 17.sp)
-        Gap(h = 10.dp)
-        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        VText("Hold a widget or the clock to move it. Pinch to stretch it, twist to turn it.", size = Type.caption, color = V.Muted, lineHeight = 17.sp)
+        Gap(h = 8.dp)
+        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             fun on(kind: String, ref: Long = 0L) = store.widgets.any { it.kind == kind && it.ref == ref }
             @Composable fun row(label: String, g: G, accent: Color, kind: String, ref: Long = 0L) {
                 val has = on(kind, ref)
@@ -353,8 +353,8 @@ private fun WidgetMenu(store: Store, modifier: Modifier, onDone: () -> Unit) {
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Glyph(g, accent, Modifier.size(20.dp)); Gap(w = 10.dp)
-                    VText(label, size = 13.sp, color = V.Text, font = FontFamily.Default, maxLines = 1, modifier = Modifier.weight(1f))
+                    Glyph(g, accent, Modifier.size(20.dp)); Gap(w = 8.dp)
+                    VText(label, size = Type.label, color = V.Text, font = Sans, maxLines = 1, modifier = Modifier.weight(1f))
                     if (has) Glyph(G.CHECK, accent, Modifier.size(18.dp))
                 }
             }
@@ -372,7 +372,7 @@ private fun WidgetMenu(store: Store, modifier: Modifier, onDone: () -> Unit) {
                 row(n.text.lineSequence().firstOrNull()?.ifBlank { null } ?: if (n.ink.isNotEmpty()) "Drawing" else "Empty note", G.NOTES, V.Yellow, "note", n.id)
             }
         }
-        Gap(h = 10.dp)
+        Gap(h = 8.dp)
         GlassActions(
             listOf(
                 GlassAction("Centre clock", enabled = store.clock != ClockPlace()) { store.resetClock() },
@@ -439,7 +439,7 @@ private fun widgetSize(wd: FaceWidget): Pair<Dp, Dp> = when (wd.kind) {
 @Composable
 private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module) -> Unit, lifted: Boolean) {
     val accent = V.Teal
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(Radius.card)
     Column(
         Modifier.fillMaxSize()
             .liquidGlass(shape, GlassLook(smoke = if (lifted) 0.9f else 0.72f, depth = if (lifted) 1.6f else 0.9f, shine = if (lifted) 1.3f else 1f, stain = if (lifted) accent else null, stainAlpha = 0.14f))
@@ -450,7 +450,7 @@ private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module)
                     else -> Module.NOTES
                 })
             }
-            .padding(14.dp),
+            .padding(16.dp),
     ) {
         when (wd.kind) {
             "sky" -> {
@@ -459,10 +459,10 @@ private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module)
                 val w = wx
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Label(store.city.take(14))
-                    if (off) { Gap(w = 6.dp); Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(V.Coral)) }
+                    if (off) { Gap(w = 8.dp); Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(V.Coral)) }
                 }
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
-                    if (w == null) VText("--", size = 30.sp, color = V.Muted)
+                    if (w == null) VText("--", size = Type.large, color = V.Muted)
                     else Column {
                         Glyph(wxGlyph(w.code, w.isDay), wxColour(w.code, w.isDay), Modifier.size(40.dp))
                         Gap(h = 4.dp)
@@ -472,7 +472,7 @@ private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module)
                 VText(
                     if (off && w != null) "Offline \u00b7 " + wxAge(w.fetched, now)
                     else w?.let { "${t(it.days.firstOrNull()?.max ?: it.temp)} / ${t(it.days.firstOrNull()?.min ?: it.temp)}" } ?: "",
-                    size = 10.sp, color = if (off) V.Coral else V.Muted, maxLines = 1,
+                    size = Type.caption, color = if (off) V.Coral else V.Muted, maxLines = 1,
                 )
             }
             "sound" -> {
@@ -480,10 +480,10 @@ private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module)
                 val p = playing
                 Label(if (p != null) p.appName.take(18) else "Sound")
                 Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    if (p == null || p.title.isBlank()) VText("Nothing playing", size = 11.sp, color = V.Muted, modifier = Modifier.weight(1f))
+                    if (p == null || p.title.isBlank()) VText("Nothing playing", size = Type.caption, color = V.Muted, modifier = Modifier.weight(1f))
                     else Column(Modifier.weight(1f)) {
-                        VText(p.title, size = 15.sp, color = V.White, font = FontFamily.Default, maxLines = 1)
-                        VText(p.artist, size = 12.sp, color = V.Muted, font = FontFamily.Default, maxLines = 1)
+                        VText(p.title, size = Type.body, color = V.White, font = Sans, maxLines = 1)
+                        VText(p.artist, size = Type.caption, color = V.Muted, font = Sans, maxLines = 1)
                     }
                     if (p != null) IconTap(if (p.playing) G.PAUSE else G.PLAY, V.White, 44.dp) { Now.playPause() }
                 }
@@ -492,11 +492,11 @@ private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module)
                 val left = store.shopping.filter { !it.done }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Label("List", Modifier.weight(1f))
-                    VText("${left.size}", size = 18.sp, color = V.White, font = SansLight)
+                    VText("${left.size}", size = Type.title, color = V.White, font = SansLight)
                 }
-                Gap(h = 6.dp)
-                if (left.isEmpty()) VText("All bought", size = 11.sp, color = V.Muted)
-                left.take(4).forEach { VText(it.text, size = 13.sp, color = V.Text, font = FontFamily.Default, maxLines = 1, lineHeight = 17.sp) }
+                Gap(h = 8.dp)
+                if (left.isEmpty()) VText("All bought", size = Type.caption, color = V.Muted)
+                left.take(4).forEach { VText(it.text, size = Type.label, color = V.Text, font = Sans, maxLines = 1, lineHeight = 17.sp) }
             }
             "battery" -> {
                 val b = rememberBattery()
@@ -507,7 +507,7 @@ private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module)
                         drawArc(Color.White.copy(alpha = 0.10f), -90f, 360f, false, style = androidx.compose.ui.graphics.drawscope.Stroke(sw))
                         drawArc(if (b.pct in 0..15) V.Coral else accent, -90f, 3.6f * b.pct.coerceAtLeast(0), false, style = androidx.compose.ui.graphics.drawscope.Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round))
                     }
-                    VText(if (b.pct < 0) "--" else "${b.pct}%", size = 22.sp, color = V.White, font = SansLight)
+                    VText(if (b.pct < 0) "--" else "${b.pct}%", size = Type.title2, color = V.White, font = SansLight)
                 }
             }
             "calendar" -> {
@@ -516,23 +516,23 @@ private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module)
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                     VText("${d.dayOfMonth}", size = 56.sp, color = V.White, font = SansLight)
                 }
-                VText(d.format(java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy", java.util.Locale.UK)), size = 12.sp, color = V.Muted, maxLines = 1)
+                VText(d.format(java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy", java.util.Locale.UK)), size = Type.caption, color = V.Muted, maxLines = 1)
             }
             "world" -> {
                 Label("World")
-                Gap(h = 6.dp)
+                Gap(h = 8.dp)
                 val fmt = java.time.format.DateTimeFormatter.ofPattern(if (store.use24h) "HH:mm" else "h:mm a", java.util.Locale.UK)
                 store.worldClocks.take(3).forEach { (name, zone) ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                        VText(name, size = 14.sp, color = V.Text, maxLines = 1, modifier = Modifier.weight(1f))
-                        VText(runCatching { java.time.ZonedDateTime.now(java.time.ZoneId.of(zone)).format(fmt).lowercase() }.getOrDefault("--"), size = 18.sp, color = V.White, font = SansLight)
+                    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        VText(name, size = Type.body, color = V.Text, maxLines = 1, modifier = Modifier.weight(1f))
+                        VText(runCatching { java.time.ZonedDateTime.now(java.time.ZoneId.of(zone)).format(fmt).lowercase() }.getOrDefault("--"), size = Type.title, color = V.White, font = SansLight)
                     }
                 }
             }
             "stopwatch" -> {
                 Label("Stopwatch")
                 Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    VText(stopwatchText(Stopwatch.elapsed(now)).substringBefore('.'), size = 30.sp, color = V.White, font = SansLight, modifier = Modifier.weight(1f))
+                    VText(stopwatchText(Stopwatch.elapsed(now)).substringBefore('.'), size = Type.large, color = V.White, font = SansLight, modifier = Modifier.weight(1f))
                     IconTap(if (Stopwatch.running) G.PAUSE else G.PLAY, V.White, size = 44.dp) { if (Stopwatch.running) Stopwatch.stop() else Stopwatch.start() }
                 }
             }
@@ -541,22 +541,22 @@ private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module)
                 val next = com.andysocial.voidos.AlarmMath.soonest(list, now, java.time.ZoneId.systemDefault())
                 Label("Alarm")
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
-                    if (next == null) VText("None set", size = 15.sp, color = V.Muted)
+                    if (next == null) VText("None set", size = Type.body, color = V.Muted)
                     else VText(com.andysocial.voidos.AlarmMath.clock(next.first.hour, next.first.minute, store.use24h), size = 36.sp, color = V.White, font = SansLight)
                 }
-                if (next != null) VText(com.andysocial.voidos.AlarmMath.untilLabel(next.second - now), size = 12.sp, color = V.Muted, maxLines = 1)
+                if (next != null) VText(com.andysocial.voidos.AlarmMath.untilLabel(next.second - now), size = Type.caption, color = V.Muted, maxLines = 1)
             }
             "forecast" -> {
                 val wx = WeatherRepo.state.value
                 Label(store.city.take(18))
                 Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     val days = wx?.days?.take(4).orEmpty()
-                    if (days.isEmpty()) VText("--", size = 22.sp, color = V.Muted)
+                    if (days.isEmpty()) VText("--", size = Type.title2, color = V.Muted)
                     days.forEachIndexed { i, d ->
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            VText(if (i == 0) "Today" else java.time.LocalDate.now().plusDays(i.toLong()).format(java.time.format.DateTimeFormatter.ofPattern("EEE", java.util.Locale.UK)), size = 11.sp, color = V.Muted)
+                            VText(if (i == 0) "Today" else java.time.LocalDate.now().plusDays(i.toLong()).format(java.time.format.DateTimeFormatter.ofPattern("EEE", java.util.Locale.UK)), size = Type.caption, color = V.Muted)
                             Glyph(wxGlyph(d.code, true), wxColour(d.code, true), Modifier.size(24.dp).padding(vertical = 2.dp))
-                            VText(t(d.max), size = 15.sp, color = V.White)
+                            VText(t(d.max), size = Type.body, color = V.White)
                         }
                     }
                 }
@@ -566,21 +566,21 @@ private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module)
                 Label("Focus")
                 Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Glyph(if (fm != null) focusGlyph(fm.glyph) else G.FOCUS_MODE, if (fm != null) V.Purple else V.Muted, Modifier.size(28.dp))
-                    Gap(w = 10.dp)
-                    VText(fm?.name ?: "Off", size = 20.sp, color = V.White, maxLines = 1)
+                    Gap(w = 8.dp)
+                    VText(fm?.name ?: "Off", size = Type.title, color = V.White, maxLines = 1)
                 }
             }
             else -> {
                 val n = store.notes.firstOrNull { it.id == wd.ref }
                 val bg = n?.let { V.Lap[it.colour.mod(V.Lap.size)] } ?: V.Yellow
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(bg)); Gap(w = 6.dp); Label("Note")
+                    Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(bg)); Gap(w = 8.dp); Label("Note")
                 }
-                Gap(h = 6.dp)
+                Gap(h = 8.dp)
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     if (n != null && n.ink.isNotEmpty()) InkPreview(n.ink, Modifier.fillMaxSize())
-                    if (n != null && n.text.isNotBlank()) VText(n.text, size = 14.sp, color = V.Text, font = FontFamily.Default, maxLines = 5, lineHeight = 18.sp)
-                    if (n == null) VText("Note deleted", size = 13.sp, color = V.Muted, font = FontFamily.Default)
+                    if (n != null && n.text.isNotBlank()) VText(n.text, size = Type.body, color = V.Text, font = Sans, maxLines = 5, lineHeight = 18.sp)
+                    if (n == null) VText("Note deleted", size = Type.label, color = V.Muted, font = Sans)
                 }
             }
         }

@@ -253,7 +253,7 @@ fun MediaScreen() {
                     files,
                     enter = expandHorizontally() + fadeIn(),
                     exit = shrinkHorizontally() + fadeOut(),
-                ) { FilesSidebar(tracks, Modifier.padding(start = 18.dp).width(330.dp).fillMaxHeight()) { files = false } }
+                ) { FilesSidebar(tracks, Modifier.padding(start = 16.dp).width(330.dp).fillMaxHeight()) { files = false } }
             }
         }
         if (portrait) {
@@ -294,7 +294,7 @@ private fun NowPlayingCard(src: Source?, hasFiles: Boolean, modifier: Modifier, 
     val connected by com.andysocial.voidos.VoidListener.connected
     val access = remember(System.currentTimeMillis() / 5000) { com.andysocial.voidos.VoidListener.enabled(ctx) }
     val tint = remember(src?.art) { artTint(src?.art) }
-    val shape = RoundedCornerShape(28.dp)
+    val shape = RoundedCornerShape(Radius.panel)
     BoxWithConstraints(
         modifier.liquidGlass(shape, GlassLook(smoke = 0.8f, depth = 1f))
             .background(Brush.radialGradient(listOf(tint.copy(alpha = 0.34f), Color.Transparent), center = Offset(0f, 0f), radius = 1400f))
@@ -304,7 +304,7 @@ private fun NowPlayingCard(src: Source?, hasFiles: Boolean, modifier: Modifier, 
         val artSide = if (wide) minOf(maxHeight, maxWidth * 0.42f) else minOf(maxWidth * 0.82f, maxHeight * 0.48f)
         val art: @Composable () -> Unit = {
             Box(
-                Modifier.size(artSide).clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = 0.06f)),
+                Modifier.size(artSide).clip(RoundedCornerShape(Radius.card)).background(Color.White.copy(alpha = 0.06f)),
                 contentAlignment = Alignment.Center,
             ) {
                 val a = src?.art
@@ -315,15 +315,15 @@ private fun NowPlayingCard(src: Source?, hasFiles: Boolean, modifier: Modifier, 
         val details: @Composable (Modifier) -> Unit = { m ->
             Column(m, horizontalAlignment = if (wide) Alignment.Start else Alignment.CenterHorizontally) {
                 if (src == null) {
-                    VText("Not playing", size = 26.sp, font = SansMedium, color = V.White)
-                    Gap(h = 6.dp)
+                    VText("Not playing", size = Type.large, font = SansMedium, color = V.White)
+                    Gap(h = 8.dp)
                     VText(
                         if (access || connected) "Play something in YouTube, Spotify or any app and it shows here."
                         else "Turn on notification access so VoidOS can see and control what's playing in other apps.",
-                        size = 15.sp, color = V.Muted, lineHeight = 21.sp, align = if (wide) TextAlign.Start else TextAlign.Center,
+                        size = Type.body, color = V.Muted, lineHeight = 21.sp, align = if (wide) TextAlign.Start else TextAlign.Center,
                     )
                     Gap(h = 16.dp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (!access && !connected) VButton("Turn on access", accent = V.Teal, filled = true) {
                             Thread { com.andysocial.voidos.Stealth.grant(ctx) }.start()
                         }
@@ -333,18 +333,18 @@ private fun NowPlayingCard(src: Source?, hasFiles: Boolean, modifier: Modifier, 
                     VText(src.title, size = if (wide) 30.sp else 26.sp, font = SansMedium, color = V.White, maxLines = 2, lineHeight = 36.sp,
                         align = if (wide) TextAlign.Start else TextAlign.Center)
                     Gap(h = 4.dp)
-                    if (src.artist.isNotBlank()) VText(src.artist, size = 19.sp, color = V.Text.copy(alpha = 0.65f), maxLines = 1)
+                    if (src.artist.isNotBlank()) VText(src.artist, size = Type.title, color = V.Text.copy(alpha = 0.65f), maxLines = 1)
                     if (!src.local) {
                         Gap(h = 4.dp)
-                        VText("Open ${src.app} \u203a", size = 14.sp, color = V.Teal, maxLines = 1,
+                        VText("Open ${src.app} \u203a", size = Type.body, color = V.Teal, maxLines = 1,
                             modifier = Modifier.clip(Pill).clickable { com.andysocial.voidos.Now.open(ctx) }.padding(vertical = 4.dp))
                     }
                 }
-                Gap(h = 22.dp)
+                Gap(h = 24.dp)
                 Progress(src, Modifier.fillMaxWidth())
-                Gap(h = 14.dp)
+                Gap(h = 16.dp)
                 Controls(src, Modifier.fillMaxWidth())
-                Gap(h = 18.dp)
+                Gap(h = 16.dp)
                 Volume(Modifier.fillMaxWidth())
             }
         }
@@ -370,8 +370,8 @@ private fun Progress(src: Source?, modifier: Modifier) {
             }
         }
         Row(Modifier.fillMaxWidth()) {
-            VText(if (dur > 0) fmtDur(src!!.pos) else "--:--", size = 12.sp, color = V.Muted, modifier = Modifier.weight(1f))
-            VText(if (dur > 0) "-" + fmtDur((dur - src!!.pos).coerceAtLeast(0)) else "--:--", size = 12.sp, color = V.Muted)
+            VText(if (dur > 0) fmtDur(src!!.pos) else "--:--", size = Type.caption, color = V.Muted, modifier = Modifier.weight(1f))
+            VText(if (dur > 0) "-" + fmtDur((dur - src!!.pos).coerceAtLeast(0)) else "--:--", size = Type.caption, color = V.Muted)
         }
     }
 }
@@ -409,7 +409,7 @@ private fun SkipTen(text: String, desc: String, onClick: () -> Unit) {
     Box(
         Modifier.size(48.dp).clip(CircleShape).semantics { contentDescription = desc }.clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { VText(text, size = 15.sp, font = SansMedium, color = V.Text.copy(alpha = 0.7f)) }
+    ) { VText(text, size = Type.body, font = SansMedium, color = V.Text.copy(alpha = 0.7f)) }
 }
 
 /** Media volume, with a quiet and a loud speaker at either end. */
@@ -440,18 +440,18 @@ private fun NoiseRow() {
     val noiseOn by Noise.on
     var swell by remember { mutableStateOf(Noise.swell) }
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(GroupFill).padding(horizontal = 18.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.card)).background(GroupFill).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            VText("Brown noise", size = 16.sp, color = V.Text)
-            VText(if (noiseOn) "Playing, made on the tablet" else "Steady background sound, no internet needed", size = 12.sp, color = V.Muted, maxLines = 1)
+            VText("Brown noise", size = Type.headline, color = V.Text)
+            VText(if (noiseOn) "Playing, made on the tablet" else "Steady background sound, no internet needed", size = Type.caption, color = V.Muted, maxLines = 1)
         }
         if (noiseOn) {
-            VText("Swell", size = 13.sp, color = V.Muted)
+            VText("Swell", size = Type.label, color = V.Muted)
             Gap(w = 8.dp)
             VToggle(swell) { swell = it; Noise.swell = it }
-            Gap(w = 18.dp)
+            Gap(w = 16.dp)
         }
         VToggle(noiseOn) { if (it) Noise.start() else Noise.stop() }
     }
@@ -462,37 +462,37 @@ private fun NoiseRow() {
 private fun FilesSidebar(tracks: List<Track>, modifier: Modifier, onClose: () -> Unit) {
     val ctx = LocalContext.current
     val idx = Player.index.intValue
-    val shape = RoundedCornerShape(24.dp)
+    val shape = RoundedCornerShape(Radius.panel)
     Column(
         modifier.liquidGlass(shape, GlassLook(smoke = 1.25f, depth = 1.2f)).tap { }.padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                VText("Your music", size = 20.sp, font = SansMedium, color = V.White)
-                VText(if (tracks.size == 1) "1 song" else "${tracks.size} songs", size = 12.sp, color = V.Muted)
+                VText("Your music", size = Type.title, font = SansMedium, color = V.White)
+                VText(if (tracks.size == 1) "1 song" else "${tracks.size} songs", size = Type.caption, color = V.Muted)
             }
             RoundIcon(G.CLOSE, "Close files", size = 36.dp, onClick = onClose)
         }
         Gap(h = 12.dp)
         if (tracks.isEmpty()) {
             Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                VText("No music files yet", size = 16.sp, color = V.Muted)
-                Gap(h = 6.dp)
-                VText("Copy songs into the tablet's Music folder and they show up here.", size = 13.sp, color = V.Tick, align = TextAlign.Center)
+                VText("No music files yet", size = Type.headline, color = V.Muted)
+                Gap(h = 8.dp)
+                VText("Copy songs into the tablet's Music folder and they show up here.", size = Type.label, color = V.Tick, align = TextAlign.Center)
             }
             return@Column
         }
         LazyColumn(contentPadding = PaddingValues(bottom = 8.dp)) {
             itemsIndexed(tracks, key = { _, t -> t.uri.toString() }) { i, t ->
                 val sel = i == idx
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (sel) Color.White.copy(alpha = 0.07f) else Color.Transparent).clickable { Player.play(ctx, i) }) {
-                    Row(Modifier.padding(horizontal = 10.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.control)).background(if (sel) Color.White.copy(alpha = 0.07f) else Color.Transparent).clickable { Player.play(ctx, i) }) {
+                    Row(Modifier.padding(horizontal = 8.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            VText(t.title, size = 15.sp, color = if (sel) V.Teal else V.Text, maxLines = 1)
-                            if (t.artist.isNotEmpty()) VText(t.artist, size = 12.sp, color = V.Muted, maxLines = 1)
+                            VText(t.title, size = Type.body, color = if (sel) V.Teal else V.Text, maxLines = 1)
+                            if (t.artist.isNotEmpty()) VText(t.artist, size = Type.caption, color = V.Muted, maxLines = 1)
                         }
                         Gap(w = 8.dp)
-                        VText(fmtDur(t.ms), size = 12.sp, color = V.Muted)
+                        VText(fmtDur(t.ms), size = Type.caption, color = V.Muted)
                     }
                     if (i < tracks.lastIndex) Spacer(Modifier.height(2.dp))
                 }

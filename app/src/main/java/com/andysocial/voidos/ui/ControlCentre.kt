@@ -270,7 +270,7 @@ fun ControlCentre(
                             .ccGlass(RoundedCornerShape(36.dp), smoke = 0.74f)
                             .tap { }
                             .verticalScroll(rememberScrollState())
-                            .padding(22.dp),
+                            .padding(24.dp),
                     ) {
                         when (part) {
                             CcPart.CONNECT -> ConnectPanel(st, store, act) { expanded = it }
@@ -290,7 +290,7 @@ fun ControlCentre(
             st.note?.let { msg ->
                 Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp, start = 24.dp, end = 24.dp)
                     .widthIn(max = 520.dp).ccGlass(Pill, smoke = 0.8f).padding(horizontal = 20.dp, vertical = 12.dp)) {
-                    VText(msg, size = 13.sp, color = lerp(V.Coral, Color.White, 0.25f))
+                    VText(msg, size = Type.label, color = lerp(V.Coral, Color.White, 0.25f))
                 }
             }
         }
@@ -307,7 +307,7 @@ private fun CcGrid(
     val portrait = h > w
     val gap = 14.dp
     Column(
-        Modifier.padding(top = 18.dp).width(if (portrait) min(w - 40.dp, 560.dp) else min(w - 56.dp, 880.dp)),
+        Modifier.padding(top = 16.dp).width(if (portrait) min(w - 40.dp, 560.dp) else min(w - 56.dp, 880.dp)),
     ) {
         CcHeader(store)
         Spacer(Modifier.height(18.dp))
@@ -352,18 +352,18 @@ private fun CcHeader(store: Store) {
     val dens = LocalDensity.current
     Row(verticalAlignment = Alignment.Bottom) {
         Column(Modifier.weight(1f)) {
-            VText(greeting(System.currentTimeMillis()), size = 13.sp, color = lerp(V.Teal, Color.White, 0.3f), spacing = 0.5.sp)
+            VText(greeting(System.currentTimeMillis()), size = Type.label, color = lerp(V.Teal, Color.White, 0.3f), spacing = 0.5.sp)
             RollingText(now.format(DateTimeFormatter.ofPattern(if (store.use24h) "HH:mm" else "h:mm")), with(dens) { 50.sp.toPx() }, thin, tick = ticker)
-            VText(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM")), size = 14.sp, color = V.Muted)
+            VText(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM")), size = Type.body, color = V.Muted)
         }
         val bat = rememberBattery()
         if (bat.pct >= 0) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
-            Box(Modifier.size(24.dp, 12.dp).clip(RoundedCornerShape(4.dp)).background(V.Text.copy(alpha = 0.22f)).padding(2.dp)) {
-                Box(Modifier.fillMaxHeight().fillMaxWidth((bat.pct / 100f).coerceIn(0.05f, 1f)).clip(RoundedCornerShape(2.dp))
+            Box(Modifier.size(24.dp, 12.dp).clip(RoundedCornerShape(Radius.chip)).background(V.Text.copy(alpha = 0.22f)).padding(2.dp)) {
+                Box(Modifier.fillMaxHeight().fillMaxWidth((bat.pct / 100f).coerceIn(0.05f, 1f)).clip(RoundedCornerShape(Radius.chip))
                     .background(if (bat.pct <= 15 && !bat.charging) V.Coral else V.Text))
             }
             Spacer(Modifier.width(8.dp))
-            VText("${bat.pct}%" + if (bat.charging) " charging" else "", size = 13.sp, color = V.Text)
+            VText("${bat.pct}%" + if (bat.charging) " charging" else "", size = Type.label, color = V.Text)
         }
     }
 }
@@ -379,7 +379,7 @@ private fun ConnectModule(st: CcState, store: Store, act: MainActivity, modifier
     val pinned = store.rotation != "auto"
     val portrait = LocalPortrait.current
     BoxWithConstraints(
-        modifier.ccGlass(RoundedCornerShape(32.dp)).tapOrHold(null) { expand(CcPart.CONNECT) }.padding(12.dp),
+        modifier.ccGlass(RoundedCornerShape(Radius.panel)).tapOrHold(null) { expand(CcPart.CONNECT) }.padding(12.dp),
         contentAlignment = Alignment.Center,
     ) {
         val d = min(min(maxWidth, maxHeight) / 2 - 14.dp, 68.dp)
@@ -424,7 +424,7 @@ private fun CcTall(g: G, value: Float, modifier: Modifier, fill: List<Color>, la
     val v = value.coerceIn(0f, 1f)
     Box(
         modifier.semantics { contentDescription = label }
-            .ccGlass(RoundedCornerShape(30.dp))
+            .ccGlass(RoundedCornerShape(Radius.panel))
             .pointerInput(Unit) {
                 detectTapGestures(onTap = { o -> cb((1f - o.y / size.height).coerceIn(0f, 1f)) }, onLongPress = { hold?.invoke() })
             }
@@ -438,7 +438,7 @@ private fun CcTall(g: G, value: Float, modifier: Modifier, fill: List<Color>, la
                 .background(Brush.verticalGradient(fill))
                 .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.34f), Color.White.copy(alpha = 0.06f), Color.Transparent), endY = 90f)),
         )
-        Glyph(g, if (v > 0.16f) V.Bg else V.Text, Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp).size(26.dp))
+        Glyph(g, if (v > 0.16f) V.Bg else V.Text, Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp).size(26.dp))
     }
 }
 
@@ -459,19 +459,19 @@ private fun MediaModule(modifier: Modifier, onHold: () -> Unit) {
     val p by Now.playing
     val ctx = LocalContext.current
     Column(
-        modifier.ccGlass(RoundedCornerShape(32.dp)).tapOrHold({ p?.let { Now.open(ctx) } }, onHold).padding(18.dp),
+        modifier.ccGlass(RoundedCornerShape(Radius.panel)).tapOrHold({ p?.let { Now.open(ctx) } }, onHold).padding(16.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         val cur = p
         if (cur == null) {
             Glyph(G.MEDIA, V.Muted, Modifier.size(24.dp))
-            VText("Not playing", size = 15.sp, color = V.Muted)
+            VText("Not playing", size = Type.body, color = V.Muted)
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                cur.art?.let { Image(it.asImageBitmap(), null, Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop); Spacer(Modifier.width(10.dp)) }
+                cur.art?.let { Image(it.asImageBitmap(), null, Modifier.size(40.dp).clip(RoundedCornerShape(Radius.chip)), contentScale = ContentScale.Crop); Spacer(Modifier.width(10.dp)) }
                 Column(Modifier.weight(1f)) {
-                    VText(cur.title.ifBlank { cur.appName }, size = 15.sp, font = SansMedium, color = V.Text, maxLines = 1)
-                    VText(cur.artist.ifBlank { cur.appName }, size = 13.sp, color = V.Muted, maxLines = 1)
+                    VText(cur.title.ifBlank { cur.appName }, size = Type.body, font = SansMedium, color = V.Text, maxLines = 1)
+                    VText(cur.artist.ifBlank { cur.appName }, size = Type.label, color = V.Muted, maxLines = 1)
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
@@ -499,9 +499,9 @@ private fun RoundButtons(st: CcState, store: Store, act: MainActivity, onClose: 
     }
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         val d = min(min(maxWidth / 2 - 18.dp, maxHeight / 2 - 30.dp), 64.dp)
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             items.chunked(2).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     row.forEach { b ->
                         Column(Modifier.width(d + 22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             val lit by animateFloatAsState(if (b.on) 1f else 0f, label = "lit")
@@ -511,7 +511,7 @@ private fun RoundButtons(st: CcState, store: Store, act: MainActivity, onClose: 
                                 contentAlignment = Alignment.Center,
                             ) { Glyph(b.g, if (b.on) Color.White else V.Text, Modifier.size(d * 0.38f)) }
                             Spacer(Modifier.height(5.dp))
-                            VText(b.label, size = 11.sp, color = if (b.on) V.Text else V.Muted, maxLines = 1)
+                            VText(b.label, size = Type.caption, color = if (b.on) V.Text else V.Muted, maxLines = 1)
                         }
                     }
                 }
@@ -552,8 +552,8 @@ private fun PanelHead(g: G, title: String, state: String, on: Boolean, accent: C
         ) { Glyph(g, if (on) Color.White else V.Text, Modifier.size(22.dp)) }
         Spacer(Modifier.width(14.dp))
         Column {
-            VText(title, size = 19.sp, font = SansMedium, color = V.Text)
-            VText(state, size = 13.sp, color = if (on) lerp(accent, Color.White, 0.3f) else V.Muted, maxLines = 1)
+            VText(title, size = Type.title, font = SansMedium, color = V.Text)
+            VText(state, size = Type.label, color = if (on) lerp(accent, Color.White, 0.3f) else V.Muted, maxLines = 1)
         }
     }
     Spacer(Modifier.height(18.dp))
@@ -561,7 +561,7 @@ private fun PanelHead(g: G, title: String, state: String, on: Boolean, accent: C
 
 @Composable
 private fun Section(text: String) {
-    VText(text, size = 12.sp, color = V.Muted, spacing = 0.6.sp, modifier = Modifier.padding(start = 4.dp, top = 6.dp, bottom = 8.dp))
+    VText(text, size = Type.caption, color = V.Muted, spacing = 0.6.sp, modifier = Modifier.padding(start = 4.dp, top = 6.dp, bottom = 8.dp))
 }
 
 /** One row in an opened-up module: soft glass when chosen, bare otherwise. No lines between rows. */
@@ -577,7 +577,7 @@ private fun PanelRow(
 ) {
     Row(
         Modifier.fillMaxWidth().padding(vertical = 2.dp)
-            .then(if (chosen) Modifier.ccGlass(RoundedCornerShape(20.dp), smoke = 0.55f, stain = accent, lit = 0.35f) else Modifier.clip(RoundedCornerShape(20.dp)))
+            .then(if (chosen) Modifier.ccGlass(RoundedCornerShape(Radius.card), smoke = 0.55f, stain = accent, lit = 0.35f) else Modifier.clip(RoundedCornerShape(Radius.card)))
             .then(if (onClick != null) Modifier.tap(onClick) else Modifier)
             .padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -585,8 +585,8 @@ private fun PanelRow(
         Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) { lead() }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            VText(title, size = 15.sp, color = V.Text, maxLines = 1)
-            sub?.let { VText(it, size = 12.sp, color = V.Muted, maxLines = 2) }
+            VText(title, size = Type.body, color = V.Text, maxLines = 1)
+            sub?.let { VText(it, size = Type.caption, color = V.Muted, maxLines = 2) }
         }
         trail()
     }
@@ -594,8 +594,8 @@ private fun PanelRow(
 
 @Composable
 private fun SmallPill(text: String, color: Color = V.Text, onClick: () -> Unit) {
-    Box(Modifier.ccGlass(Pill, smoke = 0.6f).tap(onClick).padding(horizontal = 14.dp, vertical = 8.dp)) {
-        VText(text, size = 13.sp, color = color, maxLines = 1)
+    Box(Modifier.ccGlass(Pill, smoke = 0.6f).tap(onClick).padding(horizontal = 16.dp, vertical = 8.dp)) {
+        VText(text, size = Type.label, color = color, maxLines = 1)
     }
 }
 
@@ -620,8 +620,8 @@ fun WifiBars(bars: Int, color: Color, modifier: Modifier = Modifier.size(22.dp))
 /** A glass text field, for Wi-Fi passwords. */
 @Composable
 private fun GlassField(value: String, onChange: (String) -> Unit, placeholder: String, hidden: Boolean, onDone: () -> Unit, modifier: Modifier = Modifier) {
-    Box(modifier.ccGlass(Pill, smoke = 0.82f).padding(horizontal = 18.dp, vertical = 13.dp)) {
-        if (value.isEmpty()) VText(placeholder, size = 15.sp, color = V.Muted)
+    Box(modifier.ccGlass(Pill, smoke = 0.82f).padding(horizontal = 16.dp, vertical = 13.dp)) {
+        if (value.isEmpty()) VText(placeholder, size = Type.body, color = V.Muted)
         BasicTextField(
             value = value, onValueChange = onChange, singleLine = true,
             textStyle = TextStyle(color = V.Text, fontSize = 15.sp, fontFamily = Sans),
@@ -639,17 +639,17 @@ private fun ColumnScope.ConnectPanel(st: CcState, store: Store, act: MainActivit
     val pinned = store.rotation != "auto"
     val portrait = LocalPortrait.current
     val dndOn = st.dnd != NotificationManager.INTERRUPTION_FILTER_ALL
-    VText("Connections", size = 19.sp, font = SansMedium, color = V.Text, modifier = Modifier.padding(start = 4.dp, bottom = 12.dp))
+    VText("Connections", size = Type.title, font = SansMedium, color = V.Text, modifier = Modifier.padding(start = 4.dp, bottom = 12.dp))
     @Composable
     fun line(g: G, title: String, sub: String, on: Boolean, accent: Color, toggle: () -> Unit, part: CcPart) {
-        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).tap { go(part) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.card)).tap { go(part) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             val lit by animateFloatAsState(if (on) 1f else 0f, label = "lit")
             Box(Modifier.size(50.dp).semantics { contentDescription = title; selected = on }.ccGlass(CircleShape, smoke = 0.72f, stain = accent, lit = lit).tap(toggle),
                 contentAlignment = Alignment.Center) { Glyph(g, if (on) Color.White else V.Text, Modifier.size(21.dp)) }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                VText(title, size = 15.sp, color = V.Text)
-                VText(sub, size = 12.sp, color = if (on) lerp(accent, Color.White, 0.3f) else V.Muted, maxLines = 1)
+                VText(title, size = Type.body, color = V.Text)
+                VText(sub, size = Type.caption, color = if (on) lerp(accent, Color.White, 0.3f) else V.Muted, maxLines = 1)
             }
             Glyph(G.CHEV, V.Muted, Modifier.size(16.dp))
         }
@@ -702,10 +702,10 @@ private fun ColumnScope.WifiPanel(st: CcState) {
     }
 
     PanelHead(G.WIFI, "Wi-Fi", if (!st.wifi) "Off" else st.ssid?.let { "Connected to $it" } ?: "Not connected", st.wifi, V.Teal) { st.switchWifi(!st.wifi) }
-    if (!st.wifi) { VText("Wi-Fi is off. Tap the button to turn it on.", size = 14.sp, color = V.Muted, modifier = Modifier.padding(start = 4.dp)); return }
+    if (!st.wifi) { VText("Wi-Fi is off. Tap the button to turn it on.", size = Type.body, color = V.Muted, modifier = Modifier.padding(start = 4.dp)); return }
 
     Section(if (scanning && nets.isEmpty()) "Looking for networks…" else "Networks")
-    if (!scanning && nets.isEmpty()) VText("No networks found nearby.", size = 14.sp, color = V.Muted, modifier = Modifier.padding(start = 4.dp))
+    if (!scanning && nets.isEmpty()) VText("No networks found nearby.", size = Type.body, color = V.Muted, modifier = Modifier.padding(start = 4.dp))
     nets.forEach { n ->
         val isOpen = open == n.ssid
         PanelRow(
@@ -729,7 +729,7 @@ private fun ColumnScope.WifiPanel(st: CcState) {
             title = n.ssid,
             sub = when { joining == n.ssid -> "Joining…"; n.connected -> "Connected"; n.saved -> "Saved"; else -> null },
             trail = {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (n.locked) Glyph(G.LOCK, V.Muted, Modifier.size(15.dp))
                     if (n.connected) Glyph(G.CHECK, V.Teal, Modifier.size(18.dp))
                     if (n.saved && !n.connected) Box(Modifier.size(30.dp).clip(CircleShape).tap { open = if (isOpen) null else n.ssid }, contentAlignment = Alignment.Center) {
@@ -738,11 +738,11 @@ private fun ColumnScope.WifiPanel(st: CcState) {
                 }
             },
         )
-        err?.takeIf { it.first == n.ssid }?.let { VText(it.second, size = 12.sp, color = V.Coral, modifier = Modifier.padding(start = 56.dp, bottom = 6.dp)) }
+        err?.takeIf { it.first == n.ssid }?.let { VText(it.second, size = Type.caption, color = V.Coral, modifier = Modifier.padding(start = 56.dp, bottom = 6.dp)) }
         if (isOpen) {
             Column(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 10.dp)) {
                 if (n.saved || n.connected) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SmallPill("Forget this network", V.Coral) {
                             scope.launch {
                                 val ok = withContext(Dispatchers.IO) { Radio.forget(ctx, n.ssid) }
@@ -754,7 +754,7 @@ private fun ColumnScope.WifiPanel(st: CcState) {
                 } else {
                     GlassField(pass, { pass = it }, "Password for ${n.ssid}", hidden, onDone = {}, Modifier.fillMaxWidth())
                     Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         SmallPill(if (hidden) "Show" else "Hide") { hidden = !hidden }
                         Spacer(Modifier.weight(1f))
                         SmallPill("Cancel", V.Muted) { open = null; pass = "" }
@@ -768,7 +768,7 @@ private fun ColumnScope.WifiPanel(st: CcState) {
                                     joining = null; st.refresh(); reload()
                                     if (e != null) { err = n.ssid to e; open = n.ssid }
                                 }
-                            }.padding(horizontal = 18.dp, vertical = 8.dp)) { VText("Join", size = 13.sp, font = SansMedium, color = Color.White) }
+                            }.padding(horizontal = 16.dp, vertical = 8.dp)) { VText("Join", size = Type.label, font = SansMedium, color = Color.White) }
                     }
                 }
             }
@@ -812,11 +812,11 @@ private fun ColumnScope.BtPanel(st: CcState) {
     }
 
     PanelHead(G.BT, "Bluetooth", if (!st.bt) "Off" else devs.firstOrNull { it.connected }?.let { "Connected to ${it.name}" } ?: "On", st.bt, BtBlue) { st.switchBt(!st.bt) }
-    if (!st.bt) { VText("Bluetooth is off. Tap the button to turn it on.", size = 14.sp, color = V.Muted, modifier = Modifier.padding(start = 4.dp)); return }
-    err?.let { VText(it, size = 12.sp, color = V.Coral, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)) }
+    if (!st.bt) { VText("Bluetooth is off. Tap the button to turn it on.", size = Type.body, color = V.Muted, modifier = Modifier.padding(start = 4.dp)); return }
+    err?.let { VText(it, size = Type.caption, color = V.Coral, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)) }
 
     Section("My devices")
-    if (devs.isEmpty()) VText("Nothing paired yet.", size = 14.sp, color = V.Muted, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
+    if (devs.isEmpty()) VText("Nothing paired yet.", size = Type.body, color = V.Muted, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
     devs.forEach { d ->
         PanelRow(
             chosen = d.connected, accent = BtBlue,
@@ -900,7 +900,7 @@ private fun ColumnScope.DndPanel(st: CcState) {
             }
         }
     } else {
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             VButton("New Focus") { adding = true }
             val custom = store.focusModes.drop(5)
             if (custom.isNotEmpty()) VButton("Remove ${custom.last().name}", accent = V.Muted) {
@@ -929,8 +929,8 @@ private fun ColumnScope.RotatePanel(store: Store, act: MainActivity) {
 /** Hold brightness: a big slider, auto-brightness and Night Light. */
 @Composable
 private fun ColumnScope.BrightPanel(st: CcState) {
-    VText("Brightness", size = 19.sp, font = SansMedium, color = V.Text, modifier = Modifier.align(Alignment.CenterHorizontally))
-    VText("${(st.bright * 100).toInt()}%", size = 13.sp, color = V.Muted, modifier = Modifier.align(Alignment.CenterHorizontally))
+    VText("Brightness", size = Type.title, font = SansMedium, color = V.Text, modifier = Modifier.align(Alignment.CenterHorizontally))
+    VText("${(st.bright * 100).toInt()}%", size = Type.label, color = V.Muted, modifier = Modifier.align(Alignment.CenterHorizontally))
     Spacer(Modifier.height(16.dp))
     CcTall(G.SUN, st.bright, Modifier.align(Alignment.CenterHorizontally).width(120.dp).height(260.dp), SunFill, "Brightness", null) {
         st.bright = it; st.auto = false; Tablet.setBrightness(st.act, it)
@@ -952,8 +952,8 @@ private fun LabelledBubble(g: G, label: String, on: Boolean, accent: Color, onCl
         Box(Modifier.size(60.dp).semantics { contentDescription = label; selected = on }.ccGlass(CircleShape, smoke = 0.72f, stain = accent, lit = lit).tap(onClick),
             contentAlignment = Alignment.Center) { Glyph(g, if (on) Color.White else V.Text, Modifier.size(24.dp)) }
         Spacer(Modifier.height(6.dp))
-        VText(label, size = 12.sp, color = V.Text)
-        VText(if (on) "On" else "Off", size = 11.sp, color = if (on) lerp(accent, Color.White, 0.3f) else V.Muted)
+        VText(label, size = Type.caption, color = V.Text)
+        VText(if (on) "On" else "Off", size = Type.caption, color = if (on) lerp(accent, Color.White, 0.3f) else V.Muted)
     }
 }
 
@@ -963,15 +963,15 @@ private fun ColumnScope.VolumePanel(st: CcState) {
     val ctx = st.ctx
     var alarm by remember { mutableFloatStateOf(Tablet.stream(ctx, AudioManager.STREAM_ALARM)) }
     var notif by remember { mutableFloatStateOf(Tablet.stream(ctx, AudioManager.STREAM_NOTIFICATION)) }
-    VText("Volume", size = 19.sp, font = SansMedium, color = V.Text, modifier = Modifier.align(Alignment.CenterHorizontally))
+    VText("Volume", size = Type.title, font = SansMedium, color = V.Text, modifier = Modifier.align(Alignment.CenterHorizontally))
     Spacer(Modifier.height(16.dp))
-    Row(Modifier.fillMaxWidth().height(260.dp), horizontalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterHorizontally)) {
+    Row(Modifier.fillMaxWidth().height(260.dp), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)) {
         @Composable
         fun col(label: String, g: G, v: Float, fill: List<Color>, w: Dp, set: (Float) -> Unit) {
             Column(Modifier.fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
                 CcTall(g, v, Modifier.width(w).weight(1f), fill, label, null, set)
                 Spacer(Modifier.height(8.dp))
-                VText(label, size = 12.sp, color = V.Muted)
+                VText(label, size = Type.caption, color = V.Muted)
             }
         }
         col("Media", G.MEDIA, st.vol, VolFill, 110.dp) { st.vol = it; Tablet.setVolume(ctx, it) }
@@ -989,19 +989,19 @@ private fun ColumnScope.MediaPanel() {
     if (cur == null) {
         Glyph(G.MEDIA, V.Muted, Modifier.size(40.dp).align(Alignment.CenterHorizontally))
         Spacer(Modifier.height(12.dp))
-        VText("Nothing is playing", size = 18.sp, font = SansMedium, color = V.Text, modifier = Modifier.align(Alignment.CenterHorizontally))
-        VText("Start music or a video in any app and you can control it from here.", size = 13.sp, color = V.Muted,
-            align = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 6.dp).align(Alignment.CenterHorizontally))
+        VText("Nothing is playing", size = Type.title, font = SansMedium, color = V.Text, modifier = Modifier.align(Alignment.CenterHorizontally))
+        VText("Start music or a video in any app and you can control it from here.", size = Type.label, color = V.Muted,
+            align = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 8.dp).align(Alignment.CenterHorizontally))
         return
     }
     var pos by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(cur) { while (isActive) { pos = Now.position(cur).toFloat(); delay(500) } }
-    Box(Modifier.align(Alignment.CenterHorizontally).size(180.dp).ccGlass(RoundedCornerShape(28.dp)), contentAlignment = Alignment.Center) {
+    Box(Modifier.align(Alignment.CenterHorizontally).size(180.dp).ccGlass(RoundedCornerShape(Radius.panel)), contentAlignment = Alignment.Center) {
         cur.art?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) } ?: Glyph(G.MEDIA, V.Muted, Modifier.size(56.dp))
     }
     Spacer(Modifier.height(18.dp))
-    VText(cur.title.ifBlank { cur.appName }, size = 18.sp, font = SansMedium, color = V.Text, maxLines = 2, modifier = Modifier.align(Alignment.CenterHorizontally))
-    VText(listOf(cur.artist, cur.appName).filter { it.isNotBlank() }.distinct().joinToString(" · "), size = 13.sp, color = V.Muted, maxLines = 1,
+    VText(cur.title.ifBlank { cur.appName }, size = Type.title, font = SansMedium, color = V.Text, maxLines = 2, modifier = Modifier.align(Alignment.CenterHorizontally))
+    VText(listOf(cur.artist, cur.appName).filter { it.isNotBlank() }.distinct().joinToString(" · "), size = Type.label, color = V.Muted, maxLines = 1,
         modifier = Modifier.align(Alignment.CenterHorizontally))
     Spacer(Modifier.height(16.dp))
     if (cur.durationMs > 0) {
@@ -1012,9 +1012,9 @@ private fun ColumnScope.MediaPanel() {
                 .pointerInput(cur) { detectHorizontalDragGestures { ch, _ -> ch.consume(); Now.seekTo((ch.position.x / size.width).coerceIn(0f, 1f).times(cur.durationMs).toLong()) } },
         ) { Box(Modifier.fillMaxHeight().fillMaxWidth(frac.coerceAtLeast(0.04f)).clip(Pill).background(Brush.horizontalGradient(VolFill.reversed()))) }
         Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-            VText(mmss(pos.toLong()), size = 11.sp, color = V.Muted)
+            VText(mmss(pos.toLong()), size = Type.caption, color = V.Muted)
             Spacer(Modifier.weight(1f))
-            VText("-" + mmss(cur.durationMs - pos.toLong()), size = 11.sp, color = V.Muted)
+            VText("-" + mmss(cur.durationMs - pos.toLong()), size = Type.caption, color = V.Muted)
         }
         Spacer(Modifier.height(10.dp))
     }
@@ -1084,6 +1084,6 @@ private fun QuickToggles(onClose: () -> Unit, modifier: Modifier, perRow: Int) {
                 }
             }
         }
-        note?.let { VText(it, size = 13.sp, color = V.Coral, modifier = Modifier.padding(top = 6.dp)) }
+        note?.let { VText(it, size = Type.label, color = V.Coral, modifier = Modifier.padding(top = 8.dp)) }
     }
 }

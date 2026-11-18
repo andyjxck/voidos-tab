@@ -65,9 +65,9 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /** Card corners. (Named Oct from the old octagon style; now plain rounded corners.) */
-val Oct = RoundedCornerShape(30.dp)
+val Oct = RoundedCornerShape(Radius.panel)
 /** Small control corners. */
-val OctS = RoundedCornerShape(20.dp)
+val OctS = RoundedCornerShape(Radius.card)
 /** Fully round ends. */
 val Pill = RoundedCornerShape(50)
 
@@ -95,7 +95,7 @@ fun VText(
 /** Small grey uppercase label, the watch's "STEPS" style. */
 @Composable
 fun Label(text: String, modifier: Modifier = Modifier, color: Color = V.Muted) =
-    VText(text.uppercase(), modifier, size = 12.sp, color = if (color == V.Muted || color == V.Tick) color else calm(color), font = SansMedium, spacing = 1.sp)
+    VText(text.uppercase(), modifier, size = Type.caption, color = if (color == V.Muted || color == V.Tick) color else calm(color), font = SansMedium, spacing = 1.sp)
 
 @Composable
 fun VPanel(
@@ -143,7 +143,7 @@ fun VButton(
         contentAlignment = Alignment.Center,
     ) {
         VText(
-            label, size = 15.sp, font = SansMedium, maxLines = 1,
+            label, size = Type.body, font = SansMedium, maxLines = 1,
             color = when {
                 !enabled -> V.Tick
                 filled -> V.Bg
@@ -191,15 +191,15 @@ internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBead(ctr: Offs
 @Composable
 fun SettingRow(title: String, detail: String? = null, control: @Composable () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(vertical = 6.dp),
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // lean rows: the name and its control. [detail] shows only as a short live status ("PIN changed"), never an explanation
         Column(Modifier.weight(1f).padding(end = 16.dp)) {
-            VText(sentence(title), size = 16.sp, color = V.Text, maxLines = 1)
+            VText(sentence(title), size = Type.headline, color = V.Text, maxLines = 1)
             if (detail != null && detail.length <= 40) {
                 Spacer(Modifier.height(2.dp))
-                VText(detail, size = 13.sp, color = V.Muted, maxLines = 1)
+                VText(detail, size = Type.label, color = V.Muted, maxLines = 1)
             }
         }
         control()
@@ -275,7 +275,7 @@ fun VField(
         modifier
             .clip(OctS)
             .background(V.Panel2)
-            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         if (value.isEmpty()) VText(placeholder, size = size, color = V.Muted, font = font)
         BasicTextField(

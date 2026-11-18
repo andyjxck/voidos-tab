@@ -97,12 +97,12 @@ fun GlassPinPad(
         VText(title, size = 21.sp, color = V.White, align = TextAlign.Center)
         if (subtitle != null) {
             Spacer(Modifier.height(4.dp))
-            VText(subtitle, size = 13.sp, color = V.Muted, align = TextAlign.Center)
+            VText(subtitle, size = Type.label, color = V.Muted, align = TextAlign.Center)
         }
         Spacer(Modifier.height(20.dp))
         Row(
             Modifier.graphicsLayer { translationX = shake.value * density }.semantics { contentDescription = "${entry.length} of $length digits entered" },
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             repeat(length) { i ->
                 val filled by animateFloatAsState(if (i < entry.length) 1f else 0f, tween(90), label = "dot")
@@ -120,7 +120,7 @@ fun GlassPinPad(
             error != null -> error
             else -> " "
         }
-        VText(msg, size = 13.sp, color = lerpCoral(), align = TextAlign.Center)
+        VText(msg, size = Type.label, color = lerpCoral(), align = TextAlign.Center)
         Spacer(Modifier.height(14.dp))
         val gap = keySize * 0.3f
         listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("", "0", "<")).forEach { row ->
