@@ -96,6 +96,8 @@ import com.andysocial.voidos.MainActivity
 import com.andysocial.voidos.Now
 import com.andysocial.voidos.Radio
 import com.andysocial.voidos.Store
+import com.andysocial.voidos.FocusMode
+import com.andysocial.voidos.VoidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -180,7 +182,7 @@ private class CcState(val ctx: Context, val act: MainActivity, val scope: Corout
         scope.launch {
             val ok = withContext(Dispatchers.IO) { Tablet.setDndMode(ctx, mode) }
             holdUntil = 0
-            if (!ok) { dnd = was; note = "Do Not Disturb didn't switch. Try again." } else refresh()
+            if (!ok) { dnd = was; note = "Focus didn't switch. Try again." } else refresh()
         }
     }
 
@@ -322,8 +324,10 @@ private fun CcGrid(
                 BrightSlider(st, Modifier.width((side - gap) / 2).fillMaxHeight()) { expand(CcPart.BRIGHT) }
                 VolumeSlider(st, Modifier.width((side - gap) / 2).fillMaxHeight()) { expand(CcPart.VOLUME) }
             }
+            Spacer(Modifier.height(gap))
+            QuickToggles(onClose, Modifier.fillMaxWidth(), perRow = 5)
         } else {
-            val rowH = max(220.dp, min(h - 170.dp, 330.dp))
+            val rowH = max(200.dp, min(h - 270.dp, 330.dp))
             Row(Modifier.fillMaxWidth().height(rowH), horizontalArrangement = Arrangement.spacedBy(gap)) {
                 Column(Modifier.weight(1.3f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(gap)) {
                     ConnectModule(st, store, act, Modifier.fillMaxWidth().weight(1.15f), expand)
@@ -333,6 +337,8 @@ private fun CcGrid(
                 VolumeSlider(st, Modifier.width(96.dp).fillMaxHeight()) { expand(CcPart.VOLUME) }
                 RoundButtons(st, store, act, onClose, onSettings, Modifier.weight(1f).fillMaxHeight())
             }
+            Spacer(Modifier.height(gap))
+            QuickToggles(onClose, Modifier.fillMaxWidth(), perRow = 10)
         }
     }
 }
@@ -384,9 +390,9 @@ private fun ConnectModule(st: CcState, store: Store, act: MainActivity, modifier
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 val dndOn = st.dnd != NotificationManager.INTERRUPTION_FILTER_ALL
-                CcBubble(G.MOON, "Do not disturb", dndOn, V.Purple, d, {
-                    st.switchDnd(if (dndOn) NotificationManager.INTERRUPTION_FILTER_ALL else NotificationManager.INTERRUPTION_FILTER_ALARMS)
-                }) { expand(CcPart.DND) }
+                // Focus: a tap opens the list of Focus modes; the one that's on shows its own icon
+                val fm = store.focusModes.firstOrNull { it.name == store.focusOn }
+                CcBubble(if (dndOn && fm != null) focusGlyph(fm.glyph) else G.FOCUS_MODE, if (dndOn && fm != null) fm.name else "Focus", dndOn, V.Purple, d, { expand(CcPart.DND) }) { expand(CcPart.DND) }
                 CcBubble(G.ROTATE, "Rotation lock", pinned, V.Coral, d, {
                     store.setRotation(if (pinned) "auto" else if (portrait) "port" else "land"); act.applyRotation()
                 }) { expand(CcPart.ROTATE) }
@@ -650,9 +656,7 @@ private fun ColumnScope.ConnectPanel(st: CcState, store: Store, act: MainActivit
     }
     line(G.WIFI, "Wi-Fi", if (!st.wifi) "Off" else st.ssid ?: "Not connected", st.wifi, V.Teal, { st.switchWifi(!st.wifi) }, CcPart.WIFI)
     line(G.BT, "Bluetooth", if (st.bt) "On" else "Off", st.bt, BtBlue, { st.switchBt(!st.bt) }, CcPart.BT)
-    line(G.MOON, "Do not disturb", dndLabel(st.dnd), dndOn, V.Purple, {
-        st.switchDnd(if (dndOn) NotificationManager.INTERRUPTION_FILTER_ALL else NotificationManager.INTERRUPTION_FILTER_ALARMS)
-    }, CcPart.DND)
+    line(G.FOCUS_MODE, "Focus", if (dndOn && store.focusOn.isNotEmpty()) store.focusOn else "Off", dndOn, V.Purple, { go(CcPart.DND) }, CcPart.DND)
     line(G.ROTATE, "Rotation lock", rotLabel(store.rotation), pinned, V.Coral, {
         store.setRotation(if (pinned) "auto" else if (portrait) "port" else "land"); act.applyRotation()
     }, CcPart.ROTATE)
@@ -864,23 +868,50 @@ private fun kindGlyph(k: Radio.Kind) = when (k) {
 /** Hold Do Not Disturb: how quiet. */
 @Composable
 private fun ColumnScope.DndPanel(st: CcState) {
-    val on = st.dnd != NotificationManager.INTERRUPTION_FILTER_ALL
-    PanelHead(G.MOON, "Do not disturb", dndLabel(st.dnd), on, V.Purple) {
-        st.switchDnd(if (on) NotificationManager.INTERRUPTION_FILTER_ALL else NotificationManager.INTERRUPTION_FILTER_ALARMS)
+    val store = VoidApp.instance.store
+    val on = store.focusOn.isNotEmpty() && st.dnd != NotificationManager.INTERRUPTION_FILTER_ALL
+    var adding by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf("") }
+    PanelHead(G.FOCUS_MODE, "Focus", if (on) store.focusOn else "Off", on, V.Purple) {
+        if (on) { store.setFocus(""); st.switchDnd(NotificationManager.INTERRUPTION_FILTER_ALL) }
+        else store.focusModes.firstOrNull()?.let { store.setFocus(it.name); st.switchDnd(it.filter) }
     }
-    listOf(
-        Triple(NotificationManager.INTERRUPTION_FILTER_ALARMS, "Alarms only", "Alarms and timers still ring. Everything else is quiet."),
-        Triple(NotificationManager.INTERRUPTION_FILTER_PRIORITY, "Priority only", "Alarms, reminders and starred contacts get through."),
-        Triple(NotificationManager.INTERRUPTION_FILTER_NONE, "Total silence", "Nothing makes a sound. Not even alarms."),
-        Triple(NotificationManager.INTERRUPTION_FILTER_ALL, "Off", "Everything rings as normal."),
-    ).forEach { (mode, title, sub) ->
+    store.focusModes.forEach { m ->
+        val chosen = on && store.focusOn == m.name
         PanelRow(
-            chosen = st.dnd == mode, accent = V.Purple, onClick = { st.switchDnd(mode) },
-            lead = { if (st.dnd == mode) Glyph(G.CHECK, lerp(V.Purple, Color.White, 0.3f), Modifier.size(18.dp)) },
-            title = title, sub = sub,
+            chosen = chosen, accent = V.Purple,
+            onClick = {
+                if (chosen) { store.setFocus(""); st.switchDnd(NotificationManager.INTERRUPTION_FILTER_ALL) }
+                else { store.setFocus(m.name); st.switchDnd(m.filter) }
+            },
+            lead = { Glyph(focusGlyph(m.glyph), if (chosen) Color.White else V.Text, Modifier.size(20.dp)) },
+            title = m.name, sub = dndLabel(m.filter),
         )
     }
+    if (adding) {
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            VField(name, { name = it.take(20) }, Modifier.weight(1f), placeholder = "Name")
+            Spacer(Modifier.width(10.dp))
+            VButton("Add", filled = true) {
+                if (name.isNotBlank() && store.focusModes.none { it.name.equals(name.trim(), true) }) {
+                    store.saveFocusModes(store.focusModes + FocusMode(name.trim(), "focus_mode", NotificationManager.INTERRUPTION_FILTER_PRIORITY))
+                }
+                name = ""; adding = false
+            }
+        }
+    } else {
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            VButton("New Focus") { adding = true }
+            val custom = store.focusModes.drop(5)
+            if (custom.isNotEmpty()) VButton("Remove ${custom.last().name}", accent = V.Muted) {
+                if (store.focusOn == custom.last().name) { store.setFocus(""); st.switchDnd(NotificationManager.INTERRUPTION_FILTER_ALL) }
+                store.saveFocusModes(store.focusModes.dropLast(1))
+            }
+        }
+    }
 }
+
+internal fun focusGlyph(name: String): G = runCatching { G.valueOf(name.uppercase()) }.getOrDefault(G.FOCUS_MODE)
 
 /** Hold rotation lock: which way the screen stays. */
 @Composable
@@ -999,3 +1030,60 @@ private fun ColumnScope.MediaPanel() {
 }
 
 private fun mmss(ms: Long): String { val s = (ms.coerceAtLeast(0) / 1000); return "%d:%02d".format(s / 60, s % 60) }
+
+/**
+ * The row of small round switches under the main controls: airplane mode, location,
+ * power saving, screenshot, screen recording, torch-bright white screen, and casting.
+ * Each reads its state when the control centre opens and flips it through root.
+ */
+@Composable
+private fun QuickToggles(onClose: () -> Unit, modifier: Modifier, perRow: Int) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var plane by remember { mutableStateOf(com.andysocial.voidos.Device.airplaneOn(ctx)) }
+    var loc by remember { mutableStateOf(com.andysocial.voidos.Device.locationOn(ctx)) }
+    var saver by remember { mutableStateOf(com.andysocial.voidos.Device.saverOn(ctx)) }
+    var rec by remember { mutableStateOf(com.andysocial.voidos.Device.recording != null) }
+    var note by remember { mutableStateOf<String?>(null) }
+    fun flip(get: () -> Boolean, set: (Boolean) -> Unit, act: (Boolean) -> Boolean, failed: String) {
+        val to = !get(); set(to)
+        scope.launch { if (!withContext(Dispatchers.IO) { act(to) }) { set(!to); note = failed } }
+    }
+    val items = listOf<Triple<G, String, Pair<Boolean, () -> Unit>>>(
+        Triple(G.PLANE, "Airplane mode", plane to { flip({ plane }, { plane = it }, { com.andysocial.voidos.Device.airplane(it) }, "Airplane mode didn't switch.") }),
+        Triple(G.PIN, "Location", loc to {
+            flip({ loc }, { loc = it; VoidApp.instance.store.set("locationOff", !it) }, { com.andysocial.voidos.Device.location(it) }, "Location didn't switch.")
+        }),
+        Triple(G.LEAF, "Power saving", saver to { flip({ saver }, { saver = it }, { com.andysocial.voidos.Device.saver(it) }, "Power saving didn't switch.") }),
+        Triple(G.SCREENSHOT, "Screenshot", false to {
+            onClose()
+            scope.launch {
+                kotlinx.coroutines.delay(450)
+                val f = withContext(Dispatchers.IO) { com.andysocial.voidos.Device.screenshot() }
+                android.widget.Toast.makeText(ctx, if (f != null) "Screenshot saved" else "Screenshot failed", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }),
+        Triple(G.RECORD, if (rec) "Stop recording" else "Record screen", rec to {
+            if (rec) scope.launch { withContext(Dispatchers.IO) { com.andysocial.voidos.Device.stopRecording() }; rec = false; android.widget.Toast.makeText(ctx, "Recording saved to Movies", android.widget.Toast.LENGTH_SHORT).show() }
+            else { onClose(); scope.launch { kotlinx.coroutines.delay(450); rec = withContext(Dispatchers.IO) { com.andysocial.voidos.Device.startRecording() } } }
+        }),
+        Triple(G.CAST, "Cast screen", false to {
+            onClose()
+            runCatching { ctx.startActivity(android.content.Intent("android.settings.CAST_SETTINGS").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                .onFailure { runCatching { ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } }
+        }),
+    )
+    Column(modifier) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val n = perRow.coerceAtMost(items.size)
+            val gap = 12.dp
+            val d = min(64.dp, (maxWidth - gap * (n - 1)) / n)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally)) {
+                items.take(n).forEach { (g, label, st) ->
+                    CcBubble(g, label, st.first, V.Teal, d, st.second, st.second)
+                }
+            }
+        }
+        note?.let { VText(it, size = 13.sp, color = V.Coral, modifier = Modifier.padding(top = 6.dp)) }
+    }
+}

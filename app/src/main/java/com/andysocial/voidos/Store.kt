@@ -30,6 +30,9 @@ data class FaceWidget(
     val sw: Float = 1f, val sh: Float = 1f, val rot: Float = 0f,
 )
 
+/** One Focus: its name, its icon's name and what it lets through (a NotificationManager interruption filter). */
+data class FocusMode(val name: String, val glyph: String, val filter: Int)
+
 /** Where the clock sits on the face: its centre as fractions of the face, its size and its turn. */
 data class ClockPlace(val cx: Float = 0.5f, val cy: Float = 0.5f, val scale: Float = 1f, val rot: Float = 0f)
 
@@ -128,6 +131,29 @@ class Store(private val ctx: Context) {
             "edgeInApps" -> edgeInApps = v
         }
     }
+
+    // ---- world clocks: "name|zone id" lines
+    var worldClocks by mutableStateOf(
+        (p.getString("worldClocks", null) ?: "London|Europe/London\nNew York|America/New_York\nTokyo|Asia/Tokyo")
+            .lines().mapNotNull { l -> l.split('|').takeIf { it.size == 2 }?.let { it[0] to it[1] } },
+    ); private set
+    private fun saveClocks(v: List<Pair<String, String>>) { worldClocks = v; p.edit().putString("worldClocks", v.joinToString("\n") { "${it.first}|${it.second}" }).apply() }
+    fun addWorldClock(name: String, zone: String) { if (worldClocks.none { it.second == zone && it.first == name }) saveClocks(worldClocks + (name to zone)) }
+    fun removeWorldClock(i: Int) { saveClocks(worldClocks.filterIndexed { k, _ -> k != i }) }
+
+    // ---- Focus modes: "name|glyph|filter|allowAlarms" lines; filter 2 priority, 3 none, 4 alarms only
+    var focusModes by mutableStateOf(
+        (p.getString("focusModes", null) ?: "Do Not Disturb|focus_mode|4\nSleep|bed|3\nWork|work|2\nReading|book|4\nGaming|game|2")
+            .lines().mapNotNull { l -> l.split('|').takeIf { it.size == 3 }?.let { FocusMode(it[0], it[1], it[2].toIntOrNull() ?: 4) } },
+    ); private set
+    /** The Focus that's on, by name; empty when none. */
+    var focusOn by mutableStateOf(p.getString("focusOn", "")!!); private set
+    fun setFocus(name: String) { focusOn = name; p.edit().putString("focusOn", name).apply() }
+    fun saveFocusModes(v: List<FocusMode>) { focusModes = v; p.edit().putString("focusModes", v.joinToString("\n") { "${it.name}|${it.glyph}|${it.filter}" }).apply() }
+
+    // ---- split view: the app open beside the clock on Home, or empty
+    var splitApp by mutableStateOf(p.getString("splitApp", "")!!); private set
+    fun setSplit(pkg: String) { splitApp = pkg; p.edit().putString("splitApp", pkg).apply() }
 
     @JvmName("pickRotation") fun setRotation(r: String) { rotation = r; p.edit().putString("rotation", r).apply() }
     @JvmName("pickIconStyle") fun setIconStyle(v: String) { iconStyle = v; p.edit().putString("iconStyle", v).apply() }

@@ -62,14 +62,21 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToLong
 
-enum class KTab(val label: String, val glyph: G) { TIMERS("Timers", G.TIMER), ALARMS("Alarms", G.BELL), CONVERT("Convert", G.CONVERT), LIST("List", G.LIST) }
+enum class KTab(val label: String, val glyph: G) {
+    TIMERS("Timers", G.TIMER), STOPWATCH("Stopwatch", G.STOPWATCH), ALARMS("Alarms", G.BELL), WORLD("World", G.WORLD),
+    CALENDAR("Calendar", G.CALENDAR), CONVERT("Convert", G.CONVERT), LIST("List", G.LIST), MEMO("Memos", G.MIC),
+    LEVEL("Level", G.LEVEL), METER("Sound", G.METER),
+}
 
 /** Tools: timers first, then the unit converter and the list. (This was the Kitchen screen.) */
 @Composable
 fun ToolsScreen(store: Store) {
     var tab by rememberSaveable { mutableStateOf(KTab.TIMERS) }
     Column(Modifier.fillMaxSize()) {
-        Segmented(KTab.entries.map { it.label }, KTab.entries.indexOf(tab)) { tab = KTab.entries[it] }
+        // ten tools: a scrolling row of glass chips rather than one cramped bar
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            KTab.entries.forEach { t -> Chip(t.label, t == tab, V.Teal, glyph = t.glyph) { tab = t } }
+        }
         Gap(h = 18.dp)
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (tab) {
@@ -77,6 +84,7 @@ fun ToolsScreen(store: Store) {
                 KTab.ALARMS -> AlarmsPane()
                 KTab.CONVERT -> ConvertPane()
                 KTab.LIST -> ShoppingPane(store)
+                else -> MoreToolsPane(tab, store)
             }
         }
     }

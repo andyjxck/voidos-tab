@@ -142,13 +142,27 @@ object WeatherRepo {
         )
     }
 
-    /** Geocode a place name. Returns (name, lat, lon) or null. */
-    suspend fun find(name: String): Triple<String, Float, Float>? = withContext(Dispatchers.IO) {
+    /** A place found by name: its name, where it is (region, country) and its position. */
+    data class Place(val name: String, val where: String, val lat: Float, val lon: Float, val tz: String? = null)
+
+    /** Geocode a place name. Returns the best match or null. */
+    suspend fun find(name: String): Triple<String, Float, Float>? = search(name).firstOrNull()?.let { Triple(it.name, it.lat, it.lon) }
+
+    /** Up to [n] places matching [name], best first; empty if none or offline. */
+    suspend fun search(name: String, n: Int = 8): List<Place> = withContext(Dispatchers.IO) {
+        if (name.isBlank()) return@withContext emptyList()
         runCatching {
-            val o = JSONObject(get("https://geocoding-api.open-meteo.com/v1/search?count=1&name=" + URLEncoder.encode(name, "UTF-8")))
-            val r = o.getJSONArray("results").getJSONObject(0)
-            Triple(r.getString("name"), r.getDouble("latitude").toFloat(), r.getDouble("longitude").toFloat())
-        }.getOrNull()
+            val o = JSONObject(get("https://geocoding-api.open-meteo.com/v1/search?count=$n&name=" + URLEncoder.encode(name, "UTF-8")))
+            val a = o.optJSONArray("results") ?: return@runCatching emptyList()
+            (0 until a.length()).map { i ->
+                val r = a.getJSONObject(i)
+                Place(
+                    r.getString("name"),
+                    listOf(r.optString("admin1"), r.optString("country")).filter { it.isNotBlank() }.joinToString(", "),
+                    r.getDouble("latitude").toFloat(), r.getDouble("longitude").toFloat(), r.optString("timezone").ifBlank { null },
+                )
+            }
+        }.getOrDefault(emptyList())
     }
 }
 
@@ -166,14 +180,18 @@ fun wxAge(fetched: Long, now: Long = System.currentTimeMillis()): String {
 /** The offline flag: impossible to miss, says how old the numbers are. */
 @Composable
 fun OfflineBadge(wx: Wx?, modifier: Modifier = Modifier) {
+    // a full-width banner: no Wi-Fi is the first thing you see on the page
     Row(
-        modifier.droplet(RoundedCornerShape(50), V.Coral, 1.3f)
-            .padding(horizontal = 12.dp, vertical = 5.dp),
+        modifier.fillMaxWidth().droplet(RoundedCornerShape(22.dp), V.Coral, 2.2f)
+            .padding(horizontal = 22.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(V.Coral))
-        Gap(w = 8.dp)
-        VText(if (wx == null) "Offline" else "Offline \u00b7 ${wxAge(wx.fetched)}", size = 11.sp, color = V.Coral, maxLines = 1)
+        Glyph(G.WIFI_OFF, V.Coral, Modifier.size(30.dp))
+        Gap(w = 16.dp)
+        Column(Modifier.weight(1f)) {
+            VText("No Wi-Fi", size = 22.sp, font = SansMedium, color = V.White, maxLines = 1)
+            VText(if (wx == null) "No weather saved yet" else "Showing the weather from ${wxAge(wx.fetched)}", size = 15.sp, color = V.Text, maxLines = 1)
+        }
     }
 }
 
@@ -237,17 +255,10 @@ fun WeatherScreen(store: Store) {
             if (off || (wx == null && err != null)) { Gap(h = 10.dp); OfflineBadge(wx) }
             if (editing) {
                 Gap(h = 12.dp)
-                VField(query, { query = it }, Modifier.fillMaxWidth(), placeholder = "Town or city")
-                Gap(h = 8.dp)
-                VButton("Find", filled = true) {
-                    scope.launch {
-                        val r = WeatherRepo.find(query.trim())
-                        if (r == null) findErr = "Couldn't find that place" else {
-                            store.chooseAutoPlace(false)
-                            store.setPlace(r.first, r.second, r.third); editing = false; query = ""
-                            WeatherRepo.refresh(store, force = true)
-                        }
-                    }
+                PlaceSearch(query, { query = it }) { r ->
+                    store.chooseAutoPlace(false)
+                    store.setPlace(r.name, r.lat, r.lon); editing = false; query = ""
+                    scope.launch { WeatherRepo.refresh(store, force = true) }
                 }
                 findErr?.let { Gap(h = 6.dp); VText(it, size = 12.sp, color = V.Coral, font = FontFamily.Default) }
                 if (!store.autoPlace) {
@@ -375,4 +386,34 @@ fun TempGraph(hours: List<Hour>, modifier: Modifier) {
             }
         }
     }
+}
+
+/**
+ * Search for a place as you type: matching towns and cities, each with its region and
+ * country so you can tell the Newports apart. Tap one to choose it.
+ */
+@Composable
+fun PlaceSearch(query: String, onQuery: (String) -> Unit, onPick: (WeatherRepo.Place) -> Unit) {
+    var results by remember { mutableStateOf<List<WeatherRepo.Place>>(emptyList()) }
+    var looked by remember { mutableStateOf(false) }
+    LaunchedEffect(query) {
+        if (query.trim().length < 2) { results = emptyList(); looked = false; return@LaunchedEffect }
+        kotlinx.coroutines.delay(300)
+        results = WeatherRepo.search(query.trim()); looked = true
+    }
+    VField(query, onQuery, Modifier.fillMaxWidth(), placeholder = "Search a town or city")
+    Gap(h = 6.dp)
+    results.forEach { r ->
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).tap { onPick(r) }.padding(horizontal = 6.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Glyph(G.PIN, V.Muted, Modifier.size(18.dp)); Gap(w = 12.dp)
+            Column(Modifier.weight(1f)) {
+                VText(r.name, size = 16.sp, color = V.Text, maxLines = 1)
+                if (r.where.isNotBlank()) VText(r.where, size = 13.sp, color = V.Muted, maxLines = 1)
+            }
+        }
+    }
+    if (looked && results.isEmpty()) VText("No places found", size = 13.sp, color = V.Muted)
 }

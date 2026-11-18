@@ -96,11 +96,11 @@ fun DrawScope.paintAurora(w: Float, h: Float, m: Mood, t: Long, pagerPos: Float,
             rad, ctr,
         )
     }
-    blob(m.a, w * (0.16f + 0.07f * sin(k)) + par, h * (0.04f + 0.06f * cos(k)), r * 0.64f, 0.22f)
-    blob(m.b, w * (0.90f + 0.05f * cos(2 * k)) + par * 1.6f, h * (0.94f + 0.05f * sin(2 * k)), r * 0.60f, 0.19f)
-    blob(m.c, w * (0.60f + 0.14f * sin(3 * k + 1f)) + par * 0.6f, h * (0.42f + 0.10f * cos(2 * k + 2f)), r * 0.36f, 0.075f)
+    blob(m.a, w * (0.16f + 0.07f * sin(k)) + par, h * (0.04f + 0.06f * cos(k)), r * 0.70f, 0.34f)
+    blob(m.b, w * (0.90f + 0.05f * cos(2 * k)) + par * 1.6f, h * (0.94f + 0.05f * sin(2 * k)), r * 0.66f, 0.30f)
+    blob(m.c, w * (0.60f + 0.14f * sin(3 * k + 1f)) + par * 0.6f, h * (0.42f + 0.10f * cos(2 * k + 2f)), r * 0.44f, 0.14f)
     if (base) drawRect(
-        Brush.radialGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.42f), center = Offset(w / 2, h / 2), radius = r * 0.8f),
+        Brush.radialGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.30f), center = Offset(w / 2, h / 2), radius = r * 0.85f),
         size = Size(w, h),
     )
 }

@@ -327,6 +327,14 @@ enum class G(@DrawableRes val res: Int) {
     CAMERA(R.drawable.vi_camera), STAR(R.drawable.vi_star), STAR_OFF(R.drawable.vi_star_off), USER(R.drawable.vi_user),
     SHUFFLE(R.drawable.vi_shuffle), PHONE(R.drawable.vi_phone), CUTLERY(R.drawable.vi_cutlery),
     PEN(R.drawable.vi_pen), COMPOSE(R.drawable.vi_compose), FOLDER(R.drawable.vi_folder),
+    WIFI_OFF(R.drawable.vi_wifi_off), PLANE(R.drawable.vi_plane), PIN(R.drawable.vi_pin), CAST(R.drawable.vi_cast), QR(R.drawable.vi_qr),
+    SHIELD(R.drawable.vi_shield), SEND(R.drawable.vi_send), STOPWATCH(R.drawable.vi_stopwatch), LEVEL(R.drawable.vi_level), MIC(R.drawable.vi_mic),
+    METER(R.drawable.vi_meter), TORCH(R.drawable.vi_torch), SCREENSHOT(R.drawable.vi_screenshot), RECORD(R.drawable.vi_record), LEAF(R.drawable.vi_leaf),
+    CONTRAST(R.drawable.vi_contrast), EYE(R.drawable.vi_eye), TEXT(R.drawable.vi_text), USB(R.drawable.vi_usb), SD(R.drawable.vi_sd),
+    WORLD(R.drawable.vi_world), RADIO(R.drawable.vi_radio), CALENDAR(R.drawable.vi_calendar), KIDS(R.drawable.vi_kids), ASSISTANT(R.drawable.vi_assistant),
+    SPLIT(R.drawable.vi_split), SCAN(R.drawable.vi_scan), MIRROR(R.drawable.vi_mirror), ZOOM(R.drawable.vi_zoom), DOC(R.drawable.vi_doc),
+    WAVE(R.drawable.vi_wave), RING(R.drawable.vi_ring), RESTART(R.drawable.vi_restart), FILES(R.drawable.vi_files), VIBRATE(R.drawable.vi_vibrate),
+    FOCUS_MODE(R.drawable.vi_focus_mode), WORK(R.drawable.vi_work), BED(R.drawable.vi_bed), BOOK(R.drawable.vi_book), GAME(R.drawable.vi_game),
 }
 
 @Suppress("UNUSED_PARAMETER")

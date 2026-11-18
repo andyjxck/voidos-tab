@@ -36,6 +36,12 @@ object Policy {
      * system app (a flashed/priv-app VoidOS) is allowed to do. False if neither works.
      */
     @android.annotation.SuppressLint("MissingPermission")
+    /** Grants VoidOS one of its own runtime permissions: as device owner, else through root. */
+    fun grantSelf(c: Context, perm: String): Boolean {
+        val owner = runCatching { dpm(c).setPermissionGrantState(admin(c), c.packageName, perm, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED) }.getOrDefault(false)
+        return owner || Su.ok("pm grant ${c.packageName} $perm")
+    }
+
     fun setTimeZone(c: Context, zone: String): Boolean {
         if (isOwner(c) && android.os.Build.VERSION.SDK_INT >= 30 &&
             runCatching { dpm(c).setTimeZone(admin(c), zone) }.getOrDefault(false)) return true
@@ -71,6 +77,8 @@ object Policy {
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.READ_EXTERNAL_STORAGE,
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.CAMERA,
         ).forEach { perm ->
             safe("grant $perm") { d.setPermissionGrantState(a, pkg, perm, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED) }
         }
