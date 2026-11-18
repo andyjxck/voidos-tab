@@ -20,7 +20,24 @@ data class Note(val id: Long, val text: String, val colour: Int, val updated: Lo
 data class Stroke(val argb: Int, val width: Float, val style: Int, val pts: List<Float>)
 
 /** A widget on the face. [x], [y] place its top-left corner as fractions of the free space; [ref] is the note it shows. */
-data class FaceWidget(val id: Long, val kind: String, val x: Float, val y: Float, val ref: Long = 0L)
+/**
+ * A widget on the face. [x] and [y] place its top-left as a fraction of the
+ * room left around it; [sw] and [sh] stretch its width and height from the
+ * kind's normal size (pinch to make it thinner or wider); [rot] turns it, in degrees.
+ */
+data class FaceWidget(
+    val id: Long, val kind: String, val x: Float, val y: Float, val ref: Long = 0L,
+    val sw: Float = 1f, val sh: Float = 1f, val rot: Float = 0f,
+)
+
+/** Where the clock sits on the face: its centre as fractions of the face, its size and its turn. */
+data class ClockPlace(val cx: Float = 0.5f, val cy: Float = 0.5f, val scale: Float = 1f, val rot: Float = 0f)
+
+/** How far a widget can be stretched or squeezed on each side, and how big the clock can go. */
+internal const val WIDGET_MIN_SCALE = 0.6f
+internal const val WIDGET_MAX_SCALE = 2.6f
+internal const val CLOCK_MIN_SCALE = 0.35f
+internal const val CLOCK_MAX_SCALE = 1.6f
 
 internal fun strokesToJson(ink: List<Stroke>): JSONArray = JSONArray().also { a ->
     ink.forEach { st ->
@@ -141,6 +158,8 @@ class Store(private val ctx: Context) {
     }
     fun setPin(pin: String) { pinHash = hash(pin); p.edit().putString("pinHash", pinHash).apply() }
     fun checkPin(pin: String) = hasPin && hash(pin) == pinHash
+    /** The way out of VoidOS has its own fixed code, separate from the lock-screen PIN. Only the hash lives here. */
+    fun checkEscape(pin: String) = hash(pin) == ESCAPE_HASH
 
     // ---- hidden-by-VoidOS bookkeeping ----
     fun hiddenByUs(): Set<String> = p.getStringSet("hiddenByUs", emptySet())!!.toSet()
@@ -177,14 +196,22 @@ class Store(private val ctx: Context) {
         val raw = p.getString("widgets", null) ?: return emptyList()
         return runCatching {
             val a = JSONArray(raw)
-            List(a.length()) { val o = a.getJSONObject(it); FaceWidget(o.getLong("id"), o.getString("k"), o.getDouble("x").toFloat(), o.getDouble("y").toFloat(), o.optLong("r")) }
+            List(a.length()) { val o = a.getJSONObject(it); FaceWidget(
+                o.getLong("id"), o.getString("k"), o.getDouble("x").toFloat(), o.getDouble("y").toFloat(), o.optLong("r"),
+                o.optDouble("sw", 1.0).toFloat(), o.optDouble("sh", 1.0).toFloat(), o.optDouble("rot", 0.0).toFloat(),
+            ) }
         }.getOrDefault(emptyList())
     }
 
     fun saveWidgets(list: List<FaceWidget>) {
         widgets = list
         val a = JSONArray()
-        list.forEach { a.put(JSONObject().put("id", it.id).put("k", it.kind).put("x", it.x.toDouble()).put("y", it.y.toDouble()).put("r", it.ref)) }
+        list.forEach {
+            a.put(
+                JSONObject().put("id", it.id).put("k", it.kind).put("x", it.x.toDouble()).put("y", it.y.toDouble()).put("r", it.ref)
+                    .put("sw", it.sw.toDouble()).put("sh", it.sh.toDouble()).put("rot", it.rot.toDouble()),
+            )
+        }
         p.edit().putString("widgets", a.toString()).apply()
     }
 
@@ -198,6 +225,28 @@ class Store(private val ctx: Context) {
 
     fun moveWidget(id: Long, x: Float, y: Float) = saveWidgets(widgets.map { if (it.id == id) it.copy(x = x.coerceIn(0f, 1f), y = y.coerceIn(0f, 1f)) else it })
     fun removeWidget(id: Long) = saveWidgets(widgets.filter { it.id != id })
+    /** Saves a widget's place, stretch and turn after a pinch or a drag. */
+    fun placeWidget(id: Long, x: Float, y: Float, sw: Float, sh: Float, rot: Float) = saveWidgets(
+        widgets.map {
+            if (it.id == id) it.copy(
+                x = x.coerceIn(0f, 1f), y = y.coerceIn(0f, 1f),
+                sw = sw.coerceIn(WIDGET_MIN_SCALE, WIDGET_MAX_SCALE), sh = sh.coerceIn(WIDGET_MIN_SCALE, WIDGET_MAX_SCALE),
+                rot = normDeg(rot),
+            ) else it
+        },
+    )
+
+    // ---- the clock's place on the face (hold to move it, pinch to size and turn it) ----
+    var clock by mutableStateOf(
+        ClockPlace(p.getFloat("clockX", 0.5f), p.getFloat("clockY", 0.5f), p.getFloat("clockS", 1f), p.getFloat("clockR", 0f)),
+    ); private set
+
+    fun placeClock(c: ClockPlace) {
+        val k = ClockPlace(c.cx.coerceIn(0f, 1f), c.cy.coerceIn(0f, 1f), c.scale.coerceIn(CLOCK_MIN_SCALE, CLOCK_MAX_SCALE), normDeg(c.rot))
+        clock = k
+        p.edit().putFloat("clockX", k.cx).putFloat("clockY", k.cy).putFloat("clockS", k.scale).putFloat("clockR", k.rot).apply()
+    }
+    fun resetClock() = placeClock(ClockPlace())
 
     // ---- weather: where the tablet is, and the last forecast it fetched ----
     /** True while the place comes from the tablet's location; false once a city is picked by hand. */
@@ -275,4 +324,15 @@ fun aisleFor(t: String): String {
         has("pasta", "spaghetti", "rice", "noodle", "flour", "sugar", "oil", "sauce", "tin!", "tinned", "beans", "cereal", "oats", "spice", "salt!", "stock", "hoisin", "soy", "vinegar", "honey", "jam", "crisps", "biscuit", "chocolate", "lentil", "chickpea") -> "Cupboard"
         else -> "Other"
     }
+}
+
+/** Salted SHA-256 of the fixed escape code (same salt as the lock-screen PIN). */
+internal const val ESCAPE_HASH = "2d9c9466f67b138142547b1005b1ce01effe35337d374b6163cd3b3fdc210c90"
+
+/** An angle folded into -180..180, snapped to straight when it is within 4 degrees of a quarter turn. */
+internal fun normDeg(d: Float): Float {
+    var a = ((d % 360f) + 540f) % 360f - 180f
+    val q = Math.round(a / 90f) * 90f
+    if (Math.abs(a - q) < 4f) a = q
+    return if (a == -180f) 180f else a
 }

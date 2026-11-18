@@ -1,5 +1,8 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.widthIn
 
@@ -110,10 +113,10 @@ fun SystemScreen(store: Store, act: MainActivity) {
     val list: @Composable (Modifier) -> Unit = { m ->
         Column(m.verticalScroll(rememberScrollState())) {
             Row(
-                Modifier.fillMaxWidth().clip(Oct).background(V.Panel).padding(horizontal = 16.dp, vertical = 14.dp),
+                Modifier.fillMaxWidth().pane(Oct).padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(V.Panel2), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(40.dp).glass(RoundedCornerShape(12.dp), 0.9f), contentAlignment = Alignment.Center) {
                     VoidMark(Modifier.size(26.dp), mono = V.Text)
                 }
                 Gap(w = 14.dp)
@@ -124,10 +127,10 @@ fun SystemScreen(store: Store, act: MainActivity) {
             }
             groups.forEachIndexed { gi, g ->
                 Label(g, Modifier.padding(start = 16.dp, top = 22.dp, bottom = 8.dp))
-                Column(Modifier.fillMaxWidth().clip(Oct).background(V.Panel)) {
+                Column(Modifier.fillMaxWidth().pane(Oct)) {
                     val pages = Tab.entries.filter { it.group == gi }
                     pages.forEachIndexed { i, t ->
-                        if (i > 0) Box(Modifier.padding(start = 62.dp).fillMaxWidth().height(1.dp).background(V.Line.copy(alpha = 0.6f)))
+                        if (i > 0) Box(Modifier.padding(start = 62.dp).fillMaxWidth().height(1.dp).background(V.White.copy(alpha = 0.07f)))
                         NavItem(t, sel = !portrait && t == tab) { tab = t; open = true }
                     }
                 }
@@ -182,7 +185,7 @@ private fun NavItem(t: Tab, sel: Boolean, onClick: () -> Unit) {
 /** A page's title and a line on what it's for. */
 @Composable
 internal fun Head(title: String, sub: String? = null) {
-    VText(sentence(title), size = 26.sp, font = SansMedium, color = V.White)
+    VText(sentence(title), size = 28.sp, font = SansLight, color = V.White, spacing = (-0.3).sp)
     if (sub != null) { Gap(h = 6.dp); VText(sub, size = 14.sp, color = V.Muted, lineHeight = 20.sp) }
     Gap(h = 20.dp)
 }
@@ -333,20 +336,15 @@ private fun DisplayPane(store: Store, act: MainActivity) {
         }
     }
     SettingRow("Screen off after", "When the tablet isn't charging. Desk mode keeps it on while charging.") {}
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf(30_000 to "30S", 60_000 to "1M", 300_000 to "5M", 600_000 to "10M", 1_800_000 to "30M").forEach { (ms, l) ->
-            VButton(l, accent = if (timeout == ms) V.Teal else V.Muted, filled = timeout == ms, enabled = owner) {
-                if (sys(Settings.System.SCREEN_OFF_TIMEOUT, ms.toString())) timeout = ms
-            }
-        }
-    }
+    GlassSegments(
+        listOf("30000" to "30 s", "60000" to "1 min", "300000" to "5 min", "600000" to "10 min", "1800000" to "30 min"),
+        timeout.toString(), Modifier.widthIn(max = 620.dp), enabled = owner,
+    ) { k -> if (sys(Settings.System.SCREEN_OFF_TIMEOUT, k)) timeout = k.toInt() }
     Gap(h = 18.dp)
     SettingRow("Rotation", "Follow the tablet, or pin it. Every VoidOS screen has a layout for both.") {}
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf("auto" to "AUTO", "land" to "LANDSCAPE", "port" to "PORTRAIT").forEach { (k, l) ->
-            VButton(l, accent = if (store.rotation == k) V.Teal else V.Muted, filled = store.rotation == k) { store.setRotation(k); act.applyRotation() }
-        }
-    }
+    GlassSegments(
+        listOf("auto" to "Auto", "land" to "Landscape", "port" to "Portrait"), store.rotation, Modifier.widthIn(max = 520.dp),
+    ) { k -> store.setRotation(k); act.applyRotation() }
     Gap(h = 24.dp)
     Head("Sound")
     listOf(
@@ -452,7 +450,7 @@ private fun VoidPane(store: Store, act: MainActivity) {
     fun toggle(key: String, v: Boolean) { store.set(key, v); act.applyPolicies() }
 
     Head("VoidOS rules", if (owner) "Changes apply straight away." else "Most of these need device owner. Run: ${Policy.SET_OWNER_CMD}")
-    SettingRow("Lock mode", "Pins VoidOS: Home and Recents can't leave it, and only allowed apps open. Your PIN escape hatch always works.") {
+    SettingRow("Lock mode", "Pins VoidOS: Home and Recents can't leave it, and only allowed apps open.") {
         VToggle(store.kiosk, V.Coral, enabled = owner) { toggle("kiosk", it) }
     }
     SettingRow("Hide Android's bars", "Status and navigation bars stay hidden. A swipe from the edge shows them for a moment; the notification shade stays shut.") {
@@ -472,13 +470,11 @@ private fun VoidPane(store: Store, act: MainActivity) {
     }
     SettingRow("24-hour clock") { VToggle(store.use24h) { store.set("use24h", it) } }
     SettingRow("Ambient clock after", "Dim drifting clock when nobody touches the screen.") {}
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf(0 to "NEVER", 1 to "1M", 5 to "5M", 15 to "15M").forEach { (m, l) ->
-            VButton(l, accent = if (store.ambientMinutes == m) V.Teal else V.Muted, filled = store.ambientMinutes == m) { store.setAmbient(m) }
-        }
-    }
+    GlassSegments(
+        listOf("0" to "Never", "1" to "1 min", "5" to "5 min", "15" to "15 min"), store.ambientMinutes.toString(), Modifier.widthIn(max = 520.dp),
+    ) { store.setAmbient(it.toInt()) }
     Gap(h = 18.dp)
-    SettingRow("Escape PIN", "Hold the VoidOS mark for 3 seconds, then enter it.") {
+    SettingRow("Lock screen PIN", if (store.hasPin) "Asked for after the swipe when PIN to unlock is on." else "Not set yet.") {
         VButton(if (changingPin) "Cancel" else "Change", accent = V.Muted) { changingPin = !changingPin; pinStep = null; pinErr = null }
     }
     if (changingPin) {
@@ -509,10 +505,9 @@ private fun AboutPane(act: MainActivity) {
     val gb = { b: Long -> "%.1f GB".format(b / 1_073_741_824.0) }
     val up = SystemClock.elapsedRealtime() / 60_000
 
-    VText("Voidos", size = 40.sp, color = V.White)
+    VText("VoidOS", size = 40.sp, font = SansLight, color = V.White)
     VText("Tablet edition \u00b7 ${BuildConfig.VERSION_NAME}", size = 12.sp, color = V.Teal)
     Gap(h = 6.dp)
-    VText("Sister of VoidOS for PineTime. Same octagon, same lap colours, same SansMedium type.", size = 12.sp, color = V.Muted, font = FontFamily.Default)
     Gap(h = 18.dp)
     listOf(
         "Device" to "${Build.MANUFACTURER} ${Build.MODEL}",
@@ -523,10 +518,17 @@ private fun AboutPane(act: MainActivity) {
         "Storage" to (disk?.let { "${gb(it.availableBytes)} free of ${gb(it.totalBytes)}" } ?: "--"),
         "Up for" to "${up / 60} h ${up % 60} min",
         "Device owner" to if (Policy.isOwner(act)) "Yes" else "No",
-    ).forEach { (k, v) ->
-        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-            Label(k, Modifier.width(150.dp))
-            VText(v, size = 14.sp, color = V.Text, font = FontFamily.Default, maxLines = 1)
+    ).let { rows ->
+        GlassGroup {
+            rows.forEach { (k, v) ->
+                // the Device line is also the hidden way out: no ripple, no count, no hint
+                val door = if (k == "Device") Modifier.pointerInput(Unit) { detectTapGestures { EscapeDoor.tap() } }.testTag("about-device") else Modifier
+                Row(door.fillMaxWidth().padding(horizontal = 18.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                    VText(k, size = 15.sp, color = V.Muted, modifier = Modifier.width(150.dp))
+                    VText(v, size = 15.sp, color = V.Text, maxLines = 1, modifier = Modifier.weight(1f))
+                }
+                if (k != rows.last().first) Box(Modifier.padding(start = 18.dp).fillMaxWidth().height(1.dp).background(V.White.copy(alpha = 0.07f)))
+            }
         }
     }
     Gap(h = 16.dp)

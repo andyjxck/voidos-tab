@@ -13,7 +13,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -48,6 +47,13 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.mutableStateMapOf
+import com.andysocial.voidos.ClockPlace
+import com.andysocial.voidos.WIDGET_MIN_SCALE
+import com.andysocial.voidos.WIDGET_MAX_SCALE
+import com.andysocial.voidos.CLOCK_MIN_SCALE
+import com.andysocial.voidos.CLOCK_MAX_SCALE
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -90,10 +96,67 @@ fun FaceScreen(store: Store, onOpen: (Module) -> Unit) {
 
     Column(Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Dial(store, now, onOpen, Modifier.fillMaxSize())
+            val d = LocalDensity.current
+            val faceW = with(d) { maxWidth.toPx() }
+            val faceH = with(d) { maxHeight.toPx() }
+            // what is being moved right now, live; saved when the fingers lift
+            val live = remember { mutableStateMapOf<Long, FaceBox>() }
+            val clockBase = clockPx(faceW, faceH)
+            val clockBox = live[CLOCK_TARGET] ?: clockBoxOf(store.clock, faceW, faceH, clockBase)
+            val clockNow = if (live[CLOCK_TARGET] != null) placeOf(clockBox, faceW, faceH, clockBase) else store.clock
+            Box(
+                Modifier.fillMaxSize().faceGestures(
+                    enabled = true, faceW = faceW, faceH = faceH,
+                    targets = {
+                        val ws = store.widgets.map { wd ->
+                            val (bw, bh) = widgetSize(wd).let { (a, b) -> with(d) { a.toPx() to b.toPx() } }
+                            FaceTarget(
+                                wd.id, live[wd.id] ?: widgetBoxOf(wd, bw, bh, faceW, faceH), false,
+                                bw * WIDGET_MIN_SCALE, minOf(bw * WIDGET_MAX_SCALE, faceW * 0.95f),
+                                bh * WIDGET_MIN_SCALE, minOf(bh * WIDGET_MAX_SCALE, faceH * 0.95f),
+                            )
+                        }
+                        val cb = clockBoxOf(store.clock, faceW, faceH, clockBase)
+                        listOf(
+                            FaceTarget(
+                                CLOCK_TARGET, cb, true,
+                                cb.w / store.clock.scale * CLOCK_MIN_SCALE, cb.w / store.clock.scale * CLOCK_MAX_SCALE,
+                                cb.h / store.clock.scale * CLOCK_MIN_SCALE, cb.h / store.clock.scale * CLOCK_MAX_SCALE,
+                            ),
+                        ) + ws
+                    },
+                    onChange = { id, b -> live[id] = b },
+                    onEnd = { id, b ->
+                        if (id == CLOCK_TARGET) store.placeClock(placeOf(b, faceW, faceH, clockBase))
+                        else store.widgets.firstOrNull { it.id == id }?.let { wd ->
+                            val (bw, bh) = widgetSize(wd).let { (a, c) -> with(d) { a.toPx() to c.toPx() } }
+                            val left = b.cx - b.w / 2f; val top = b.cy - b.h / 2f
+                            store.placeWidget(
+                                id, if (faceW > b.w) left / (faceW - b.w) else 0f, if (faceH > b.h) top / (faceH - b.h) else 0f,
+                                b.w / bw, b.h / bh, b.rot,
+                            )
+                        }
+                        live.remove(id)
+                    },
+                ),
+            ) {
+                Dial(
+                    store, now, onOpen, clockNow.scale,
+                    Modifier.fillMaxSize().graphicsLayer {
+                        translationX = (clockNow.cx - 0.5f) * faceW
+                        translationY = (clockNow.cy - 0.5f) * faceH
+                        rotationZ = clockNow.rot
+                    },
+                )
+                // a faint outline while the clock is picked up
+                if (live[CLOCK_TARGET] != null) Box(
+                    Modifier.offset { IntOffset((clockBox.cx - clockBox.w / 2f).roundToInt(), (clockBox.cy - clockBox.h / 2f).roundToInt()) }
+                        .size(with(d) { clockBox.w.toDp() }, with(d) { clockBox.h.toDp() })
+                        .graphicsLayer { rotationZ = clockBox.rot }
+                        .border(1.dp, V.Teal.copy(alpha = 0.45f), RoundedCornerShape(28.dp)),
+                )
+                WidgetLayer(store, now, editing, onOpen, faceW, faceH, live)
             }
-            WidgetLayer(store, now, editing, onOpen, maxWidth, maxHeight)
             // the one control on the face: add, move and remove widgets
             Box(Modifier.align(Alignment.TopEnd)) {
                 FaceEditButton(editing) { editing = !editing }
@@ -155,7 +218,7 @@ private fun InkText(text: String, sizePx: Float, color: Color, face: Typeface, s
  * face, then any running timers. Nothing around it.
  */
 @Composable
-private fun Dial(store: Store, now: Long, onOpen: (Module) -> Unit, modifier: Modifier) {
+private fun Dial(store: Store, now: Long, onOpen: (Module) -> Unit, scale: Float, modifier: Modifier) {
     val fmt = if (store.use24h) "HH:mm" else "h:mm"
     val timers by KTimers.list
     val running = timers.filter { it.running }.sortedBy { it.endAt }
@@ -166,7 +229,7 @@ private fun Dial(store: Store, now: Long, onOpen: (Module) -> Unit, modifier: Mo
         val w = with(d) { maxWidth.toPx() }
         val h = with(d) { maxHeight.toPx() }
         // the time takes about two thirds of the width, or less when the screen is short
-        val timePx = minOf(w * 0.30f, h * 0.36f)
+        val timePx = clockPx(w, h) * scale
         val gap = with(d) { (timePx * 0.10f).toDp() }
         CentredStack(
             gap = gap,
@@ -248,7 +311,7 @@ private fun WidgetMenu(store: Store, modifier: Modifier, onDone: () -> Unit) {
     VPanel(modifier.width(260.dp), padding = 14.dp) {
         Label("Add to face")
         Gap(h = 4.dp)
-        VText("Hold a widget to move it.", size = 12.sp, color = V.Muted, font = FontFamily.Default)
+        VText("Hold a widget or the clock to move it. Pinch to stretch it, twist to turn it.", size = 12.sp, color = V.Muted, lineHeight = 17.sp)
         Gap(h = 10.dp)
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             fun on(kind: String, ref: Long = 0L) = store.widgets.any { it.kind == kind && it.ref == ref }
@@ -273,42 +336,51 @@ private fun WidgetMenu(store: Store, modifier: Modifier, onDone: () -> Unit) {
             }
         }
         Gap(h = 10.dp)
-        VButton("Done", Modifier.fillMaxWidth(), accent = V.Teal, filled = true, onClick = onDone)
+        GlassActions(
+            listOf(
+                GlassAction("Centre clock", enabled = store.clock != ClockPlace()) { store.resetClock() },
+                GlassAction("Done", onClick = onDone),
+            ),
+            height = 46.dp,
+        )
     }
 }
 
-/** Every widget, at its saved place. Hold to drag; tap to open its screen. */
+/** The time's size at the clock's normal scale: about two thirds of the width, less when the screen is short. */
+internal fun clockPx(faceW: Float, faceH: Float) = minOf(faceW * 0.30f, faceH * 0.36f)
+
+/** The box you can grab the clock by: the date, the time and the timer pills. */
+internal fun clockBoxOf(c: ClockPlace, faceW: Float, faceH: Float, basePx: Float) =
+    FaceBox(c.cx * faceW, c.cy * faceH, basePx * 2.6f * c.scale, basePx * 1.55f * c.scale, c.rot)
+
+/** Back from a live clock box to the place that gets saved. */
+internal fun placeOf(b: FaceBox, faceW: Float, faceH: Float, basePx: Float) =
+    ClockPlace(b.cx / faceW, b.cy / faceH, b.w / (basePx * 2.6f), b.rot)
+
+/** A saved widget as a box on the face, in pixels. */
+internal fun widgetBoxOf(wd: FaceWidget, baseW: Float, baseH: Float, faceW: Float, faceH: Float): FaceBox {
+    val w = baseW * wd.sw; val h = baseH * wd.sh
+    val left = wd.x * (faceW - w).coerceAtLeast(0f); val top = wd.y * (faceH - h).coerceAtLeast(0f)
+    return FaceBox(left + w / 2f, top + h / 2f, w, h, wd.rot)
+}
+
+/** Every widget at its saved place, size and turn. Hold to drag, pinch to stretch and turn, tap to open its screen. */
 @Composable
-private fun WidgetLayer(store: Store, now: Long, editing: Boolean, onOpen: (Module) -> Unit, w: Dp, h: Dp) {
+private fun WidgetLayer(store: Store, now: Long, editing: Boolean, onOpen: (Module) -> Unit, faceW: Float, faceH: Float, live: Map<Long, FaceBox>) {
     val d = LocalDensity.current
     val wiggle by rememberInfiniteTransition(label = "wig").animateFloat(-1f, 1f, infiniteRepeatable(tween(260), RepeatMode.Reverse), label = "wig")
     store.widgets.forEach { wd ->
-        val size = widgetSize(wd)
-        val freeX = with(d) { (w - size.first).toPx() }.coerceAtLeast(0f)
-        val freeY = with(d) { (h - size.second).toPx() }.coerceAtLeast(0f)
-        var drag by remember(wd.id) { mutableStateOf<Offset?>(null) }
-        val base = Offset(wd.x * freeX, wd.y * freeY)
-        val pos = drag ?: base
+        val (bw, bh) = widgetSize(wd).let { (a, b) -> with(d) { a.toPx() to b.toPx() } }
+        val held = live[wd.id]
+        val box = held ?: widgetBoxOf(wd, bw, bh, faceW, faceH)
         Box(
-            Modifier.offset { IntOffset(pos.x.roundToInt(), pos.y.roundToInt()) }
-                .size(size.first, size.second)
-                .pointerInput(wd.id, freeX, freeY) {
-                    detectDragGesturesAfterLongPress(
-                        onDragStart = { drag = Offset(wd.x * freeX, wd.y * freeY) },
-                        onDragEnd = {
-                            drag?.let { p -> store.moveWidget(wd.id, if (freeX > 0) p.x / freeX else 0f, if (freeY > 0) p.y / freeY else 0f) }
-                            drag = null
-                        },
-                        onDragCancel = { drag = null },
-                    ) { ch, amt ->
-                        ch.consume()
-                        val p = (drag ?: base) + amt
-                        drag = Offset(p.x.coerceIn(0f, freeX), p.y.coerceIn(0f, freeY))
-                    }
-                },
+            Modifier.offset { IntOffset((box.cx - box.w / 2f).roundToInt(), (box.cy - box.h / 2f).roundToInt()) }
+                .size(with(d) { box.w.toDp() }, with(d) { box.h.toDp() })
+                .graphicsLayer { rotationZ = box.rot }
+                .testTag("widget-${wd.kind}"),
         ) {
-            Box(Modifier.fillMaxSize().offset(x = if (editing) (wiggle * 1.2f).dp else 0.dp)) {
-                WidgetBody(store, wd, now, onOpen, lifted = drag != null)
+            Box(Modifier.fillMaxSize().offset(x = if (editing && held == null) (wiggle * 1.2f).dp else 0.dp)) {
+                WidgetBody(store, wd, now, onOpen, lifted = held != null)
             }
             if (editing) Box(
                 Modifier.align(Alignment.TopEnd).offset(6.dp, (-6).dp).size(28.dp).clip(RoundedCornerShape(50))
@@ -330,8 +402,8 @@ private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module)
     val accent = V.Teal
     val shape = RoundedCornerShape(18.dp)
     Column(
-        Modifier.fillMaxSize().clip(shape).background(V.Panel.copy(alpha = if (lifted) 1f else 0.92f))
-            .border(if (lifted) 2.dp else 1.dp, if (lifted) accent else V.Line, shape)
+        Modifier.fillMaxSize().glass(shape, if (lifted) 0.95f else 0.72f)
+            .then(if (lifted) Modifier.border(1.5.dp, accent.copy(alpha = 0.7f), shape) else Modifier)
             .tap {
                 onOpen(when (wd.kind) { "sky" -> Module.WEATHER; "sound" -> Module.MEDIA; "list" -> Module.TOOLS; else -> Module.NOTES })
             }

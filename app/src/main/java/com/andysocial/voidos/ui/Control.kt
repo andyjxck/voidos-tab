@@ -16,7 +16,10 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +44,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +52,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -158,7 +166,6 @@ fun ControlCentre(
     act: MainActivity,
     onClose: () -> Unit,
     onSettings: () -> Unit,
-    onEscape: () -> Unit,
 ) {
     AnimatedVisibility(open, enter = fadeIn(), exit = fadeOut()) {
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).tap(onClose))
@@ -172,7 +179,7 @@ fun ControlCentre(
             var pulled by remember { mutableFloatStateOf(0f) }
             Column(
                 Modifier
-                    .widthIn(max = 600.dp)
+                    .widthIn(max = if (LocalPortrait.current) 600.dp else 760.dp)
                     .fillMaxWidth()
                     .glass(RoundedCornerShape(30.dp), alpha = 0.95f)
                     .tap { }
@@ -186,7 +193,7 @@ fun ControlCentre(
                     .verticalScroll(rememberScrollState())
                     .padding(22.dp),
             ) {
-                ControlBody(store, act, onClose, onSettings, onEscape)
+                ControlBody(store, act, onClose, onSettings)
                 Spacer(Modifier.height(14.dp))
                 Box(Modifier.align(Alignment.CenterHorizontally).size(40.dp, 5.dp).clip(Pill).background(V.White.copy(alpha = 0.22f)))
             }
@@ -194,8 +201,14 @@ fun ControlCentre(
     }
 }
 
+/*
+ * The control centre's body, built like an iPad's: a clock, one glass block of
+ * round switches, two tall sliders you drag up and down, what's playing, and
+ * one glass bar of actions along the bottom. There is no way out of VoidOS
+ * here on purpose.
+ */
 @Composable
-private fun ControlBody(store: Store, act: MainActivity, onClose: () -> Unit, onSettings: () -> Unit, onEscape: () -> Unit) {
+private fun ControlBody(store: Store, act: MainActivity, onClose: () -> Unit, onSettings: () -> Unit) {
     val ctx = LocalContext.current
     val portrait = LocalPortrait.current
     var now by remember { mutableStateOf(LocalDateTime.now()) }
@@ -213,122 +226,173 @@ private fun ControlBody(store: Store, act: MainActivity, onClose: () -> Unit, on
     LaunchedEffect(tick / 2) { wifi = Tablet.wifiOn(ctx); bt = Tablet.btOn(); dnd = Tablet.dndOn(ctx) }
     LaunchedEffect(note) { if (note != null) { delay(4000); note = null } }
 
+    // ---- header: a thin clock, the date, the battery ----
     Row(verticalAlignment = Alignment.Bottom) {
         Column(Modifier.weight(1f)) {
-            VText(now.format(DateTimeFormatter.ofPattern(if (store.use24h) "HH:mm" else "h:mm")), size = 40.sp, font = SansLight, color = V.White)
+            VText(now.format(DateTimeFormatter.ofPattern(if (store.use24h) "HH:mm" else "h:mm")), size = 46.sp, font = SansLight, color = V.White, spacing = (-1).sp)
             VText(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM")), size = 14.sp, color = V.Muted)
         }
         val bat = rememberBattery()
-        VText("${bat.pct}%" + if (bat.charging) " · charging" else "", size = 14.sp, color = V.Muted)
+        BatteryPill(bat.pct, bat.charging)
     }
     Spacer(Modifier.height(20.dp))
 
-    val tiles: List<@Composable RowScope.() -> Unit> = listOf(
-        {
-            CcTile("Wi-Fi", if (wifi) "On" else "Off", G.WIFI, wifi) {
-                if (Tablet.setWifi(ctx, !wifi)) wifi = !wifi else note = "Android didn't let VoidOS switch Wi-Fi. Open Settings > Wi-Fi."
+    val pinned = store.rotation != "auto"
+    val switches: @Composable (Modifier) -> Unit = { m ->
+        Column(m.pane(RoundedCornerShape(26.dp)).padding(vertical = 16.dp, horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                CcBubble("Wi-Fi", if (wifi) "On" else "Off", G.WIFI, wifi) {
+                    if (Tablet.setWifi(ctx, !wifi)) wifi = !wifi else note = "Android didn't let VoidOS switch Wi-Fi. Open Settings > Wi-Fi."
+                }
+                CcBubble("Bluetooth", if (bt) "On" else "Off", G.BT, bt) {
+                    if (Tablet.setBt(!bt)) bt = !bt else note = "Android didn't let VoidOS switch Bluetooth."
+                }
             }
-        },
-        {
-            CcTile("Bluetooth", if (bt) "On" else "Off", G.BT, bt) {
-                if (Tablet.setBt(!bt)) bt = !bt else note = "Android didn't let VoidOS switch Bluetooth."
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                CcBubble("Do not disturb", if (dnd) "Alarms only" else "Off", G.MOON, dnd) {
+                    if (!Tablet.dndAllowed(ctx)) note = "VoidOS needs Do Not Disturb access first: Settings > Do not disturb."
+                    else if (Tablet.setDnd(ctx, !dnd)) dnd = !dnd
+                }
+                CcBubble("Rotation lock", when (store.rotation) { "port" -> "Portrait"; "land" -> "Landscape"; else -> "Off" }, G.ROTATE, pinned) {
+                    store.setRotation(if (pinned) "auto" else if (portrait) "port" else "land"); act.applyRotation()
+                }
             }
-        },
-        {
-            CcTile("Do not disturb", if (dnd) "Alarms only" else "Off", G.MOON, dnd) {
-                if (!Tablet.dndAllowed(ctx)) {
-                    note = "VoidOS needs Do Not Disturb access first: Settings > Do not disturb."
-                } else if (Tablet.setDnd(ctx, !dnd)) dnd = !dnd
-            }
-        },
-        {
-            val pinned = store.rotation != "auto"
-            CcTile("Rotation lock", when (store.rotation) { "port" -> "Portrait"; "land" -> "Landscape"; else -> "Off" }, G.ROTATE, pinned) {
-                store.setRotation(if (pinned) "auto" else if (portrait) "port" else "land"); act.applyRotation()
-            }
-        },
-        {
-            CcTile("Stay awake", if (store.deskMode) "While charging" else "Off", G.LIGHT, store.deskMode) {
-                store.set("deskMode", !store.deskMode); act.applyPolicies()
-            }
-        },
-        {
-            CcTile("Screen off", "Now", G.POWER, false) {
-                onClose()
-                if (!Tablet.screenOff(ctx)) note = "Android didn't let VoidOS turn the screen off."
-            }
-        },
-    )
-    val perRow = 3
-    tiles.chunked(perRow).forEachIndexed { i, row ->
-        if (i > 0) Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { row.forEach { it() } }
+        }
     }
-    note?.let { Spacer(Modifier.height(10.dp)); VText(it, size = 13.sp, color = V.Coral) }
-
-    Spacer(Modifier.height(18.dp))
-    CcSlider(G.SUN, bright) { bright = it; auto = false; Tablet.setBrightness(act, it) }
-    Row(Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        VText("Auto brightness", Modifier.weight(1f), size = 14.sp, color = V.Muted)
-        VToggle(auto) { if (Tablet.setAutoBrightness(act, it)) auto = it else note = "Android didn't let VoidOS change auto brightness." }
-    }
-    CcSlider(G.VOLUME, vol) { vol = it; Tablet.setVolume(ctx, it) }
-
-    val playing by Now.playing
-    playing?.let { p ->
-        Spacer(Modifier.height(14.dp))
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(V.White.copy(alpha = 0.06f)).padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                VText(p.title.ifBlank { p.appName }, size = 15.sp, font = SansMedium, color = V.Text, maxLines = 1)
-                VText(p.artist.ifBlank { p.appName }, size = 13.sp, color = V.Muted, maxLines = 1)
+    val sliders: @Composable (Modifier) -> Unit = { m ->
+        Row(m, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+                CcTall(G.SUN, bright, Modifier.weight(1f)) { bright = it; auto = false; Tablet.setBrightness(act, it) }
+                Spacer(Modifier.height(8.dp))
+                AutoChip(auto) { if (Tablet.setAutoBrightness(act, it)) auto = it else note = "Android didn't let VoidOS change auto brightness." }
             }
-            CcRound(G.PREV) { Now.prev() }
-            CcRound(if (p.playing) G.PAUSE else G.PLAY) { Now.playPause() }
-            CcRound(G.NEXT) { Now.next() }
+            Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+                CcTall(G.VOLUME, vol, Modifier.weight(1f)) { vol = it; Tablet.setVolume(ctx, it) }
+                Spacer(Modifier.height(8.dp))
+                VText("Volume", size = 12.sp, color = V.Muted, modifier = Modifier.padding(vertical = 7.dp))
+            }
         }
     }
 
+    // ---- switches and sliders side by side, in both orientations ----
+    Row(Modifier.fillMaxWidth().height(if (portrait) 236.dp else 244.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        switches(Modifier.weight(if (portrait) 1.25f else 1.1f).fillMaxHeight())
+        sliders(Modifier.weight(if (portrait) 0.85f else 0.62f).fillMaxHeight())
+        if (!portrait) NowPlayingCard(Modifier.weight(1.05f).fillMaxHeight())
+    }
+    if (portrait) { Spacer(Modifier.height(14.dp)); NowPlayingCard(Modifier.fillMaxWidth().height(96.dp)) }
+    note?.let { Spacer(Modifier.height(10.dp)); VText(it, size = 13.sp, color = V.Coral) }
+
+    // ---- one glass bar of actions ----
     Spacer(Modifier.height(16.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        VButton("Settings", Modifier.weight(1f)) { onClose(); onSettings() }
-        if (store.voidLock) VButton("Lock", Modifier.weight(1f)) { onClose(); LockState.locked.value = true }
-        VButton("Leave VoidOS", Modifier.weight(1f), accent = V.Coral) { onClose(); onEscape() }
-    }
+    GlassActions(
+        buildList {
+            add(GlassAction("Stay awake", G.LIGHT, active = store.deskMode) { store.set("deskMode", !store.deskMode); act.applyPolicies() })
+            add(GlassAction("Screen off", G.POWER) { onClose(); if (!Tablet.screenOff(ctx)) note = "Android didn't let VoidOS turn the screen off." })
+            if (store.voidLock) add(GlassAction("Lock", G.LOCK) { onClose(); LockState.locked.value = true })
+            add(GlassAction("Settings", G.SYSTEM) { onClose(); onSettings() })
+        },
+        height = 72.dp, stacked = true,
+    )
 }
 
+/** A round switch with its name under it, the way iPad control centres do it. Teal when on. */
 @Composable
-private fun RowScope.CcTile(label: String, state: String, g: G, on: Boolean, onClick: () -> Unit) {
+private fun CcBubble(label: String, state: String, g: G, on: Boolean, onClick: () -> Unit) {
+    val src = remember { MutableInteractionSource() }
     Column(
-        Modifier
-            .weight(1f)
-            .clip(RoundedCornerShape(20.dp))
-            .background(if (on) V.Teal else V.White.copy(alpha = 0.07f))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 14.dp),
+        Modifier.width(96.dp).clickable(interactionSource = src, indication = null, onClick = onClick).semantics { selected = on },
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Glyph(g, if (on) V.Bg else V.Text, Modifier.size(24.dp))
-        Spacer(Modifier.height(12.dp))
-        VText(label, size = 14.sp, font = SansMedium, color = if (on) V.Bg else V.Text, maxLines = 1)
-        VText(state, size = 12.sp, color = if (on) V.Bg.copy(alpha = 0.7f) else V.Muted, maxLines = 1)
+        Box(
+            Modifier.size(58.dp).clip(CircleShape)
+                .background(
+                    if (on) Brush.verticalGradient(listOf(lerp(V.Teal, Color.White, 0.15f), V.Teal))
+                    else Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.14f), Color.White.copy(alpha = 0.06f))),
+                )
+                .border(1.dp, Color.White.copy(alpha = if (on) 0.45f else 0.14f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) { Glyph(g, if (on) V.Bg else V.Text, Modifier.size(24.dp)) }
+        Spacer(Modifier.height(7.dp))
+        VText(label, size = 13.sp, color = V.Text, maxLines = 1)
+        VText(state, size = 11.sp, color = if (on) V.Teal else V.Muted, maxLines = 1)
     }
 }
 
-/** A tall, thick slider like a glass bar: the fill is the level, the icon sits inside. */
+/** A tall glass slider: drag up and down. The light fill is the level; the icon sits at its foot. */
 @Composable
-private fun CcSlider(g: G, value: Float, onChange: (Float) -> Unit) {
-    Box(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(18.dp)).background(V.White.copy(alpha = 0.07f))) {
-        Box(Modifier.fillMaxWidth(value.coerceIn(0.06f, 1f)).height(52.dp).background(V.White.copy(alpha = 0.88f)))
-        Glyph(g, if (value > 0.1f) V.Bg else V.Text, Modifier.align(Alignment.CenterStart).padding(start = 16.dp).size(22.dp))
-        VSliderTouch(Modifier.fillMaxSize(), onChange)
+private fun CcTall(g: G, value: Float, modifier: Modifier, onChange: (Float) -> Unit) {
+    val cb by rememberUpdatedState(onChange)
+    val v = value.coerceIn(0f, 1f)
+    Box(
+        modifier.fillMaxWidth().widthIn(max = 92.dp).glass(RoundedCornerShape(26.dp), 0.85f)
+            .pointerInput(Unit) { detectTapGestures { o -> cb((1f - o.y / size.height).coerceIn(0f, 1f)) } }
+            .pointerInput(Unit) {
+                detectVerticalDragGestures { ch, _ -> ch.consume(); cb((1f - ch.position.y / size.height).coerceIn(0f, 1f)) }
+            },
+    ) {
+        Box(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(v.coerceAtLeast(0.08f))
+                .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.95f), Color.White.copy(alpha = 0.78f)))),
+        )
+        Glyph(g, if (v > 0.16f) V.Bg else V.Text, Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp).size(24.dp))
+    }
+}
+
+/** Auto brightness as a small glass chip under its slider. */
+@Composable
+private fun AutoChip(on: Boolean, onChange: (Boolean) -> Unit) {
+    Box(
+        Modifier.clip(Pill)
+            .background(if (on) V.Teal.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.06f))
+            .border(1.dp, if (on) V.Teal.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.12f), Pill)
+            .semantics { contentDescription = "Auto brightness"; selected = on }
+            .clickable { onChange(!on) }
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) { VText("Auto", size = 12.sp, color = if (on) V.Teal else V.Muted) }
+}
+
+@Composable
+private fun BatteryPill(pct: Int, charging: Boolean) {
+    Row(
+        Modifier.clip(Pill).background(Color.White.copy(alpha = 0.07f)).border(1.dp, Color.White.copy(alpha = 0.10f), Pill)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(22.dp, 11.dp).clip(RoundedCornerShape(3.dp)).border(1.dp, V.Text.copy(alpha = 0.6f), RoundedCornerShape(3.dp)).padding(2.dp)) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth((pct / 100f).coerceIn(0.05f, 1f)).clip(RoundedCornerShape(1.dp)).background(if (pct <= 15 && !charging) V.Coral else V.Text))
+        }
+        Spacer(Modifier.width(8.dp))
+        VText("$pct%" + if (charging) " charging" else "", size = 13.sp, color = V.Text)
+    }
+}
+
+/** What's playing, in its own glass card; a quiet card when nothing is. */
+@Composable
+private fun NowPlayingCard(modifier: Modifier) {
+    val playing by Now.playing
+    val p = playing
+    Column(modifier.pane(RoundedCornerShape(26.dp)).padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
+        if (p == null) {
+            Glyph(G.MEDIA, V.Tick, Modifier.size(22.dp))
+            VText("Nothing playing", size = 14.sp, color = V.Muted)
+        } else {
+            Column {
+                VText(p.title.ifBlank { p.appName }, size = 15.sp, font = SansMedium, color = V.Text, maxLines = 2)
+                VText(p.artist.ifBlank { p.appName }, size = 13.sp, color = V.Muted, maxLines = 1)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                CcRound(G.PREV) { Now.prev() }
+                CcRound(if (p.playing) G.PAUSE else G.PLAY) { Now.playPause() }
+                CcRound(G.NEXT) { Now.next() }
+            }
+        }
     }
 }
 
 @Composable
 private fun CcRound(g: G, onClick: () -> Unit) {
-    Box(Modifier.padding(start = 6.dp).size(42.dp).clip(CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(42.dp).clip(CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
         Glyph(g, V.Text, Modifier.size(22.dp))
     }
 }

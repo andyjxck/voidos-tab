@@ -38,6 +38,7 @@ import com.andysocial.voidos.R
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
@@ -100,12 +101,11 @@ fun VPanel(
     padding: Dp = 20.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    // a quiet card: no coloured frame, just a step up from the background
+    // a quiet glass card: lighter at the top, a hairline rim, no coloured frame
     Column(
         modifier
-            .clip(Oct)
-            .background(V.Panel)
-            .border(1.dp, if (accent != null) calm(accent).copy(alpha = 0.35f) else V.White.copy(alpha = 0.05f), Oct)
+            .pane(Oct)
+            .then(if (accent != null) Modifier.border(1.dp, calm(accent).copy(alpha = 0.30f), Oct) else Modifier)
             .padding(padding),
         content = content,
     )
@@ -129,16 +129,17 @@ fun VButton(
     val warn = c == V.Coral
     Box(
         modifier
-            .clip(Pill)
-            .background(
+            .then(
                 when {
-                    !enabled -> V.Panel2.copy(alpha = 0.5f)
-                    filled -> c
-                    else -> V.Panel2
+                    !enabled -> Modifier.clip(BarShape).background(V.Panel2.copy(alpha = 0.4f))
+                    filled -> Modifier.clip(BarShape)
+                        .background(Brush.verticalGradient(listOf(lerp(c, V.White, 0.18f), c)))
+                        .border(1.dp, V.White.copy(alpha = 0.30f), BarShape)
+                    else -> Modifier.glass(BarShape, 0.8f)
                 }
             )
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 13.dp),
         contentAlignment = Alignment.Center,
     ) {
         VText(
@@ -320,7 +321,7 @@ fun Glyph(g: G, color: Color, modifier: Modifier = Modifier.size(28.dp), weight:
 @Composable
 fun IconTap(g: G, color: Color = V.Text, size: Dp = 52.dp, onClick: () -> Unit) {
     Box(
-        Modifier.size(size).clip(OctS).background(V.Panel2).border(1.dp, V.Line, OctS).clickable(onClick = onClick),
+        Modifier.size(size).glass(OctS, 0.8f).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Glyph(g, color, Modifier.size(size * 0.5f)) }
 }

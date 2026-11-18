@@ -4,7 +4,7 @@
 
 | File | What it is | Used in |
 | --- | --- | --- |
-| `voidos-tab-1.4.0.apk` | The VoidOS app, release build (same fixed key as every build, so it installs over any earlier one and keeps device owner) | main README, Install; after unlocking (section 1) |
+| `voidos-tab-1.5.0.apk` | The VoidOS app, release build (same fixed key as every build, so it installs over any earlier one and keeps device owner) | main README, Install; after unlocking (section 1) |
 | `voidos-boot-magisk.zip` | Magisk module: the Android boot animation | section 3 |
 | `bootanimation.zip` | The boot animation on its own, for a hand copy or your own firmware | section 3 |
 | `voidos-system-magisk.zip` | Magisk module: VoidOS as a system app (optional) | section 4 |
@@ -92,8 +92,9 @@ unlock and flash steps are different: look up your own model first.**
 1. Settings > About tablet > tap **Build number** seven times.
 2. Settings > System > Developer options: turn on **OEM unlocking** and
    **USB debugging**.
-   VoidOS hides Settings: open it from the escape hatch (hold the VoidOS mark
-   in the middle of the left-edge wheel for 3 seconds (or tap Leave VoidOS in the control centre), enter your PIN, "Open Android settings").
+   VoidOS hides Settings: open it from the hidden way out (enter its code,
+   then "Open Android settings"), or release VoidOS from the Mac with the adb
+   commands in the main README first.
 3. On the computer:
    ```
    adb reboot bootloader

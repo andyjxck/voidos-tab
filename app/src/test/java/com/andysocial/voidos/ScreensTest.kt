@@ -36,6 +36,9 @@ import com.andysocial.voidos.ui.Setup
 import com.andysocial.voidos.ui.Shell
 import com.andysocial.voidos.ui.V
 import com.github.takahirom.roborazzi.captureRoboImage
+import org.junit.Assert.assertEquals
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.click
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import androidx.compose.ui.geometry.Offset
@@ -73,6 +76,8 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         rule.mainClock.autoAdvance = false
         fakeApps()
         store.set("setupDone", true)
+        store.resetClock()
+        com.andysocial.voidos.ui.EscapeDoor.reset(); com.andysocial.voidos.ui.EscapeDoor.asked.value = false
         if (store.shopping.isEmpty()) listOf("Semi-skimmed milk", "Bananas", "Sourdough loaf", "Washing-up liquid", "Cheddar").forEach { store.addItem(it) }
         // start from a known board (other test classes share these objects)
         KTimers.silence(act)
@@ -237,6 +242,76 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         store.saveWidgets(emptyList())
     }
 
+    /** Hold to drag, pinch to stretch on one axis, twist to turn: on a widget and on the clock. */
+    @Test fun faceMoveStretchTurn() {
+        store.saveWidgets(emptyList())
+        store.addWidget("sky")
+        show { Shell(store, act, Module.FACE) }
+        fun box() = rule.onNodeWithTag("widget-sky", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val id = store.widgets.first().id
+        fun wd() = store.widgets.first { it.id == id }
+        // hold, then drag up and right
+        val start = wd()
+        var c = box().center
+        rule.onRoot().performTouchInput { down(c) }
+        rule.mainClock.advanceTimeBy(900)
+        rule.onRoot().performTouchInput { moveBy(Offset(120f, -90f)); moveBy(Offset(60f, -40f)); up() }
+        settle(400)
+        assertTrue("[$tag] held widget should move: ${start.x},${start.y} -> ${wd().x},${wd().y}", wd().x > start.x && wd().y < start.y)
+        // a quick swipe that starts on it is not a drag
+        val before = wd()
+        c = box().center
+        rule.onRoot().performTouchInput { down(c); moveBy(Offset(-200f, 0f)); up() }
+        settle(800)
+        assertEquals("[$tag] a swipe must not move the widget", before.x, wd().x, 0.001f)
+        // two fingers spread sideways: wider, not taller
+        c = box().center
+        rule.onRoot().performTouchInput {
+            down(0, c - Offset(40f, 0f)); down(1, c + Offset(40f, 0f))
+            moveTo(0, c - Offset(90f, 0f)); moveTo(1, c + Offset(90f, 0f))
+            moveTo(0, c - Offset(130f, 0f)); moveTo(1, c + Offset(130f, 0f))
+            up(0); up(1)
+        }
+        settle(400)
+        assertTrue("[$tag] spread sideways should widen: sw=${wd().sw}", wd().sw > 1.4f)
+        assertEquals("[$tag] spread sideways should not change the height", 1f, wd().sh, 0.05f)
+        // twist a quarter turn
+        c = box().center
+        rule.onRoot().performTouchInput {
+            down(0, c - Offset(70f, 0f)); down(1, c + Offset(70f, 0f))
+            moveTo(0, c - Offset(50f, 50f)); moveTo(1, c + Offset(50f, 50f))
+            moveTo(0, c - Offset(0f, 70f)); moveTo(1, c + Offset(0f, 70f))
+            up(0); up(1)
+        }
+        settle(400)
+        assertEquals("[$tag] a quarter twist should turn it 90 degrees", 90f, kotlin.math.abs(wd().rot), 0.5f)
+        shot("01c_face_stretched")
+        // and it keeps all of that after a restart
+        val fresh = Store(act).widgets.first { it.id == id }
+        assertEquals(wd().sw, fresh.sw, 0.001f); assertEquals(wd().rot, fresh.rot, 0.001f)
+
+        // the clock: hold to move it, pinch to make it smaller
+        store.saveWidgets(emptyList())
+        settle(300)
+        val t = rule.onNodeWithTag("time", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.center
+        rule.onRoot().performTouchInput { down(t) }
+        rule.mainClock.advanceTimeBy(900)
+        rule.onRoot().performTouchInput { moveBy(Offset(0f, -60f)); moveBy(Offset(0f, -40f)); up() }
+        settle(400)
+        assertTrue("[$tag] held clock should move up: cy=${store.clock.cy}", store.clock.cy < 0.45f)
+        val t2 = rule.onNodeWithTag("time", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.center
+        rule.onRoot().performTouchInput {
+            down(0, t2 - Offset(150f, 0f)); down(1, t2 + Offset(150f, 0f))
+            moveTo(0, t2 - Offset(110f, 0f)); moveTo(1, t2 + Offset(110f, 0f))
+            moveTo(0, t2 - Offset(75f, 0f)); moveTo(1, t2 + Offset(75f, 0f))
+            up(0); up(1)
+        }
+        settle(400)
+        assertTrue("[$tag] pinching in should shrink the clock: scale=${store.clock.scale}", store.clock.scale < 0.7f)
+        shot("01d_face_clock_moved")
+        store.resetClock()
+    }
+
     @Test fun tools() {
         show { Shell(store, act, Module.TOOLS) }
         expect("Tools", "Timers", "Laundry", "Call Maya", "Start"); shot("02_tools_timers")
@@ -301,10 +376,12 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         show {
             Box(Modifier.fillMaxSize()) {
                 Shell(store, act, Module.FACE)
-                ControlCentre(true, store, act, onClose = {}, onSettings = {}, onEscape = {})
+                ControlCentre(true, store, act, onClose = {}, onSettings = {})
             }
         }
-        expect("Wi-Fi", "Bluetooth", "Do not disturb", "Rotation lock", "Auto brightness", "Settings", "Leave VoidOS")
+        expect("Wi-Fi", "Bluetooth", "Do not disturb", "Rotation lock", "Auto", "Volume", "Stay awake", "Screen off", "Settings")
+        // no way out of VoidOS in the control centre any more
+        rule.onAllNodesWithText("Leave VoidOS", substring = true).assertCountEquals(0)
         shot("16_control_centre")
     }
 
@@ -336,6 +413,20 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     @Test fun escape() {
         show { com.andysocial.voidos.ui.EscapeOverlay(store, act) {} }
         shot("44_escape_pin")
+    }
+
+    /** The way out is hidden: About, then the Device line, twenty taps, no hint on the way. */
+    @Test fun hiddenWayOut() {
+        show { Shell(store, act, Module.SYSTEM) }
+        tap("About"); settle(600)
+        val door = rule.onNodeWithTag("about-device", useUnmergedTree = true)
+        repeat(19) { door.performTouchInput { click() }; settle(60) }
+        listOf("Four digits", "more tap", "taps away", "almost").forEach { hint ->
+            assertTrue("[$tag] no hint or door after 19 taps (\"$hint\")",
+                rule.onAllNodesWithText(hint, substring = true, ignoreCase = true, useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        }
+        door.performTouchInput { click() }; settle(600)
+        expect("Four digits"); shot("45_hidden_way_out")
     }
 
     @Test fun system() {

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -39,12 +40,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.andysocial.voidos.KTimer
@@ -73,33 +76,30 @@ fun ToolsScreen(store: Store) {
     }
 }
 
-/** A segmented control: one rounded track, the chosen segment lifted out of it. */
+/** A segmented control: one glass bar, the chosen segment under a sliding lens. */
 @Composable
 fun Segmented(options: List<String>, selected: Int, modifier: Modifier = Modifier, onSelect: (Int) -> Unit) {
-    Row(modifier.clip(Pill).background(V.Panel).padding(3.dp)) {
-        options.forEachIndexed { i, o ->
-            val on = i == selected
-            Box(
-                Modifier.clip(Pill).background(if (on) V.Panel2 else Color.Transparent)
-                    .border(1.dp, if (on) V.White.copy(alpha = 0.08f) else Color.Transparent, Pill)
-                    .clickable { onSelect(i) }.padding(horizontal = 22.dp, vertical = 9.dp),
-                contentAlignment = Alignment.Center,
-            ) { VText(o, size = 15.sp, font = if (on) SansMedium else Sans, color = if (on) V.White else V.Muted, maxLines = 1) }
-        }
-    }
+    GlassSegments(
+        options.mapIndexed { i, o -> i.toString() to o }, selected.toString(),
+        modifier.widthIn(max = (options.size * 130).dp), height = 46.dp,
+    ) { onSelect(it.toInt()) }
 }
 
 /** A quiet selectable pill. */
 @Composable
 fun Chip(text: String, selected: Boolean, accent: Color, modifier: Modifier = Modifier, glyph: G? = null, onClick: () -> Unit) {
     Row(
-        modifier.clip(Pill).background(if (selected) V.Text else V.Panel2).clickable(onClick = onClick)
+        modifier.then(
+            if (selected) Modifier.clip(BarShape).background(Brush.verticalGradient(listOf(V.Teal.copy(alpha = 0.34f), V.Teal.copy(alpha = 0.16f))))
+                .border(1.dp, V.White.copy(alpha = 0.32f), BarShape)
+            else Modifier.glass(BarShape, 0.7f),
+        ).clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
-        if (glyph != null) { Glyph(glyph, if (selected) V.Bg else V.Muted, Modifier.size(18.dp)); Gap(w = 8.dp) }
-        VText(sentence(text), size = 14.sp, color = if (selected) V.Bg else V.Text, maxLines = 1)
+        if (glyph != null) { Glyph(glyph, if (selected) V.Teal else V.Muted, Modifier.size(18.dp)); Gap(w = 8.dp) }
+        VText(sentence(text), size = 14.sp, color = if (selected) V.White else V.Text.copy(alpha = 0.75f), maxLines = 1)
     }
 }
 
@@ -128,8 +128,8 @@ fun TimersPane() {
 
     Split(Modifier.fillMaxSize()) {
         if (portrait) Column(Modifier.side(0.dp, 0f)) {
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                quickMinutes.forEach { m -> QuickKey(m) { KTimers.add(ctx, "$m min", m * 60_000L) } }
+            Box(Modifier.horizontalScroll(rememberScrollState())) {
+                QuickBar(quickMinutes, keyWidth = 84.dp) { m -> KTimers.add(ctx, "$m min", m * 60_000L) }
             }
             Gap(h = 14.dp)
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -158,9 +158,7 @@ fun TimersPane() {
             Gap(h = 10.dp)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 quickMinutes.chunked(3).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        row.forEach { m -> QuickKey(m, Modifier.weight(1f)) { KTimers.add(ctx, "$m min", m * 60_000L) } }
-                    }
+                    QuickBar(row, Modifier.fillMaxWidth()) { m -> KTimers.add(ctx, "$m min", m * 60_000L) }
                 }
             }
         }
@@ -205,10 +203,21 @@ internal fun timerGrid(n: Int, w: Float, h: Float): Pair<Int, Int> {
     return best
 }
 
+/** Quick-start lengths as one glass bar split by hairlines, not loose buttons. */
+@Composable
+private fun QuickBar(mins: List<Int>, modifier: Modifier = Modifier, keyWidth: Dp? = null, onPick: (Int) -> Unit) {
+    Row(modifier.height(58.dp).glass(BarShape, 0.8f)) {
+        mins.forEachIndexed { i, m ->
+            if (i > 0) Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 16.dp).background(Color.White.copy(alpha = 0.10f)))
+            QuickKey(m, (if (keyWidth != null) Modifier.width(keyWidth) else Modifier.weight(1f)).fillMaxHeight()) { onPick(m) }
+        }
+    }
+}
+
 @Composable
 private fun QuickKey(mins: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
-        modifier.clip(OctS).background(V.Panel).clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 14.dp),
+        modifier.clickable(onClick = onClick).padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
         Row(verticalAlignment = Alignment.Bottom) {

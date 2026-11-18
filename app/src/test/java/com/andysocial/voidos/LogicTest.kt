@@ -228,6 +228,49 @@ class LogicTest {
         store.saveWidgets(emptyList())
     }
 
+    @Test fun escapeCodeIsFixedAndSeparate() {
+        assertTrue(store.checkEscape("4517"))
+        listOf("0000", "1234", "4518", "", "45170").forEach { assertFalse(it, store.checkEscape(it)) }
+        // the lock-screen PIN is its own thing
+        store.setPin("2222")
+        assertFalse(store.checkEscape("2222")); assertTrue(store.checkPin("2222"))
+    }
+
+    @Test fun widgetsStretchAndTurn() {
+        store.saveWidgets(emptyList())
+        store.addWidget("sky")
+        val id = store.widgets[0].id
+        store.placeWidget(id, 0.3f, 0.4f, 9f, 0.1f, 450f)
+        val w = Store(RuntimeEnvironment.getApplication()).widgets[0]
+        assertEquals(WIDGET_MAX_SCALE, w.sw, 0.001f); assertEquals(WIDGET_MIN_SCALE, w.sh, 0.001f)
+        assertEquals("turns fold into -180..180", 90f, w.rot, 0.001f)
+        assertEquals("near-straight snaps", 0f, normDeg(3f), 0.001f)
+        assertEquals(30f, normDeg(30f), 0.001f)
+        store.saveWidgets(emptyList())
+        store.placeClock(ClockPlace(0.2f, 0.3f, 5f, -93f))
+        val c = Store(RuntimeEnvironment.getApplication()).clock
+        assertEquals(0.2f, c.cx, 0.001f); assertEquals(CLOCK_MAX_SCALE, c.scale, 0.001f); assertEquals(-90f, c.rot, 0.001f)
+        store.resetClock()
+    }
+
+    @Test fun pinchMath() {
+        val t = com.andysocial.voidos.ui.FaceTarget(1, com.andysocial.voidos.ui.FaceBox(500f, 300f, 200f, 100f, 0f), false, 50f, 900f, 50f, 900f)
+        fun p(x: Float, y: Float) = androidx.compose.ui.geometry.Offset(x, y)
+        // spread sideways: wider only
+        val wide = com.andysocial.voidos.ui.pinchStep(t, t.box, p(450f, 300f), p(550f, 300f), p(400f, 300f), p(600f, 300f))
+        assertTrue(wide.w > 240f); assertEquals(100f, wide.h, 0.01f)
+        // spread up and down: taller only
+        val tall = com.andysocial.voidos.ui.pinchStep(t, t.box, p(500f, 250f), p(500f, 350f), p(500f, 200f), p(500f, 400f))
+        assertEquals(200f, tall.w, 0.01f); assertTrue(tall.h > 120f)
+        // turned 90 degrees, a sideways spread stretches its height (its own axis)
+        val turned = t.box.copy(rot = 90f)
+        val side = com.andysocial.voidos.ui.pinchStep(t, turned, p(450f, 300f), p(550f, 300f), p(400f, 300f), p(600f, 300f))
+        assertTrue(side.h > 120f); assertEquals(200f, side.w, 0.5f)
+        // twist
+        val tw = com.andysocial.voidos.ui.pinchStep(t, t.box, p(450f, 300f), p(550f, 300f), p(500f, 250f), p(500f, 350f))
+        assertEquals(90f, tw.rot, 0.01f)
+    }
+
     @Test fun weatherParsesAndAges() {
         val raw = """{"current":{"temperature_2m":7.4,"apparent_temperature":4.9,"weather_code":3,"wind_speed_10m":14.2,"relative_humidity_2m":81,"is_day":1},
             "hourly":{"time":["2026-11-17T21:00"],"temperature_2m":[7.0],"weather_code":[3],"precipitation_probability":[10]},

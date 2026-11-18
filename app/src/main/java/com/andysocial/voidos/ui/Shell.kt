@@ -104,6 +104,7 @@ fun VoidRoot(store: Store, act: MainActivity) {
     val locked by LockState.locked
     BoxWithConstraints(Modifier.fillMaxSize().background(V.Bg)) {
         val portrait = maxHeight > maxWidth
+        if (!booting) Backdrop()
         CompositionLocalProvider(LocalPortrait provides portrait) {
             when {
                 booting -> BootAnim { VoidApp.booted = true; booting = false }
@@ -130,7 +131,7 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
     val pager = rememberPagerState(initialPage = pages.indexOf(start)) { pages.size }
     val scope = rememberCoroutineScope()
     val module = pages[pager.currentPage]
-    var escape by remember { mutableStateOf(false) }
+    var escape by EscapeDoor.asked
     var control by remember { mutableStateOf(false) }
     val ambient by Idle.ambient
     val home by Idle.homePressed
@@ -178,7 +179,7 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
             val mod = pages[i]
             Column(Modifier.fillMaxSize().padding(start = side, end = side, bottom = 6.dp)) {
                 if (mod != Module.FACE) {
-                    VText(mod.label, size = if (portrait) 30.sp else 32.sp, font = SansMedium, color = V.White, modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
+                    PageTitle(mod.label, portrait, Modifier.padding(top = 4.dp, bottom = 16.dp))
                 }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     when (mod) {
@@ -210,11 +211,10 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
         },
         onApp = { pkg -> if (!launchApp(ctx, store, pkg)) store.forgetRecent(pkg) },
         onAllApps = { go(Module.APPS, animate = false) },
-        onEscape = { escape = true },
         enabled = !escape && !control,
     )
 
-    ControlCentre(control, store, act, onClose = { control = false }, onSettings = { go(Module.SYSTEM, animate = false) }, onEscape = { escape = true })
+    ControlCentre(control, store, act, onClose = { control = false }, onSettings = { go(Module.SYSTEM, animate = false) })
     if (ambient) AmbientClock(store)
     if (escape) EscapeOverlay(store, act, onClose = { escape = false })
 }

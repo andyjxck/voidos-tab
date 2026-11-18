@@ -72,9 +72,6 @@ private object Geo {
  * for the apps you have opened from VoidOS. A tap on an edge leaves the wheel
  * open so you can tap a slot instead.
  *
- * Holding the tab wheel's centre for three seconds opens the PIN escape, the
- * same hatch the old sidebar logo had.
- *
  * These are ordinary touches on VoidOS's own window: once another app is in
  * front, Android gives the edges to that app, so the wheels work only while
  * VoidOS is on screen.
@@ -87,14 +84,12 @@ fun EdgeWheels(
     apps: List<WheelItem>,
     onApp: (String) -> Unit,
     onAllApps: () -> Unit,
-    onEscape: () -> Unit,
     enabled: Boolean = true,
 ) {
     var side by remember { mutableStateOf<Edge?>(null) }
     var anchorY by remember { mutableFloatStateOf(0f) }
     var sel by remember { mutableStateOf<Int?>(null) }
     var sticky by remember { mutableStateOf(false) }
-    var hold by remember { mutableFloatStateOf(0f) }
     val appear = remember { Animatable(0f) }
     val angle = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
@@ -104,7 +99,6 @@ fun EdgeWheels(
     val cbTab by rememberUpdatedState(onTab)
     val cbApp by rememberUpdatedState(onApp)
     val cbAll by rememberUpdatedState(onAllApps)
-    val cbEscape by rememberUpdatedState(onEscape)
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val w = constraints.maxWidth.toFloat()
@@ -138,14 +132,14 @@ fun EdgeWheels(
             val list = if (e == Edge.RIGHT) apps else tabs
             val reach = px(Geo.rOut) * sin(Math.toRadians(62.0)).toFloat() + px(8f)
             anchorY = if (h > 2 * reach) y.coerceIn(reach, h - reach) else h / 2
-            side = e; sticky = false; hold = 0f
+            side = e; sticky = false
             val cur = if (e == Edge.LEFT) list.indexOfFirst { it.key == currentTab }.takeIf { it >= 0 } else null
             sel = cur
             scope.launch { angle.snapTo(slotAngle(cur ?: ((list.size - 1) / 2))) }
             scope.launch { appear.snapTo(0f); appear.animateTo(1f, spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMediumLow)) }
         }
         fun close() {
-            scope.launch { appear.animateTo(0f, tween(140)); side = null; sel = null; sticky = false; hold = 0f }
+            scope.launch { appear.animateTo(0f, tween(140)); side = null; sel = null; sticky = false }
         }
         fun pick(e: Edge, i: Int) {
             val list = if (e == Edge.RIGHT) apps else tabs
@@ -235,19 +229,15 @@ fun EdgeWheels(
                     VText("Apps you open from VoidOS appear here.", size = 15.sp, color = V.Text, align = androidx.compose.ui.text.style.TextAlign.End)
                 }
             }
-            // the hub: the VoidOS mark on the tab wheel (hold for the escape), the app grid on the other
+            // the hub: the VoidOS mark on the tab wheel, the app grid on the other
             val hubC = hubAt(open)
             Box(
                 Modifier.offset { IntOffset((hubC.x - px(Geo.hub)).roundToInt(), (hubC.y - px(Geo.hub)).roundToInt()) }
                     .size((Geo.hub * 2).dp).alpha(t).clip(CircleShape).glass(CircleShape, 0.95f),
                 contentAlignment = Alignment.Center,
             ) {
-                if (open == Edge.LEFT) {
-                    VoidMark(Modifier.size(30.dp), mono = V.Text)
-                    if (hold > 0f) Canvas(Modifier.fillMaxSize()) {
-                        drawArc(V.Coral, -90f, 360f * hold, false, style = Stroke(px(2.5f)))
-                    }
-                } else Glyph(G.APPS, V.Text, Modifier.size(22.dp))
+                if (open == Edge.LEFT) VoidMark(Modifier.size(30.dp), mono = V.Text)
+                else Glyph(G.APPS, V.Text, Modifier.size(22.dp))
             }
             if (sticky) {
                 // wheel left open by a tap: tap a slot, tap the hub, or tap anywhere else to close
@@ -257,24 +247,13 @@ fun EdgeWheels(
                             val down = awaitFirstDown()
                             down.consume()
                             val onHub = hypot(down.position.x - hubC.x, down.position.y - hubC.y) < px(Geo.hub + 10f)
-                            val t0 = System.currentTimeMillis()
                             var up = down
-                            var escaped = false
                             while (true) {
-                                // wake every 50 ms so the hold ring fills while the finger rests
-                                val ev = withTimeoutOrNull(50) { awaitPointerEvent() }
-                                if (onHub && open == Edge.LEFT && !escaped) {
-                                    hold = ((System.currentTimeMillis() - t0) / 3000f).coerceIn(0f, 1f)
-                                    if (hold >= 1f) { escaped = true; close(); cbEscape() }
-                                }
-                                if (ev == null) continue
-                                val ch = ev.changes.first()
+                                val ch = awaitPointerEvent().changes.first()
                                 ch.consume()
                                 up = ch
                                 if (!ch.pressed) break
                             }
-                            hold = 0f
-                            if (escaped) return@awaitEachGesture
                             val p = up.position
                             when {
                                 onHub -> { close(); if (open == Edge.RIGHT) cbAll() }

@@ -89,9 +89,28 @@ fun PinPad(title: String, subtitle: String, error: String?, onPin: (String) -> U
 }
 
 /**
- * The way out. Reached by holding the VoidOS mark for three seconds.
- * Wrong PINs lock the pad for 30 s after five tries.
+ * The only way out of VoidOS on the tablet itself, and deliberately hidden:
+ * tap the Device line in Settings, About, twenty times with no long pauses,
+ * then enter the fixed code. Nothing on screen counts or hints.
  */
+object EscapeDoor {
+    val asked = mutableStateOf(false)
+    private var taps = 0
+    private var last = 0L
+    const val TAPS = 20
+    private const val GAP_MS = 1500L
+
+    /** One tap on the hidden spot. Returns true on the tap that opens the door. */
+    fun tap(now: Long = System.currentTimeMillis()): Boolean {
+        taps = if (now - last > GAP_MS) 1 else taps + 1
+        last = now
+        if (taps >= TAPS) { taps = 0; asked.value = true; return true }
+        return false
+    }
+    fun reset() { taps = 0; last = 0L }
+}
+
+/** The way out's code pad. Wrong codes lock it for 30 s after five tries. */
 @Composable
 fun EscapeOverlay(store: Store, act: MainActivity, onClose: () -> Unit) {
     var unlocked by remember { mutableStateOf(false) }
@@ -109,18 +128,17 @@ fun EscapeOverlay(store: Store, act: MainActivity, onClose: () -> Unit) {
         Box(Modifier.align(Alignment.TopEnd).padding(24.dp)) { VButton("Close", accent = V.Muted, onClick = onClose) }
         if (!unlocked) {
             PinPad(
-                title = "Escape hatch",
-                subtitle = if (store.hasPin) "Enter your VoidOS PIN" else "No PIN set yet, enter any four digits to set one",
+                title = "Code",
+                subtitle = "Four digits",
                 error = error,
                 onPin = { pin ->
                     when {
                         lockedUntil > System.currentTimeMillis() -> error = "Too many tries. Wait 30 seconds."
-                        !store.hasPin -> { store.setPin(pin); unlocked = true }
-                        store.checkPin(pin) -> { fails = 0; unlocked = true }
+                        store.checkEscape(pin) -> { fails = 0; unlocked = true }
                         else -> {
                             fails++
                             if (fails >= 5) { fails = 0; lockedUntil = System.currentTimeMillis() + 30_000; error = "Too many tries. Wait 30 seconds." }
-                            else error = "Wrong PIN (${5 - fails} left)"
+                            else error = "Wrong code"
                         }
                     }
                 },
@@ -135,7 +153,7 @@ fun EscapeOverlay(store: Store, act: MainActivity, onClose: () -> Unit) {
             }
         } else {
             Column(Modifier.widthIn(max = 620.dp).fillMaxWidth().padding(horizontal = 24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                VText("Escape hatch", size = 24.sp, color = V.White)
+                VText("Out of VoidOS", size = 26.sp, font = SansLight, color = V.White)
                 VText("Pick how far out you want to go. Pressing Home always brings you back to VoidOS while it's still device owner.", size = 13.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 18.sp)
                 Gap(h = 4.dp)
                 EscapeOption("Visit Android settings", "Leaves lock mode for this trip and opens stock Settings.", V.Teal) {

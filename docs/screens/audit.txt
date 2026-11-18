@@ -12,6 +12,15 @@
 [land] 30_system_boot_root: ok
 [land] 31_system_android_settings: ok
 [land] 32_system_about: ok
+[land] 45_hidden_way_out: 8 issue(s)
+  OVERLAP   "VoidOS" / "Code"
+  OVERLAP   "VoidOS" / "Four digits"
+  OVERLAP   "Chip" / "1"
+  OVERLAP   "Chip" / "2"
+  OVERLAP   "robolectric" / "3"
+  OVERLAP   "Memory" / "8"
+  OVERLAP   "0.0 GB free of 0.0 GB" / "9"
+  OVERLAP   "Up for" / "0"
 [land] 01b_face_widgets: ok
 [land] 07_sky: 1 issue(s)
   TEXT CUT  "OPEN-METEO" box=106 x 0 text=106 x 0 lines=1 (taller than its box)
@@ -35,12 +44,10 @@
   OVERLAP   "Settings" / "Home"
 [land] 18_app_wheel: ok
 [land] 41_lock_pin: ok
-[land] 16_control_centre: 4 issue(s)
-  OVERLAP   "Laundry" / "Auto brightness"
-  OVERLAP   "9:00" / "Auto brightness"
-  OVERLAP   "Call Maya" / "Auto brightness"
-  OVERLAP   "22:00" / "Auto brightness"
+[land] 16_control_centre: ok
 [land] 12b_apps_hidden: ok
+[land] 01c_face_stretched: ok
+[land] 01d_face_clock_moved: ok
 [port] 44_escape_pin: ok
 [port] 20_system_wifi: ok
 [port] 21_system_bluetooth: ok
@@ -55,6 +62,15 @@
 [port] 30_system_boot_root: ok
 [port] 31_system_android_settings: ok
 [port] 32_system_about: ok
+[port] 45_hidden_way_out: 8 issue(s)
+  OVERLAP   "robolectric" / "Code"
+  OVERLAP   "0.0 GB free of 0.0 GB" / "1"
+  OVERLAP   "0.0 GB free of 0.0 GB" / "2"
+  OVERLAP   "0.0 GB free of 0.0 GB" / "3"
+  OVERLAP   "0 h 0 min" / "4"
+  OVERLAP   "0 h 0 min" / "5"
+  OVERLAP   "0 h 0 min" / "6"
+  OVERLAP   "adb shell am broadcast -a com.andysocial.voidos.action.UNLOCK -n com.andysocial.voidos/.ReleaseReceiver" / "0"
 [port] 01b_face_widgets: ok
 [port] 07_sky: ok
 [port] 12_apps: ok
@@ -78,3 +94,5 @@
 [port] 41_lock_pin: ok
 [port] 16_control_centre: ok
 [port] 12b_apps_hidden: ok
+[port] 01c_face_stretched: ok
+[port] 01d_face_clock_moved: ok

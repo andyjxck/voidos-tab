@@ -1,5 +1,6 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import android.app.NotificationManager
@@ -64,9 +65,7 @@ private fun InfoRow(k: String, v: String, col: Color = V.Text) {
 
 @Composable
 private fun Choices(options: List<Pair<String, String>>, selected: String, accent: Color = V.Teal, enabled: Boolean = true, onPick: (String) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        options.forEach { (k, l) -> VButton(l, accent = if (selected == k) accent else V.Muted, filled = selected == k, enabled = enabled) { onPick(k) } }
-    }
+    GlassSegments(options, selected, Modifier.widthIn(max = (options.size * 150).dp), enabled = enabled, accent = accent, onPick = onPick)
 }
 
 private fun open(ctx: Context, action: String, data: android.net.Uri? = null): Boolean = runCatching {
@@ -92,12 +91,8 @@ fun HubPane(store: Store, act: MainActivity) {
         VToggle(store.swipeScreens) { store.set("swipeScreens", it) }
     }
     SettingRow("App icons", "Void: VoidOS line icons for apps it knows, the rest greyed. Letters: initials. Colour: each app's own icon.") {}
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf("void" to "Void", "letter" to "Letters", "colour" to "Colour").forEach { (k, l) ->
-            VButton(l, accent = V.Teal, filled = store.iconStyle == k) { store.setIconStyle(k) }
-        }
-    }
-    SettingRow("Home widgets", "Tap + on Home to add the weather, music, the list or a note. Hold one to drag it.") {
+    GlassSegments(listOf("void" to "Void", "letter" to "Letters", "colour" to "Colour"), store.iconStyle, Modifier.widthIn(max = 450.dp)) { store.setIconStyle(it) }
+    SettingRow("Home widgets", "Tap + on Home to add the weather, music, the list or a note. Hold one to drag it, pinch to stretch or turn it.") {
         VButton("Clear all", accent = V.Muted, enabled = store.widgets.isNotEmpty()) { store.saveWidgets(emptyList()) }
     }
     SettingRow("Fahrenheit", "Weather in °F instead of °C.") { VToggle(store.tempF) { store.set("tempF", it) } }
@@ -107,7 +102,7 @@ fun HubPane(store: Store, act: MainActivity) {
     SettingRow("VoidOS lock screen", "Clock, weather, what's playing, timers and notifications. Swipe up to open.") {
         VToggle(store.voidLock) { store.set("voidLock", it) }
     }
-    SettingRow("PIN to unlock", if (store.hasPin) "Asks for your escape PIN after the swipe." else "Set an escape PIN first (VoidOS rules).") {
+    SettingRow("PIN to unlock", if (store.hasPin) "Asks for your lock screen PIN after the swipe." else "Set a lock screen PIN first (VoidOS rules).") {
         VToggle(store.lockNeedsPin, V.Coral, enabled = store.hasPin) { store.set("lockNeedsPin", it) }
     }
     SettingRow("Notifications on the lock screen") { VToggle(store.lockNotices) { store.set("lockNotices", it) } }
@@ -130,32 +125,25 @@ fun QuietPane(act: MainActivity) {
     var filter by remember { mutableIntStateOf(nm.currentInterruptionFilter) }
     Head("Do not disturb", if (granted) "Choose what can make a sound." else "VoidOS needs Do Not Disturb access. Tap Allow, find VoidOS, switch it on, then come back.")
     if (!granted) {
-        VButton("Allow", accent = V.Teal) { open(ctx, Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS) }
-        Gap(h = 10.dp)
-        VButton("I've done it", accent = V.Muted) { granted = nm.isNotificationPolicyAccessGranted; filter = nm.currentInterruptionFilter }
+        GlassActions(
+            listOf(
+                GlassAction("Allow") { open(ctx, Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS) },
+                GlassAction("I've done it") { granted = nm.isNotificationPolicyAccessGranted; filter = nm.currentInterruptionFilter },
+            ),
+            Modifier.widthIn(max = 420.dp),
+        )
         return
     }
-    listOf(
-        Triple(NotificationManager.INTERRUPTION_FILTER_ALL, "Everything", "Normal. All notifications make a sound."),
-        Triple(NotificationManager.INTERRUPTION_FILTER_PRIORITY, "Priority only", "Alarms, timers and starred contacts only."),
-        Triple(NotificationManager.INTERRUPTION_FILTER_ALARMS, "Alarms only", "Timers and alarms still ring. Everything else is silent."),
-        Triple(NotificationManager.INTERRUPTION_FILTER_NONE, "Total silence", "Nothing makes a sound, timers included."),
-    ).forEach { (f, title, detail) ->
-        val sel = filter == f
-        Row(
-            Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(OctS).background(if (sel) V.Teal.copy(alpha = 0.12f) else V.Panel2)
-                .border(1.dp, if (sel) V.Teal else V.Line, OctS).clickable {
-                    runCatching { nm.setInterruptionFilter(f) }; filter = nm.currentInterruptionFilter
-                }.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Glyph(if (f == NotificationManager.INTERRUPTION_FILTER_ALL) G.BELL else G.MOON, if (sel) V.Teal else V.Muted, Modifier.size(22.dp))
-            Gap(w = 12.dp)
-            Column(Modifier.weight(1f)) {
-                VText(sentence(title), size = 13.sp, color = if (sel) V.Teal else V.Text)
-                VText(detail, size = 12.sp, color = V.Muted, font = FontFamily.Default)
-            }
-            if (sel) Glyph(G.CHECK, V.Teal, Modifier.size(20.dp))
+    GlassGroup {
+        listOf(
+            Triple(NotificationManager.INTERRUPTION_FILTER_ALL, "Everything", "Normal. All notifications make a sound."),
+            Triple(NotificationManager.INTERRUPTION_FILTER_PRIORITY, "Priority only", "Alarms, timers and starred contacts only."),
+            Triple(NotificationManager.INTERRUPTION_FILTER_ALARMS, "Alarms only", "Timers and alarms still ring. Everything else is silent."),
+            Triple(NotificationManager.INTERRUPTION_FILTER_NONE, "Total silence", "Nothing makes a sound, timers included."),
+        ).forEach { (f, title, detail) ->
+            Item(title, detail, if (f == NotificationManager.INTERRUPTION_FILTER_ALL) G.BELL else G.MOON, selected = filter == f, onClick = {
+                runCatching { nm.setInterruptionFilter(f) }; filter = nm.currentInterruptionFilter
+            })
         }
     }
     if (act.isFinishing) Unit
@@ -186,15 +174,11 @@ fun TimePane(store: Store, act: MainActivity) {
         }
     }
     SettingRow("Time zone", zone) {}
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.widthIn(max = 620.dp)) {
         zones.chunked(3).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                row.forEach { z ->
-                    Chip(z.substringAfter('/').replace('_', ' '), z == zone, V.Teal, Modifier.weight(1f)) {
-                        val ok = Policy.setTimeZone(ctx, z)
-                        if (ok) { zone = z; msg = null } else msg = "Android didn't allow VoidOS to change the time zone. Use Android settings > Date & time."
-                    }
-                }
+            GlassSegments(row.map { it to it.substringAfter('/').replace('_', ' ') }, zone, height = 46.dp, textSize = 14f) { z ->
+                val ok = Policy.setTimeZone(ctx, z)
+                if (ok) { zone = z; msg = null } else msg = "Android didn't allow VoidOS to change the time zone. Use Android settings > Date & time."
             }
         }
     }
@@ -312,11 +296,14 @@ fun StoragePane(store: Store) {
     InfoRow("Shopping list", "${store.shopping.size} items")
     InfoRow("Notes", "${store.notes.size}")
     Gap(h = 10.dp)
-    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        VButton("Android storage", accent = V.Muted) { open(ctx, Settings.ACTION_INTERNAL_STORAGE_SETTINGS) }
-        VButton("Manage apps", accent = V.Muted) { open(ctx, Settings.ACTION_APPLICATION_SETTINGS) }
-        VButton("Play Store", accent = V.Muted) { runQuickPkg(ctx, store, "com.android.vending") }
-    }
+    GlassActions(
+        listOf(
+            GlassAction("Storage") { open(ctx, Settings.ACTION_INTERNAL_STORAGE_SETTINGS) },
+            GlassAction("Manage apps") { open(ctx, Settings.ACTION_APPLICATION_SETTINGS) },
+            GlassAction("Play Store") { runQuickPkg(ctx, store, "com.android.vending") },
+        ),
+        Modifier.widthIn(max = 560.dp),
+    )
 }
 
 private fun runQuickPkg(ctx: Context, store: Store, pkg: String) { launchApp(ctx, store, pkg) }
@@ -344,19 +331,9 @@ fun AndroidPane(act: MainActivity) {
         Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS to "Developer options",
         Settings.ACTION_DEVICE_INFO_SETTINGS to "About tablet",
         Settings.ACTION_HOME_SETTINGS to "Home app",
-    ).chunked(2).forEach { row ->
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
-            row.forEach { (action, label) ->
-                Row(
-                    Modifier.weight(1f).clip(OctS).background(V.Panel2).border(1.dp, V.Line, OctS)
-                        .clickable { if (!open(ctx, action)) open(ctx, Settings.ACTION_SETTINGS) }.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    VText(sentence(label), size = 12.sp, color = V.Text, modifier = Modifier.weight(1f))
-                    Glyph(G.CHEV, V.Muted, Modifier.size(16.dp))
-                }
-            }
-            if (row.size == 1) Box(Modifier.weight(1f))
+    ).let { rows ->
+        GlassGroup {
+            rows.forEach { (action, label) -> Item(label, chevron = true, onClick = { if (!open(ctx, action)) open(ctx, Settings.ACTION_SETTINGS) }) }
         }
     }
     if (act.isFinishing) Unit

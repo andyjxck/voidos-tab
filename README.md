@@ -27,7 +27,7 @@ Getting around (no sidebar):
 - **Swipe left or right** on a screen to move to the next one (Settings > Home & lock screen can turn this off).
 - **Left edge: the tab wheel.** Put a finger on the left edge and a glass wheel of every screen opens under it. Slide down, up or out to pick; let go to open it. A tap on the edge leaves the wheel open so you can tap a screen instead.
 - **Right edge: the app wheel.** The same for apps you've opened from VoidOS. Its centre opens Apps. It only works while VoidOS is on screen: once another app is in front, Android gives the edges to that app.
-- **Top edge: the control centre.** Pull down from the status line, or tap it: brightness (and auto), volume, Wi-Fi, Bluetooth, do not disturb, rotation lock, stay awake, screen off, what's playing, Settings, Lock and Leave VoidOS.
+- **Top edge: the control centre.** Pull down from the status line, or tap it: brightness (and auto), volume, Wi-Fi, Bluetooth, do not disturb, rotation lock, stay awake, screen off, what's playing, Settings and Lock. There is no way out of VoidOS in it.
 
 Also: the VoidOS logo (`docs/logo`, drawn in `ui/Logo.kt`; the square root
 and its o on their own are the launcher icon, with a themed monochrome
@@ -44,10 +44,10 @@ and the steps, is in [`root/README.md`](root/README.md).
 
 ## Escape hatch (you can't get locked out)
 
-1. **On the tablet:** pull down the control centre and tap Leave VoidOS, or
-   tap the left edge and hold the VoidOS mark in the middle of the wheel for
-   3 seconds. Enter your PIN. From there: visit Android settings, turn lock mode
-   off, or release VoidOS completely (removes device owner).
+1. **On the tablet:** there is one hidden way out, with its own fixed code
+   (not the lock screen PIN). It is deliberately not written down here and
+   nothing on screen hints at it. From there: visit Android settings, turn lock
+   mode off, or release VoidOS completely (removes device owner).
 2. **From a computer (adb):**
    ```
    adb shell am broadcast -a com.andysocial.voidos.action.UNLOCK -n com.andysocial.voidos/.ReleaseReceiver
@@ -65,7 +65,7 @@ Device owner can only be set when no account (Google or other) has been added
 to the tablet. If one has, factory reset and skip every account during setup.
 
 ```
-adb install -t root/voidos-tab-1.4.0.apk
+adb install -t root/voidos-tab-1.5.0.apk
 adb shell dpm set-device-owner com.andysocial.voidos/.VoidAdmin
 adb shell am start -n com.andysocial.voidos/.MainActivity
 ```
