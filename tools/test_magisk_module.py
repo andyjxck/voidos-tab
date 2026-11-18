@@ -39,7 +39,7 @@ class Common:
                 self.assertIn(k, p)
             self.assertRegex(p["id"], r"^[a-zA-Z][a-zA-Z0-9._-]+$")
             self.assertIn("install_module", z.read("META-INF/com/google/android/update-binary").decode())
-            self.assertTrue(all(n.startswith(("META-INF/", "system/")) or n in ("module.prop", "customize.sh") for n in names))
+            self.assertTrue(all(n.startswith(("META-INF/", "system/", "orient/")) or n in ("module.prop", "customize.sh", "orient.sh") for n in names))
             self.assertIsNone(z.testzip())
 
 
@@ -56,7 +56,14 @@ class BootModule(Common, unittest.TestCase):
             c = z.read("customize.sh").decode()
             self.assertIn("cp -f $MODPATH/system/media/bootanimation.zip $MODPATH/system/product/media/bootanimation.zip", c)
             self.assertLess(c.index("cp -f"), c.index("set_perm_recursive"))
-            self.assertLess(BOOT.stat().st_size, 10_000_000)
+            # under GitHub's 100 MB file limit with room to spare
+            self.assertLess(BOOT.stat().st_size, 90_000_000)
+            # the landscape versions and the script that swaps them in
+            for rot in (90, 270):
+                for n in ("bootanimation.zip", "shutdownanimation.zip"):
+                    self.assertEqual(z.getinfo(f"orient/{rot}/{n}").compress_type, zipfile.ZIP_STORED)
+            self.assertIn("orient.sh", z.namelist())
+            self.assertIn("cp -f $MODPATH/system/media/bootanimation.zip $MODPATH/orient/0/bootanimation.zip", c)
 
 
 class SystemModule(Common, unittest.TestCase):

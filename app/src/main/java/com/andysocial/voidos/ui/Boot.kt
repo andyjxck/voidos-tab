@@ -99,9 +99,9 @@ internal fun bootAir(s: Float): Float {
 
 /** Waits until the Android boot animation has finished and left the screen. */
 object BootAnimWait {
-    /** Longest wait: the boot animation's breath loop can run 2 s past
-     *  Android being ready, then 0.6 s to settle; anything past this means
-     *  the property cannot be read, so go anyway. */
+    /** Longest wait: the boot animation's lava lamp loop can run 3.2 s past
+     *  the hub's first frame, then 0.9 s to drain back onto the still logo;
+     *  anything past this means the property cannot be read, so go anyway. */
     private const val MAX_MS = 12_000L
 
     suspend fun untilGone() = withContext(Dispatchers.IO) {

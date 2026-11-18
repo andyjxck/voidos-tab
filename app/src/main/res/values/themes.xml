@@ -9,6 +9,12 @@
         <item name="android:windowShowWallpaper">false</item>
         <item name="android:windowDisablePreview">false</item>
     </style>
+    <!-- BootCover: no starting window, no animation; it normally never draws -->
+    <style name="Theme.VoidOS.BootCover" parent="Theme.VoidOS">
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
     <color name="void_bg">#FF0B0B0D</color>
     <string name="app_name">VoidOS</string>
     <string name="admin_label">VoidOS device control</string>

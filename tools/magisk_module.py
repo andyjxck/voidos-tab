@@ -35,15 +35,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import voidmark as vm  # noqa: E402
 
-VERSION = "2.0"
-VERSION_CODE = 2
+VERSION = "3.0"
+VERSION_CODE = 3
 
 MODULE_PROP = f"""id=voidos_boot
 name=VoidOS boot and shutdown animation
 version={VERSION}
 versionCode={VERSION_CODE}
 author=andyjxck
-description=VoidOS power-on and power-off animations: the "void" wordmark balloons up at boot and caves in on itself at shutdown. Systemless: remove the module to restore the stock Lenovo animations.
+description=VoidOS power-on and power-off animations: the "void" wordmark balloons up into a lava lamp at boot and caves in on itself at shutdown, the way round the tablet is held. Systemless: remove the module to restore the stock Lenovo animations.
 """
 
 # The standard Magisk module installer stub (Magisk 20.4+ does the real work).
@@ -86,11 +86,55 @@ CUSTOMIZE = """# Runs inside Magisk's installer.
 ui_print "- VoidOS boot and shutdown animation"
 ui_print "- Reboot to see it. Remove this module in Magisk to undo."
 # the boot animation is shipped once and copied here, so the module stays
-# small enough to send in a chat: Android 10 plays /product/media's copy first
-# when there is one, and the TB-X306F has one
+# small: Android 10 plays /product/media's copy first when there is one, and
+# the TB-X306F has one
 mkdir -p $MODPATH/system/product/media
 cp -f $MODPATH/system/media/bootanimation.zip $MODPATH/system/product/media/bootanimation.zip
+# the portrait pair is also the one orient.sh puts back for rotation 0
+mkdir -p $MODPATH/orient/0
+cp -f $MODPATH/system/media/bootanimation.zip $MODPATH/orient/0/bootanimation.zip
+cp -f $MODPATH/system/media/shutdownanimation.zip $MODPATH/orient/0/shutdownanimation.zip
+echo 0 > $MODPATH/orient/boot.now
+echo 0 > $MODPATH/orient/shutdown.now
 set_perm_recursive $MODPATH/system 0 0 0755 0644
+set_perm_recursive $MODPATH/orient 0 0 0755 0644
+set_perm $MODPATH/orient.sh 0 0 0755
+"""
+
+# Run by VoidOS (BootOrient.kt) as root when the tablet turns, and at
+# shutdown with "boot": puts the version of the animations for that Display
+# rotation where Magisk shows them. It writes into the same files rather than
+# replacing them, because Magisk mounts each module file over the system one:
+# a new file would only show after the next boot, a write into the old one
+# shows straight away, so the shutdown animation turns with the tablet too.
+ORIENT_SH = """#!/system/bin/sh
+# usage: orient.sh 0|90|270 [boot]
+M=$(cd "$(dirname "$0")" && pwd)
+R=$1
+case "$R" in 0|90|270) ;; *) R=0 ;; esac
+S=$M/orient/$R
+[ -f "$S/bootanimation.zip" ] || exit 3
+put() { # put <name> <version file> <target>...
+  name=$1; mark=$2; shift 2
+  [ "$(cat "$mark" 2>/dev/null)" = "$R" ] && return 0
+  for t in "$@"; do
+    [ -f "$t" ] || continue
+    cat "$S/$name" > "$t" || return 1
+  done
+  sync
+  echo "$R" > "$mark"
+}
+BOOT="$M/system/media/bootanimation.zip $M/system/product/media/bootanimation.zip"
+if [ "$2" = boot ]; then
+  # at shutdown: only the boot animation, as the shutdown one is playing
+  put bootanimation.zip $M/orient/boot.now $BOOT || exit 1
+  exit 0
+fi
+# never under an animation that is playing (VoidOS tries again later)
+[ "$(getprop init.svc.bootanim)" = running ] && exit 4
+put bootanimation.zip $M/orient/boot.now $BOOT || exit 1
+put shutdownanimation.zip $M/orient/shutdown.now $M/system/media/shutdownanimation.zip || exit 1
+exit 0
 """
 
 
@@ -115,6 +159,15 @@ def build(out: Path):
         shut = vm.ROOT / "root/shutdownanimation.zip"
         if shut.exists():
             z.writestr(zipfile.ZipInfo("system/media/shutdownanimation.zip"), shut.read_bytes(), compress_type=zipfile.ZIP_STORED)
+        # the landscape versions (tools/void_balloon.py) and the script that
+        # swaps them in; the portrait pair is copied to orient/0 on install
+        z.writestr("orient.sh", ORIENT_SH)
+        for rot in (90, 270):
+            for name in ("bootanimation.zip", "shutdownanimation.zip"):
+                f = vm.ROOT / f"root/orient/{rot}/{name}"
+                if not f.exists():
+                    sys.exit(f"{f} is missing: run tools/void_balloon.py first")
+                z.writestr(zipfile.ZipInfo(f"orient/{rot}/{name}"), f.read_bytes(), compress_type=zipfile.ZIP_STORED)
     print(f"{out}: {out.stat().st_size / 1e6:.1f} MB")
 
 

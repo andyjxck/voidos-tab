@@ -93,6 +93,34 @@
         </receiver>
         <receiver android:name=".TimerReceiver" android:exported="false" />
 
+        <!-- Power-on: stands in for Android's "starting" screen while storage is
+             still locked and keeps the boot animation up until the hub has drawn
+             (BootCover.kt). Below MainActivity, above Settings' FallbackHome. -->
+        <activity
+            android:name=".BootCover"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density"
+            android:directBootAware="true"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:launchMode="singleTask"
+            android:resizeableActivity="false"
+            android:screenOrientation="unspecified"
+            android:taskAffinity="com.andysocial.voidos.boot"
+            android:theme="@style/Theme.VoidOS.BootCover">
+            <intent-filter android:priority="-100">
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <!-- Shutdown: the next boot animation plays the way round the tablet is held -->
+        <receiver android:name=".BootOrient$ShutdownReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.ACTION_SHUTDOWN" />
+            </intent-filter>
+        </receiver>
+
         <!-- Alarms: the ringing screen, the ring itself, and putting alarms back after a reboot -->
         <activity
             android:name=".AlarmActivity"

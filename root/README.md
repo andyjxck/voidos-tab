@@ -4,9 +4,9 @@
 
 | File | What it is | Used in |
 | --- | --- | --- |
-| `voidos-tab-1.9.0.apk` | The VoidOS app, release build (same fixed key as every build, so it installs over any earlier one and keeps device owner) | main README, Install; after unlocking (section 1) |
-| `voidos-boot-magisk.zip` | Magisk module 2.0: the boot animation and the shutdown animation | section 3 |
-| `bootanimation.zip`, `shutdownanimation.zip` | The two animations on their own, for a hand copy or your own firmware | section 3 |
+| `voidos-tab-1.10.0.apk` | The VoidOS app, release build (same fixed key as every build, so it installs over any earlier one and keeps device owner) | main README, Install; after unlocking (section 1) |
+| `voidos-boot-magisk.zip` | Magisk module 3.0: the boot animation and the shutdown animation, in portrait and both ways round in landscape | section 3 |
+| `bootanimation.zip`, `shutdownanimation.zip` | The two animations on their own (portrait), for a hand copy or your own firmware; `orient/90` and `orient/270` hold the landscape ones | section 3 |
 | `logo-voidos.bin` | The power-on logo for the TB-X306F, build TB-X306F_S120637_230301_BMP, ready to flash | section 5 |
 | `voidos-system-magisk.zip` | Magisk module: VoidOS as a system app (optional) | section 4 |
 | `logo-tool/` | The power-on logo tool, runs on its own with Python 3 + Pillow | section 5 |
@@ -138,11 +138,26 @@ app draws it (`tools/voidmark.py lockup_geometry`). That picture is
 1. **Power-on logo** (section 5) shows that still picture.
 2. **Boot animation** starts on that exact frame (checked pixel for pixel),
    holds it for 0.2 s, then the wordmark balloons up: it swells from the
-   middle, overshoots a little and settles (1.4 s, `part0`). While Android
-   starts it breathes (`part1`, 2 s a breath, seamless loop). Once Android is
-   ready it finishes the breath and lets its air out, ending on the still
-   picture again (0.6 s, `part2`; all parts are `c`, so they always play to
-   the end).
+   middle, overshoots a little and settles (1.2 s), and the lava lamp pours
+   out from behind it: glossy purple and green blobs of liquid glass
+   (`tools/void_lava.py`, 0.8 s; together `part0`). While Android starts the
+   blobs drift, merge and split behind the word (`part1`, a 3.2 s seamless
+   loop). Once VoidOS has drawn its first screen the loop finishes, the blobs
+   drain back in behind the word and it lets its air out, ending on the
+   still picture again (0.9 s, `part2`). All parts are `c`, so they always
+   play to the end and the loop never cuts mid-motion.
+   **No "Android is starting" screen:** with the tablet's storage still
+   locked, Android used to show Settings' FallbackHome (black, with a
+   starting message) between the boot animation and VoidOS. VoidOS now has
+   its own stand-in for it (`BootCover.kt`) that doesn't draw, and Android
+   keeps the boot animation up until the home screen has drawn, so the lava
+   lamp carries on until VoidOS itself is ready. Limits: it draws the still
+   logo after 20 s whatever happens (so any system error message can show;
+   Android's own limit is 30 s), steps aside for Android's starting screen
+   after 90 s still locked, and draws straight away if Android has its own
+   PIN, so its unlock screen can show. The "Optimising apps" screen after a
+   system update, recovery and fastboot come before any home screen, so
+   they show as before.
 3. **VoidOS** opens on that same still picture, waits until the boot
    animation has really gone (`init.svc.bootanim`), then balloons up and opens
    out into the hub, which is already drawn underneath (1.65 s, tap to skip).
@@ -152,11 +167,24 @@ app draws it (`tools/voidmark.py lockup_geometry`). That picture is
    (`MtkShutdownThread`) waits up to 5 s for it, and the stock Lenovo one ran
    2.9 s, so it plays in full.
 
+**Landscape.** Android 10's boot animation always draws in the panel's own
+portrait and can't read the sensor, so the module also carries both
+animations drawn for the tablet held landscape either way (`orient/90` and
+`orient/270`, Display rotation). VoidOS (with root) runs the module's
+`orient.sh` a couple of seconds after the tablet settles in a new way round,
+and again at shutdown: it writes the matching version into the files Magisk
+shows at `/system/media` and `/product/media` (into the same files, because
+Magisk mounts each module file over the system one: the shutdown animation
+changes straight away, the boot animation at the next boot). Upside-down
+portrait gets the portrait version. The power-on logo is a still picture in
+the logo partition and is always portrait, so the landscape boot animation
+starts on it, on its side, and turns the word round to landscape while it
+balloons up.
+
 What can't be made seamless: the orange unlocked-bootloader warning before
-the logo (LK, section 7), and a possible blink between the logo and the boot
-animation while Android takes over the screen. If the tablet is held
-sideways, the boot animation is still drawn upright (as the stock one was),
-so VoidOS appears turned. All of this needs checking on the tablet.
+the logo (LK, section 7), a possible blink between the logo and the boot
+animation while Android takes over the screen, and the power-on logo itself
+staying portrait. All of this needs checking on the tablet.
 
 **With Magisk (recommended, systemless):**
 
@@ -165,13 +193,13 @@ adb push root/voidos-boot-magisk.zip /sdcard/Download/
 ```
 
 Magisk > Modules > **Install from storage** > `voidos-boot-magisk.zip`,
-then reboot. VoidOS > Settings > Boot & root shows "VoidOS boot module: 2.0"
-once it's in. To undo, remove the module in Magisk and reboot. Installing 2.0
-over 1.0 replaces it.
+then reboot. VoidOS > Settings > Boot & root shows "VoidOS boot module: 3.0"
+once it's in. To undo, remove the module in Magisk and reboot. Installing 3.0
+over an earlier one replaces it.
 
 The module overlays `/system/media/bootanimation.zip`,
 `/product/media/bootanimation.zip` (its install script copies the one file
-there, which keeps the module under 10 MB) and
+there, which keeps the module smaller) and
 `/system/media/shutdownanimation.zip`. On the TB-X306F's stock firmware
 those are the only boot and shutdown animations (checked in the firmware's
 `system` and `product` images). If the stock animation still plays, the
@@ -207,8 +235,10 @@ python3 tools/mtk_logo.py build <stock logo.bin> root/logo-voidos.bin --indices 
 python3 tools/magisk_module.py boot
 python3 tools/test_void_balloon.py
 ```
-(needs Python 3, Pillow and NumPy). `root/preview/boot_sheet.png` and
-`shutdown_sheet.png` show frames from each part. (`tools/bootanim.py` made
+(needs Python 3, Pillow, NumPy and ffmpeg; the boot animation takes a few
+minutes). `root/preview/boot_sheet_portrait.png`, `boot_sheet_landscape.png`
+and `shutdown_sheet.png` show frames from each part, and `boot_portrait.mp4`
+/ `.gif` and `boot_landscape.mp4` / `.gif` play it at half size. (`tools/bootanim.py` made
 the 1.0 animation and is kept for reference.)
 
 ## 4. VoidOS as a system app (optional)
