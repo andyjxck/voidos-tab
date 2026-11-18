@@ -33,6 +33,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -58,6 +59,8 @@ import androidx.compose.ui.unit.sp
 import com.andysocial.voidos.KTimer
 import com.andysocial.voidos.KTimers
 import com.andysocial.voidos.Store
+import com.andysocial.voidos.VoidApp
+import com.andysocial.voidos.Share
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToLong
@@ -67,12 +70,32 @@ enum class KTab(val label: String, val glyph: G) {
     CALENDAR("Calendar", G.CALENDAR), CONVERT("Convert", G.CONVERT), LIST("List", G.LIST), MEMO("Memos", G.MIC),
     LEVEL("Level", G.LEVEL), METER("Sound", G.METER), SCAN("QR scan", G.QR), MIRROR("Mirror", G.MIRROR),
     ZOOM("Magnifier", G.ZOOM), TORCH("Torch", G.TORCH), RING("Ring light", G.LIGHT),
+    FILES("Files", G.FOLDER), SHARE("Send files", G.SEND), CAST("Cast", G.CAST), DOCSCAN("Doc scan", G.DOC), FM("FM radio", G.RADIO),
+}
+
+/** A tool another screen asked to open (the control centre's Cast, Files...). */
+val pendingTool = mutableStateOf<KTab?>(null)
+
+fun openTool(t: KTab) {
+    pendingTool.value = t
+    Idle.openModule.value = Module.TOOLS.name
+    // from over another app: bring VoidOS to the front as well
+    val app = VoidApp.instance
+    runCatching {
+        app.startActivity(
+            android.content.Intent(app, com.andysocial.voidos.MainActivity::class.java)
+                .putExtra(com.andysocial.voidos.MainActivity.EXTRA_MODULE, Module.TOOLS.name)
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
+        )
+    }
 }
 
 /** Tools: timers first, then the unit converter and the list. (This was the Kitchen screen.) */
 @Composable
 fun ToolsScreen(store: Store) {
     var tab by rememberSaveable { mutableStateOf(KTab.TIMERS) }
+    val wantTool by pendingTool
+    LaunchedEffect(wantTool) { wantTool?.let { tab = it; pendingTool.value = null } }
     Column(Modifier.fillMaxSize()) {
         // ten tools: a scrolling row of glass chips rather than one cramped bar
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -90,6 +113,11 @@ fun ToolsScreen(store: Store) {
                 KTab.ZOOM -> CameraPane(CamMode.ZOOM)
                 KTab.TORCH -> LightPane(ring = false)
                 KTab.RING -> LightPane(ring = true)
+                KTab.FILES -> FilesPane(store) { Share.files = (Share.files + it).distinct(); tab = KTab.SHARE }
+                KTab.SHARE -> Column(Modifier.verticalScroll(rememberScrollState())) { SharePane(store) }
+                KTab.CAST -> Column(Modifier.verticalScroll(rememberScrollState()).widthIn(max = 720.dp)) { CastPane() }
+                KTab.DOCSCAN -> DocScanPane(store)
+                KTab.FM -> FmPane(store)
                 else -> MoreToolsPane(tab, store)
             }
         }

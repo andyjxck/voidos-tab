@@ -98,7 +98,7 @@ fun LockScreen(store: Store, onUnlock: () -> Unit) {
                     detectVerticalDragGestures(
                         onDragEnd = {
                             scope.launch {
-                                if (lift.value > hPx * 0.18f) { release(); lift.snapTo(0f) } else lift.animateTo(0f, spring())
+                                if (lift.value > hPx * 0.18f) { release(); lift.snapTo(0f) } else lift.animateTo(0f, Motion.release())
                             }
                         },
                         onVerticalDrag = { ch, dy -> ch.consume(); scope.launch { lift.snapTo((lift.value - dy).coerceAtLeast(0f)) } },
@@ -204,7 +204,7 @@ private fun LockToday(store: Store, now: Long) {
     val wx by WeatherRepo.state
     val next = com.andysocial.voidos.AlarmMath.soonest(com.andysocial.voidos.Alarms.list.value, now, com.andysocial.voidos.Alarms.zone)
     Column(Modifier.fillMaxWidth().glass(Oct, 0.75f).padding(horizontal = 20.dp, vertical = 16.dp)) {
-        VText("Today", size = Type.label, color = V.Muted, spacing = 0.6.sp)
+        NextEventLine(store, V.Text)
         Gap(h = 8.dp)
         Row(verticalAlignment = Alignment.CenterVertically) {
             val day = wx?.days?.firstOrNull()
@@ -212,7 +212,6 @@ private fun LockToday(store: Store, now: Long) {
                 VText(day?.let { "${t(it.max)} / ${t(it.min)}" } ?: "--", size = Type.title2, color = V.White, font = SansLight)
                 VText(day?.let { if (it.rain > 0) "${it.rain}% chance of rain" else wxWords(it.code) } ?: "Weather when online", size = Type.label, color = V.Muted)
             }
-            Box(Modifier.size(1.dp, 40.dp).background(V.White.copy(alpha = 0.10f)))
             Gap(w = 16.dp)
             Column(Modifier.weight(1f)) {
                 VText(next?.let { SimpleDateFormat(if (store.use24h) "HH:mm" else "h:mm a", Locale.UK).format(Date(it.second)) } ?: "No alarm", size = Type.title2, color = V.White, font = SansLight)
@@ -227,7 +226,7 @@ private fun LockCards(store: Store, now: Long) {
     val p by Now.playing
     val timers = KTimers.list.value.filter { it.running }.sortedBy { it.endAt }
     val notices by VoidListener.notices
-    val quiet = p?.title.isNullOrBlank() && timers.isEmpty() && !(store.lockNotices && notices.isNotEmpty())
+    val quiet = p?.title.isNullOrBlank() && timers.isEmpty() && !((store.lockNotices && !store.guest) && notices.isNotEmpty())
     if (quiet) LockToday(store, now)
     p?.takeIf { it.title.isNotBlank() }?.let { np ->
         Row(
@@ -261,7 +260,7 @@ private fun LockCards(store: Store, now: Long) {
             VText(fmtDur(tm.remaining(now)), size = Type.title2, color = V.White, font = SansLight)
         }
     }
-    if (store.lockNotices) {
+    if ((store.lockNotices && !store.guest)) {
         notices.take(if (LocalPortrait.current) 5 else 3).forEach { n ->
             Row(
                 Modifier.fillMaxWidth().glass(OctS, 0.8f).padding(horizontal = 16.dp, vertical = 12.dp),

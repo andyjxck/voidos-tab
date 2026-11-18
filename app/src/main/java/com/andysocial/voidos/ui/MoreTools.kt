@@ -358,7 +358,7 @@ fun VoiceMemoPane() {
 
 /** A month at a glance; swipe the arrows for other months. Today is a teal drop. */
 @Composable
-fun CalendarPane() {
+fun CalendarPane(store: Store) {
     var offset by remember { mutableStateOf(0) }
     val today = java.time.LocalDate.now()
     val month = today.withDayOfMonth(1).plusMonths(offset.toLong())
@@ -368,7 +368,9 @@ fun CalendarPane() {
             VText(month.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.UK)), size = Type.title2, color = V.White, align = TextAlign.Center, modifier = Modifier.weight(1f).tap { offset = 0 })
             Box(Modifier.size(44.dp).tap { offset++ }, contentAlignment = Alignment.Center) { Glyph(G.NEXT, V.Text, Modifier.size(20.dp)) }
         }
-        Gap(h = 12.dp)
+        Gap(h = 4.dp)
+        NextEventLine(store)
+        Gap(h = 8.dp)
         BoxWithConstraints(Modifier.widthIn(max = 520.dp).fillMaxWidth().weight(1f)) {
             val cell = min(maxWidth.value / 7f, maxHeight.value / 7f).dp
             Column {
@@ -403,7 +405,7 @@ internal fun MoreToolsPane(which: KTab, store: Store = VoidApp.instance.store) {
         KTab.LEVEL -> LevelPane()
         KTab.METER -> SoundMeterPane()
         KTab.MEMO -> VoiceMemoPane()
-        KTab.CALENDAR -> CalendarPane()
+        KTab.CALENDAR -> CalendarPane(store)
         else -> {}
     }
 }

@@ -65,10 +65,13 @@ class VoidListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification?) = refreshNotices()
     override fun onNotificationRemoved(sbn: StatusBarNotification?) = refreshNotices()
 
-    private fun refreshNotices() {
+    internal fun refreshNotices() {
         val list = runCatching { activeNotifications?.toList() }.getOrNull() ?: return
         val pm = packageManager
+        // apps switched off in Settings > Notifications: cleared as soon as they post
+        list.filter { it.packageName in muted && it.isClearable }.forEach { runCatching { cancelNotification(it.key) } }
         notices.value = list.asSequence()
+            .filter { it.packageName !in muted }
             .filter { it.isClearable && it.packageName != packageName }
             .filter { it.notification.category != android.app.Notification.CATEGORY_TRANSPORT }
             .mapNotNull { sbn ->
@@ -85,6 +88,14 @@ class VoidListener : NotificationListenerService() {
 
     companion object {
         @Volatile private var instance: VoidListener? = null
+        /** Packages whose notifications are switched off; kept in step by [Store]. */
+        @Volatile var muted: Set<String> = emptySet()
+
+        fun clearFrom(pkg: String) {
+            val l = instance ?: return
+            runCatching { l.activeNotifications.filter { it.packageName == pkg && it.isClearable }.forEach { l.cancelNotification(it.key) } }
+            runCatching { l.refreshNotices() }
+        }
 
         /** Opens what a notification points at (as tapping it in Android's shade would). */
         fun open(key: String) {

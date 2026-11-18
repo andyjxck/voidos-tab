@@ -105,7 +105,7 @@ fun GlassPinPad(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             repeat(length) { i ->
-                val filled by animateFloatAsState(if (i < entry.length) 1f else 0f, tween(90), label = "dot")
+                val filled by animateFloatAsState(if (i < entry.length) 1f else 0f, Motion.quick(), label = "dot")
                 Box(
                     Modifier.size(14.dp).graphicsLayer { val s = 1f + 0.15f * filled; scaleX = s; scaleY = s }
                         .clip(CircleShape)
@@ -145,6 +145,7 @@ private fun PinKey(k: String, size: Dp, dim: Boolean, onTap: () -> Unit) {
     var down by remember { mutableStateOf(false) }
     val lit by animateFloatAsState(if (down) 1f else 0f, tween(if (down) 40 else 260), label = "key")
     val back = k == "<"
+    val view = androidx.compose.ui.platform.LocalView.current
     Box(
         Modifier.size(size)
             .semantics(mergeDescendants = true) { role = Role.Button; if (back) contentDescription = "Delete"; onClick { onTap(); true } }
@@ -154,7 +155,7 @@ private fun PinKey(k: String, size: Dp, dim: Boolean, onTap: () -> Unit) {
                 else Modifier.liquidGlass(CircleShape, GlassLook(smoke = 0.5f - 0.3f * lit, depth = 0.4f, shine = 0.9f + 0.6f * lit, magnify = 1.18f + 0.2f * lit, edge = 0.35f))
             )
             .pointerInput(dim) {
-                detectTapGestures(onPress = { down = true; tryAwaitRelease(); down = false }, onTap = { onTap() })
+                detectTapGestures(onPress = { down = true; view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP); tryAwaitRelease(); down = false }, onTap = { onTap() })
             },
         contentAlignment = Alignment.Center,
     ) {

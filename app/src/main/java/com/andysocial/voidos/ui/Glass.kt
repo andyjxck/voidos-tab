@@ -48,8 +48,8 @@ import androidx.compose.ui.unit.sp
 
 /*
  * The glass kit. Android 10 cannot blur what sits behind a view, so "glass"
- * here is drawn: a translucent fill that is lighter at the top, a hairline rim
- * that catches the light along the top edge, and a soft lens for whatever is
+ * here is drawn: a translucent fill that is lighter at the top, a glint of light
+ * along the top edge (no rim), and a soft lens for whatever is
  * chosen. Every control that used to be a loose row of rounded buttons is one
  * of these bars now.
  */
@@ -62,8 +62,7 @@ private fun Modifier.lens(shape: Shape, accent: Color): Modifier = this.droplet(
 
 /**
  * One continuous glass bar split into equal segments, for picking one option.
- * The lens slides to the chosen segment. Hairline dividers sit between the
- * others and fade out next to the lens. A [selected] key that is not in the
+ * The lens slides to the chosen segment; there are no dividers. A [selected] key that is not in the
  * bar shows no lens (time-zone rows, where the choice is in another row).
  */
 @Composable
@@ -83,7 +82,7 @@ fun GlassSegments(
         modifier.fillMaxWidth().height(height).glass(BarShape, if (enabled) 0.82f else 0.45f),
     ) {
         val segW = maxWidth / n
-        val x by animateDpAsState(segW * idx.coerceAtLeast(0), spring(dampingRatio = 0.78f, stiffness = Spring.StiffnessMediumLow), label = "lens")
+        val x by animateDpAsState(segW * idx.coerceAtLeast(0), Motion.spring(), label = "lens")
         val shown by animateFloatAsState(if (idx >= 0) 1f else 0f, label = "lensOn")
         if (shown > 0.01f) Box(
             Modifier.offset(x = x).width(segW).fillMaxHeight().padding(4.dp)
@@ -116,7 +115,7 @@ fun GlassSegments(
 class GlassAction(val label: String, val glyph: G? = null, val warn: Boolean = false, val enabled: Boolean = true, val active: Boolean = false, val onClick: () -> Unit)
 
 /**
- * Several actions as one glass bar: equal segments, hairline dividers, and a
+ * Several actions as one glass bar: equal segments with no dividers, and a
  * soft light under the finger while it is pressed. With [stacked], the glyph
  * sits over its label (the control centre's bottom bar).
  */
@@ -151,7 +150,7 @@ fun GlassActions(actions: List<GlassAction>, modifier: Modifier = Modifier, heig
 }
 
 /**
- * A grouped list in one glass card: rows split by inset hairlines, the way
+ * A grouped list in one glass card: rows split by space, not lines, the way
  * iPad settings group things, instead of a stack of separate boxes.
  */
 @Composable

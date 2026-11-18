@@ -110,7 +110,7 @@ import androidx.compose.ui.unit.max
 import androidx.compose.ui.unit.min
 
 /** The parts of the control centre that open up when held. */
-enum class CcPart { CONNECT, WIFI, BT, DND, ROTATE, BRIGHT, VOLUME, MEDIA, NOTICES }
+enum class CcPart { CONNECT, WIFI, BT, DND, ROTATE, BRIGHT, VOLUME, MEDIA, NOTICES, POWER }
 
 /**
  * Where the control centre reads the radios from. Tests swap these for fixed
@@ -220,7 +220,7 @@ fun ControlCentre(
     }
     AnimatedVisibility(
         open,
-        enter = slideInVertically(spring(dampingRatio = 0.82f, stiffness = 420f)) { -it / 8 } + fadeIn(),
+        enter = slideInVertically(Motion.springOffset) { -it / 8 } + fadeIn(),
         exit = slideOutVertically { -it / 8 } + fadeOut(),
     ) {
         val ctx = LocalContext.current
@@ -229,7 +229,7 @@ fun ControlCentre(
         LaunchedEffect(Unit) { while (isActive) { st.refresh(); delay(2000) } }
         LaunchedEffect(st.note) { if (st.note != null) { delay(5000); st.note = null } }
 
-        val dim by animateFloatAsState(if (expanded != null) 1f else 0f, tween(260), label = "dim")
+        val dim by animateFloatAsState(if (expanded != null) 1f else 0f, Motion.fade(), label = "dim")
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val w = maxWidth
             val h = maxHeight
@@ -258,8 +258,8 @@ fun ControlCentre(
             AnimatedVisibility(
                 expanded != null,
                 modifier = Modifier.align(Alignment.Center),
-                enter = scaleIn(spring(dampingRatio = 0.72f, stiffness = 380f), initialScale = 0.82f) + fadeIn(tween(160)),
-                exit = scaleOut(tween(180), targetScale = 0.88f) + fadeOut(tween(160)),
+                enter = scaleIn(Motion.pop(), initialScale = 0.82f) + fadeIn(Motion.quick()),
+                exit = scaleOut(Motion.quick(), targetScale = 0.88f) + fadeOut(Motion.quick()),
             ) {
                 shown?.let { part ->
                     Column(
@@ -282,6 +282,7 @@ fun ControlCentre(
                             CcPart.VOLUME -> VolumePanel(st)
                             CcPart.MEDIA -> MediaPanel()
                             CcPart.NOTICES -> NoticesPanel { expanded = null; onClose() }
+                            CcPart.POWER -> PowerPanel()
                         }
                     }
                 }
@@ -405,7 +406,7 @@ private fun ConnectModule(st: CcState, store: Store, act: MainActivity, modifier
 /** A round glass switch. Stained with its own colour and glowing when on. */
 @Composable
 private fun CcBubble(g: G, label: String, on: Boolean, accent: Color, d: Dp, onTap: () -> Unit, onHold: () -> Unit) {
-    val lit by animateFloatAsState(if (on) 1f else 0f, spring(dampingRatio = 0.6f, stiffness = 300f), label = "lit")
+    val lit by animateFloatAsState(if (on) 1f else 0f, Motion.pop(), label = "lit")
     Box(
         Modifier.size(d)
             .semantics { contentDescription = label; selected = on }
@@ -433,7 +434,7 @@ private fun CcTall(g: G, value: Float, modifier: Modifier, fill: List<Color>, la
                 detectVerticalDragGestures { ch, _ -> ch.consume(); cb((1f - ch.position.y / size.height).coerceIn(0f, 1f)) }
             },
     ) {
-        val shown by animateFloatAsState(v.coerceAtLeast(0.07f), spring(dampingRatio = 0.85f, stiffness = 900f), label = "level")
+        val shown by animateFloatAsState(v.coerceAtLeast(0.07f), Motion.press(), label = "level")
         Box(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(shown)
                 .background(Brush.verticalGradient(fill))
@@ -496,8 +497,16 @@ private fun RoundButtons(st: CcState, store: Store, act: MainActivity, onClose: 
     data class B(val g: G, val label: String, val on: Boolean, val accent: Color, val act: () -> Unit)
     val items = buildList {
         add(B(G.LIGHT, "Stay awake", store.deskMode, V.Sun) { store.set("deskMode", !store.deskMode); act.applyPolicies() })
-        add(B(G.BELL, "Notifications", com.andysocial.voidos.VoidListener.notices.value.isNotEmpty(), V.Teal) { expand(CcPart.NOTICES) })
-        add(B(G.SYSTEM, "Settings", false, V.Text) { onClose(); onSettings() })
+        if (!store.guest) add(B(G.BELL, "Notifications", com.andysocial.voidos.VoidListener.notices.value.isNotEmpty(), V.Teal) { expand(CcPart.NOTICES) })
+        com.andysocial.voidos.Extras.assistantIntent(ctx)?.let { ai ->
+            add(B(G.ASSISTANT, "Assistant", false, V.Text) {
+                onClose()
+                ai.resolveActivity(ctx.packageManager)?.packageName?.let { p -> if (p !in store.allowed) store.setAllowed(p, true); act.applyPolicies() }
+                runCatching { ctx.startActivity(ai) }
+            })
+        }
+        if (!store.guest) add(B(G.SYSTEM, "Settings", false, V.Text) { onClose(); onSettings() })
+        if (!store.guest) add(B(G.POWER, "Power", false, V.Text) { expand(CcPart.POWER) })
     }
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         val d = min(min(maxWidth / 2 - 18.dp, maxHeight / 2 - 30.dp), 64.dp)
@@ -1069,11 +1078,8 @@ private fun QuickToggles(onClose: () -> Unit, modifier: Modifier, perRow: Int) {
             if (rec) scope.launch { withContext(Dispatchers.IO) { com.andysocial.voidos.Device.stopRecording() }; rec = false; android.widget.Toast.makeText(ctx, "Recording saved to Movies", android.widget.Toast.LENGTH_SHORT).show() }
             else { onClose(); scope.launch { kotlinx.coroutines.delay(450); rec = withContext(Dispatchers.IO) { com.andysocial.voidos.Device.startRecording() } } }
         }),
-        Triple(G.CAST, "Cast screen", false to {
-            onClose()
-            runCatching { ctx.startActivity(android.content.Intent("android.settings.CAST_SETTINGS").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                .onFailure { runCatching { ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } }
-        }),
+        Triple(G.CAST, "Cast screen", false to { onClose(); openTool(KTab.CAST) }),
+        Triple(G.SEND, "Send files", false to { onClose(); openTool(KTab.SHARE) }),
     )
     Column(modifier) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -1093,10 +1099,16 @@ private fun QuickToggles(onClose: () -> Unit, modifier: Modifier, perRow: Int) {
 
 /** The notification centre: what apps have posted, newest first. Tap one to open it, Clear to dismiss. */
 @Composable
+private fun PowerPanel() {
+    GlassActions(listOf(
+        GlassAction("Restart", G.RESTART) { Thread { com.andysocial.voidos.Device.reboot("restart") }.start() },
+        GlassAction("Power off", G.POWER, warn = true) { Thread { com.andysocial.voidos.Device.reboot("off") }.start() },
+    ))
+}
+
+@Composable
 private fun NoticesPanel(onOpened: () -> Unit) {
     val list by com.andysocial.voidos.VoidListener.notices
-    VText("Notifications", size = Type.title, color = V.White)
-    Spacer(Modifier.height(Grid.m))
     if (list.isEmpty()) VText("Nothing new", size = Type.body, color = V.Muted)
     list.forEach { n ->
         Column(

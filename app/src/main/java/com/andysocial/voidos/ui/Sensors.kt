@@ -46,22 +46,44 @@ object Sensors {
         }
         if (store.waveWake) m.getDefaultSensor(Sensor.TYPE_PROXIMITY)?.let { s ->
             listen(m, s, object : Listener() {
+                var lastWave = 0L
                 override fun onSensorChanged(e: SensorEvent) {
-                    if (e.values[0] < s.maximumRange && !pm.isInteractive) wake()
+                    val near = e.values[0] < s.maximumRange
+                    if (near && !pm.isInteractive) wake()
+                    // a wave over a ringing alarm snoozes it
+                    val now = SystemClock.elapsedRealtime()
+                    if (near && now - lastWave > 3000 && com.andysocial.voidos.Alarms.ringing.value != null) {
+                        lastWave = now
+                        runCatching {
+                            app.sendBroadcast(android.content.Intent(app, com.andysocial.voidos.AlarmReceiver::class.java).setAction(com.andysocial.voidos.AlarmService.ACTION_SNOOZE).putExtra("id", 0))
+                        }
+                    }
                 }
             })
         }
-        if (store.faceDown || store.pickUp) m.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.let { s ->
+        if (store.faceDown || store.pickUp || store.faceDownQuiet) m.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.let { s ->
             listen(m, s, object : Listener() {
                 var downSince = 0L
                 var slept = false
+                var hushed = false
+                val nm = app.getSystemService(android.app.NotificationManager::class.java)
                 override fun onSensorChanged(e: SensorEvent) {
                     val (x, y, z) = Triple(e.values[0], e.values[1], e.values[2])
                     val now = SystemClock.elapsedRealtime()
-                    if (store.faceDown && faceDown(x, y, z)) {
+                    if ((store.faceDown || store.faceDownQuiet) && faceDown(x, y, z)) {
                         if (downSince == 0L) downSince = now
-                        if (!slept && now - downSince > 1500 && pm.isInteractive) { slept = true; runCatching { Policy.dpm(app).lockNow() } }
-                    } else { downSince = 0L; slept = false }
+                        if (!slept && now - downSince > 1500) {
+                            slept = true
+                            if (store.faceDownQuiet && nm.currentInterruptionFilter == android.app.NotificationManager.INTERRUPTION_FILTER_ALL) {
+                                hushed = runCatching { nm.setInterruptionFilter(android.app.NotificationManager.INTERRUPTION_FILTER_PRIORITY); true }.getOrDefault(false)
+                            }
+                            if (store.faceDown && pm.isInteractive) runCatching { Policy.dpm(app).lockNow() }
+                        }
+                    } else {
+                        downSince = 0L; slept = false
+                        // picked up again: Do Not Disturb goes back off, only if face down turned it on
+                        if (hushed) { hushed = false; runCatching { nm.setInterruptionFilter(android.app.NotificationManager.INTERRUPTION_FILTER_ALL) } }
+                    }
                     val g = sqrt(x * x + y * y + z * z)
                     if (store.pickUp && !pm.isInteractive && abs(g - 9.81f) > 3.2f) wake()
                 }

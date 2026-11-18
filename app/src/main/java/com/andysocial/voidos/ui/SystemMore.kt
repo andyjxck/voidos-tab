@@ -98,7 +98,7 @@ fun HubPane(store: Store, act: MainActivity) {
         VToggle(store.motion) { store.set("motion", it) }
     }
     SettingRow("App icons") {}
-    GlassSegments(listOf("void" to "Void", "letter" to "Letters", "colour" to "Colour"), store.iconStyle, Modifier.widthIn(max = 450.dp)) { store.setIconStyle(it) }
+    GlassSegments(listOf("glass" to "Glass", "void" to "Plain", "letter" to "Letters", "colour" to "Original"), store.iconStyle, Modifier.widthIn(max = 450.dp)) { store.setIconStyle(it) }
     SettingRow("Home widgets") {
         VButton("Clear all", accent = V.Muted, enabled = store.widgets.isNotEmpty()) { store.saveWidgets(emptyList()) }
     }

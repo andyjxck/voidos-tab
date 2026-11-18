@@ -57,6 +57,15 @@ object Motion {
     const val QUICK_MS = 180
     fun <T> spring(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
     fun <T> quick(): FiniteAnimationSpec<T> = tween(QUICK_MS, easing = FastOutSlowInEasing)
+    /** 1.14: the four other motions every screen uses, so nothing moves on its own timing. */
+    /** Things that appear or switch on: a little overshoot. */
+    fun <T> pop(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.72f, stiffness = 400f)
+    /** Under a finger: fast and firm. */
+    fun <T> press(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.7f, stiffness = 1400f)
+    /** Letting go: springs back with a bounce. */
+    fun <T> release(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.5f, stiffness = 500f)
+    /** Dimming and fading behind a sheet. */
+    fun <T> fade(): FiniteAnimationSpec<T> = tween(260, easing = FastOutSlowInEasing)
     val springOffset: FiniteAnimationSpec<IntOffset> = spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
     val springSize: FiniteAnimationSpec<IntSize> = spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
 }

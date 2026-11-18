@@ -110,7 +110,32 @@ class Store(private val ctx: Context) {
     var favs by mutableStateOf(p.getString("favs", "")!!.split(',').filter { it.isNotBlank() }); private set
     var hubName by mutableStateOf(p.getString("hubName", "Home")!!); private set
     /** How Android app icons are drawn: "colour" (as shipped), "void" (VoidOS glyph or tinted) or "letter". */
-    var iconStyle by mutableStateOf(p.getString("iconStyle", "void")!!); private set
+    // 1.14: glass app icons are the new default; a saved "void" from before moves over once
+    var iconStyle by mutableStateOf(
+        if (!p.getBoolean("iconGlassMoved", false)) {
+            val old = p.getString("iconStyle", "glass")!!
+            val now = if (old == "void") "glass" else old
+            p.edit().putString("iconStyle", now).putBoolean("iconGlassMoved", true).apply(); now
+        } else p.getString("iconStyle", "glass")!!
+    ); private set
+    /** Apps whose notifications are switched off (VoidOS clears them and Android stops them). */
+    var mutedApps by mutableStateOf(p.getStringSet("mutedApps", emptySet())!!.toSet().also { VoidListener.muted = it }); private set
+    /** Guest mode: only guestApps open, Notes, Settings and notifications are hidden until the PIN. */
+    var guest by mutableStateOf(p.getBoolean("guest", false)); private set
+    var guestApps by mutableStateOf(p.getStringSet("guestApps", emptySet())!!.toSet()); private set
+    /** Lying face down also turns Do Not Disturb on until it's picked up. */
+    var faceDownQuiet by mutableStateOf(p.getBoolean("faceDownQuiet", false)); private set
+    /** The resting clock glows when there are unread notifications. */
+    var notifyLight by mutableStateOf(p.getBoolean("notifyLight", true)); private set
+    fun setMuted(pkg: String, muted: Boolean) {
+        mutedApps = if (muted) mutedApps + pkg else mutedApps - pkg
+        VoidListener.muted = mutedApps
+        p.edit().putStringSet("mutedApps", mutedApps).apply()
+    }
+    fun setGuestApp(pkg: String, on: Boolean) {
+        guestApps = if (on) guestApps + pkg else guestApps - pkg
+        p.edit().putStringSet("guestApps", guestApps).apply()
+    }
 
     /** The VoidOS PIN as "pbkdf2$<rounds>$<salt hex>$<hash hex>"; empty means still the starting code. */
     private var vpin: String = p.getString("voidPin", "")!!
@@ -137,6 +162,9 @@ class Store(private val ctx: Context) {
             "autoNight" -> autoNight = v
             "alarmVibrate" -> alarmVibrate = v
             "waveWake" -> waveWake = v
+            "guest" -> guest = v
+            "faceDownQuiet" -> faceDownQuiet = v
+            "notifyLight" -> notifyLight = v
             "faceDown" -> faceDown = v
             "pickUp" -> pickUp = v
             "swipeScreens" -> swipeScreens = v

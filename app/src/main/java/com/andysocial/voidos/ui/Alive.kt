@@ -194,7 +194,7 @@ fun RollingText(
         if (text != shown) {
             old = shown; shown = text
             roll.snapTo(0f)
-            roll.animateTo(1f, spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessLow))
+            roll.animateTo(1f, Motion.pop())
         }
     }
     val d = LocalDensity.current
@@ -284,9 +284,9 @@ fun Modifier.squish(scaleTo: Float = 0.92f): Modifier = composed {
         .pointerInput(Unit) {
             awaitEachGesture {
                 awaitFirstDown(requireUnconsumed = false)
-                scope.launch { press.animateTo(scaleTo, spring(dampingRatio = 0.7f, stiffness = 1400f)) }
+                scope.launch { press.animateTo(scaleTo, Motion.press()) }
                 waitForUpOrCancellation()
-                scope.launch { press.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 500f)) }
+                scope.launch { press.animateTo(1f, Motion.release()) }
             }
         }
         .graphicsLayer { scaleX = press.value; scaleY = press.value }

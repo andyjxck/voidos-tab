@@ -48,6 +48,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.CompositionLocalProvider
@@ -127,6 +130,10 @@ fun VoidRoot(store: Store, act: MainActivity) {
                     Shell(store, act)
                     if (locked && store.voidLock) LockScreen(store) { LockState.locked.value = false; Idle.touch() }
                 }
+            }
+            if (!booting && store.setupDone) {
+                UsbSheet(Modifier.align(Alignment.BottomCenter))
+                ToastHost(Modifier.align(Alignment.BottomCenter))
             }
             if (booting) BootAnim { VoidApp.booted = true; booting = false }
             else { TimerAlert(); AlarmOverlay() }
@@ -212,10 +219,9 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
                         Module.FACE -> FaceScreen(store, onOpen = { go(it) })
                         Module.TOOLS -> ToolsScreen(store)
                         Module.WEATHER -> WeatherScreen(store)
-                        Module.NOTES -> NotesScreen(store)
+                        Module.NOTES, Module.SYSTEM -> if (store.guest) GuestGate(store) else if (mod == Module.NOTES) NotesScreen(store) else SystemScreen(store, act)
                         Module.MEDIA -> MediaScreen()
                         Module.APPS -> AppsScreen(store)
-                        Module.SYSTEM -> SystemScreen(store, act)
                     }
                 }
             }
@@ -403,6 +409,19 @@ fun AmbientClock(store: Store) {
         Column(Modifier.offset((dx * 0.6f).dp, (dy * 0.8f).dp), horizontalAlignment = Alignment.CenterHorizontally) {
             VText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), size = if (LocalPortrait.current) 120.sp else 150.sp, color = V.Text.copy(alpha = 0.5f), font = SansThin)
             VText(SimpleDateFormat("EEEE d MMMM", Locale.UK).format(Date(now)), size = Type.title, color = V.Muted.copy(alpha = 0.6f))
+            // the notification light the tablet doesn't have: a slow teal glow while something new waits
+            val waiting = com.andysocial.voidos.VoidListener.notices.value
+            if (store.notifyLight && waiting.isNotEmpty() && !store.guest) {
+                val pulse by androidx.compose.animation.core.rememberInfiniteTransition(label = "notify").animateFloat(
+                    0.25f, 0.9f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1800), androidx.compose.animation.core.RepeatMode.Reverse), label = "glow",
+                )
+                Gap(h = Grid.xl)
+                Box(Modifier.size(14.dp).graphicsLayer { alpha = pulse }.background(
+                    androidx.compose.ui.graphics.Brush.radialGradient(listOf(V.Teal, V.Teal.copy(alpha = 0f))), CircleShape,
+                ))
+                Gap(h = Grid.s)
+                VText(if (waiting.size == 1) waiting.first().appName else "${waiting.size} new", size = Type.label, color = V.Muted.copy(alpha = 0.6f))
+            }
         }
     }
 }

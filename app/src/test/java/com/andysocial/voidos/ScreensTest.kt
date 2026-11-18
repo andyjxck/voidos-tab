@@ -335,6 +335,14 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         tap("List"); expect("Sourdough loaf", "Cheddar"); shot("06_tools_list")
     }
 
+    @Test fun newTools() {
+        show { Shell(store, act, Module.TOOLS) }
+        tap("Files"); expect("Tablet"); shot("06b_tools_files")
+        tap("Send files"); expect("Add files", "Start"); shot("06c_tools_send_files")
+        tap("FM radio"); shot("06d_tools_fm")
+        tap("Cast"); expect("Look again"); shot("06e_tools_cast")
+    }
+
     @Test fun alarms() {
         Alarms.list.value.forEach { Alarms.remove(act, it.id) }
         Alarms.put(act, Alarm(id = 1, hour = 6, minute = 45, days = AlarmMath.WEEKDAYS, label = "Gym", sound = "rooster", rampSec = 60))
@@ -420,13 +428,15 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     @Test fun apps() {
         chooseApps("com.spotify.music", "com.whatsapp", "com.google.android.youtube", "com.bbc.sounds")
         show { Shell(store, act, Module.APPS) }
+        store.setIconStyle("glass"); settle()
         expect("Spotify", "WhatsApp"); shot("12_apps")
         tap("Manage"); expect("Done", "Shown", "Hidden"); shot("13_apps_manage")
         typeInto(0, "chro"); expect("Chrome"); rule.onAllNodesWithText("Spotify").assertCountEquals(0)
         tap("Done")
         store.setIconStyle("letter"); settle(); expect("SP", "BS"); shot("14_apps_icons_letters")
         store.setIconStyle("colour"); settle(); shot("15_apps_icons_colour")
-        store.setIconStyle("void")
+        store.setIconStyle("void"); settle(); shot("15b_apps_icons_plain")
+        store.setIconStyle("glass")
     }
 
     @Test fun appsHidden() {
@@ -751,7 +761,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     @Test fun system() {
         show { Shell(store, act, Module.SYSTEM) }
         shot("20_system_wifi")
-        listOf("Bluetooth", "Network", "Display & sound", "Do not disturb", "Battery", "Home & lock screen", "Date & time",
+        listOf("Bluetooth", "Network", "Display & sound", "Notifications", "Do not disturb", "Battery", "Home & lock screen", "Date & time",
             "Lock mode", "Storage", "System", "About").forEachIndexed { i, t ->
             tap(t)
             shot("%02d_system_%s".format(21 + i, t.lowercase().replace(Regex("[^a-z]+"), "_").trim('_')))

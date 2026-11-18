@@ -487,13 +487,13 @@ fun EdgeWheels(
             mo.bead.floatValue = slotAngle(cur ?: ((list.size - 1) / 2), e)
             mo.vel = 0f; mo.stretch.floatValue = 0f; mo.dragging = false
             if (!overlay) Ambience.held.value = true
-            scope.launch { appear.snapTo(0f); appear.animateTo(1f, spring(dampingRatio = 0.9f, stiffness = 900f)) }
+            scope.launch { appear.snapTo(0f); appear.animateTo(1f, Motion.press()) }
         }
         fun closeWheel() {
             EdgeSwipe.log("wheel closed")
             mo.dragging = false
             scope.launch {
-                appear.animateTo(0f, tween(120))
+                appear.animateTo(0f, Motion.quick())
                 side = null; mo.sel.intValue = -1; sticky = false
                 if (!overlay) Ambience.held.value = false
                 cbClosed()

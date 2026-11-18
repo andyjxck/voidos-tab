@@ -8,4 +8,4 @@ bd36e536cc26672bdba652547494a4877f2a446329bb7141840d9cd73bceffc2  logo-tool/kenn
 c77c859eb2f5b54b59dd7c72e67d1f501182e77812048cc7afda11b297f569ca  logo-tool/mtk_logo.py
 ad24ddcd27108b131de027c8020f7a463947680d14d0074b4961fc09b1d28d13  logo-tool/voidmark.py
 c82f88d1816f77aaa102f3eab2b6da85a9831321f7ba46bcaea2d143dc0062c6  logo-tool/voidmark_geometry.json
-a3fe196c7fd227edfd6089d4f0d2a27abc00b3c3ac64a4e7233d256a0aad0246  voidos-tab-1.13.0.apk
+50ee5fc385ef10e7097cd3fbbd452f0fc5f0e95f8d89b9089d2f10657c229ce8  voidos-tab-1.14.0.apk

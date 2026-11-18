@@ -115,6 +115,7 @@ fun blockReason(ctx: Context, store: Store, pkg: String): String? {
     if (runCatching { pm.isPackageSuspended(pkg) }.getOrDefault(false)) return "paused by Android"
     // the drawer shows only the apps chosen in Manage; the rest stay hidden and can't be opened from VoidOS
     if (pkg !in store.allowed) return HIDDEN
+    if (store.guest && pkg !in store.guestApps) return "off in guest mode"
     return null
 }
 
@@ -265,18 +266,23 @@ private val greyscale = ColorFilter.colorMatrix(ColorMatrix().apply { setToSatur
 @Composable
 fun AppGlyph(app: AppEntry, style: String, size: Dp) {
     val ctx = LocalContext.current
+    if (style == "glass") { GlassAppIcon(app.pkg, size); return }
     val glyph = if (style == "void") glyphForPackage(app.pkg) else null
-    val tile = Modifier.size(size).clip(RoundedCornerShape(size * 0.26f)).background(V.Panel2)
-    when {
-        style == "letter" -> Box(tile, contentAlignment = Alignment.Center) {
-            VText(initialsFor(app.label), size = (size.value * 0.34f).sp, color = V.Text, font = SansMedium, maxLines = 1)
+    // no squares anywhere: the plain styles sit in a neutral glass drop too
+    val drop: @Composable (@Composable () -> Unit) -> Unit = { inner ->
+        Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+            GlassDrop(V.Panel2, Modifier.size(size)) {}
+            inner()
         }
-        glyph != null -> Box(tile, contentAlignment = Alignment.Center) { Glyph(glyph, V.Text, Modifier.size(size * 0.52f)) }
+    }
+    when {
+        style == "letter" -> drop { VText(initialsFor(app.label), size = (size.value * 0.34f).sp, color = V.Text, font = SansMedium, maxLines = 1) }
+        glyph != null -> drop { Glyph(glyph, V.Text, Modifier.size(size * 0.5f)) }
         else -> {
             var icon by remember(app.pkg) { mutableStateOf<ImageBitmap?>(null) }
             LaunchedEffect(app.pkg) { icon = Icons.get(ctx, app.pkg) }
-            if (style == "void") Box(tile, contentAlignment = Alignment.Center) {
-                icon?.let { Image(it, app.label, Modifier.size(size * 0.62f), colorFilter = greyscale, alpha = 0.9f) }
+            if (style == "void") drop {
+                icon?.let { Image(it, app.label, Modifier.size(size * 0.56f), colorFilter = greyscale, alpha = 0.9f) }
             }
             else Box(Modifier.size(size), contentAlignment = Alignment.Center) {
                 icon?.let { Image(it, app.label, Modifier.size(size)) }
@@ -304,7 +310,7 @@ fun AppsScreen(store: Store) {
     val q = query.trim()
     val match = if (q.isEmpty()) all else all.filter { it.label.contains(q, ignoreCase = true) }
     // only the apps chosen in Manage that Android will also open; everything else is simply not here
-    val reasons = remember(all, store.allowed, refresh) { all.associate { it.pkg to blockReason(ctx, store, it.pkg) } }
+    val reasons = remember(all, store.allowed, store.guest, store.guestApps, refresh) { all.associate { it.pkg to blockReason(ctx, store, it.pkg) } }
     val open = match.filter { reasons[it.pkg] == null }
     val shownCount = all.count { reasons[it.pkg] == null }
     val favs = store.favs.mapNotNull { f -> all.firstOrNull { it.pkg == f && reasons[it.pkg] == null } }
@@ -395,10 +401,14 @@ fun AppsScreen(store: Store) {
 @Composable
 private fun QuickTile(q: Quick, onClick: () -> Unit) {
     Row(
-        Modifier.clip(Pill).background(Color.White.copy(alpha = 0.06f)).tap(onClick).padding(horizontal = 16.dp, vertical = 8.dp),
+        Modifier.clip(Pill).background(Color.White.copy(alpha = 0.06f)).tap(onClick).padding(start = 6.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Glyph(q.glyph, V.Muted, Modifier.size(16.dp))
+        // the same glass drop as the app icons, in the shortcut's colour
+        Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
+            GlassDrop(q.accent, Modifier.size(28.dp)) {}
+            Glyph(q.glyph, Color.White, Modifier.size(14.dp))
+        }
         Gap(w = 8.dp)
         VText(q.label, size = Type.body, color = V.Text, maxLines = 1)
     }

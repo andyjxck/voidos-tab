@@ -104,7 +104,7 @@ fun VPanel(
     padding: Dp = 20.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    // a quiet glass card: lighter at the top, a hairline rim, no coloured frame
+    // a quiet glass card: lighter at the top, no rim, no coloured frame
     Column(
         modifier
             .pane(Oct)
@@ -157,7 +157,7 @@ fun VButton(
 /** On/off switch: a glass capsule that fills with coloured glass, and a glossy bead that slides. */
 @Composable
 fun VToggle(checked: Boolean, accent: Color = V.Teal, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
-    val t by animateFloatAsState(if (checked) 1f else 0f, spring(dampingRatio = 0.62f, stiffness = 500f), label = "tog")
+    val t by animateFloatAsState(if (checked) 1f else 0f, Motion.pop(), label = "tog")
     val c = calm(accent)
     Canvas(
         Modifier

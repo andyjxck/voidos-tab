@@ -220,6 +220,7 @@ fun TabletExtras(store: Store, act: MainActivity) {
         VToggle(store.waveWake) { store.set("waveWake", it); Sensors.sync(ctx, store) }
     }
     SettingRow("Face down to sleep") { VToggle(store.faceDown) { store.set("faceDown", it); Sensors.sync(ctx, store) } }
+    SettingRow("Face down for Do Not Disturb", "Until you pick it up") { VToggle(store.faceDownQuiet) { store.set("faceDownQuiet", it); Sensors.sync(ctx, store) } }
     SettingRow("Pick up to wake") { VToggle(store.pickUp) { store.set("pickUp", it); Sensors.sync(ctx, store) } }
     Gap(h = Grid.l)
     SetSection("Power")
