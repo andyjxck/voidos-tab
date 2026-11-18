@@ -81,7 +81,8 @@ class Store(private val ctx: Context) {
     /** "auto" follows the tablet, "land" or "port" pins it. */
     var rotation by mutableStateOf(p.getString("rotation", "auto")!!); private set
     var voidLock by mutableStateOf(p.getBoolean("voidLock", true)); private set
-    var lockNeedsPin by mutableStateOf(p.getBoolean("lockNeedsPin", false)); private set
+    /** The VoidOS lock screen asks for the VoidOS PIN. On unless the user turns it off (new key, so it starts on). */
+    var lockNeedsPin by mutableStateOf(p.getBoolean("pinLock", true)); private set
     var lockNotices by mutableStateOf(p.getBoolean("lockNotices", true)); private set
     var timerSound by mutableStateOf(p.getBoolean("timerSound", true)); private set
     var railLabels by mutableStateOf(p.getBoolean("railLabels", true)); private set
@@ -100,7 +101,8 @@ class Store(private val ctx: Context) {
     /** How Android app icons are drawn: "colour" (as shipped), "void" (VoidOS glyph or tinted) or "letter". */
     var iconStyle by mutableStateOf(p.getString("iconStyle", "void")!!); private set
 
-    private var pinHash: String = p.getString("pinHash", "")!!
+    /** The VoidOS PIN as "pbkdf2$<rounds>$<salt hex>$<hash hex>"; empty means still the starting code. */
+    private var vpin: String = p.getString("voidPin", "")!!
 
     fun set(key: String, v: Boolean) {
         p.edit().putBoolean(key, v).apply()
@@ -115,7 +117,7 @@ class Store(private val ctx: Context) {
             "use24h" -> use24h = v
             "wallpaperDone" -> wallpaperDone = v
             "voidLock" -> voidLock = v
-            "lockNeedsPin" -> lockNeedsPin = v
+            "lockNeedsPin" -> { lockNeedsPin = v; p.edit().putBoolean("pinLock", v).apply() }
             "lockNotices" -> lockNotices = v
             "timerSound" -> timerSound = v
             "railLabels" -> railLabels = v
@@ -158,16 +160,28 @@ class Store(private val ctx: Context) {
         p.edit().putString("city", name).putFloat("lat", la).putFloat("lon", lo).apply()
     }
 
-    // ---- escape PIN (stored as a salted hash, never in plain text) ----
-    val hasPin get() = pinHash.isNotEmpty()
-    private fun hash(pin: String): String {
+    // ---- the VoidOS PIN: one code for the lock screen and the way out ----
+    // Stored only as a salted PBKDF2 hash. Until the user picks their own it is
+    // the starting code, whose fixed hash ships in the app (ESCAPE_HASH).
+    /** There is always a PIN: the starting code until the user changes it. */
+    val hasPin get() = true
+    /** True once the user has picked their own PIN in Settings. */
+    val pinChanged get() = vpin.isNotEmpty()
+    private fun legacy(pin: String): String {
         val md = MessageDigest.getInstance("SHA-256")
         return md.digest(("voidos:" + pin).toByteArray()).joinToString("") { "%02x".format(it) }
     }
-    fun setPin(pin: String) { pinHash = hash(pin); p.edit().putString("pinHash", pinHash).apply() }
-    fun checkPin(pin: String) = hasPin && hash(pin) == pinHash
-    /** The way out of VoidOS has its own fixed code, separate from the lock-screen PIN. Only the hash lives here. */
-    fun checkEscape(pin: String) = hash(pin) == ESCAPE_HASH
+    fun setPin(pin: String) {
+        require(pin.length in 4..8 && pin.all { it.isDigit() }) { "PIN must be 4 to 8 digits" }
+        vpin = PinHash.make(pin)
+        p.edit().putString("voidPin", vpin).putInt("voidPinLen", pin.length).remove("pinHash").apply()
+    }
+    /** Back to the starting code. */
+    fun resetPin() { vpin = ""; p.edit().remove("voidPin").apply() }
+    fun pinLength(): Int = if (vpin.isEmpty()) 4 else p.getInt("voidPinLen", 4)
+    fun checkPin(pin: String): Boolean = if (vpin.isEmpty()) legacy(pin) == ESCAPE_HASH else PinHash.check(pin, vpin)
+    /** The way out of VoidOS asks for the same VoidOS PIN. */
+    fun checkEscape(pin: String) = checkPin(pin)
 
     // ---- hidden-by-VoidOS bookkeeping ----
     fun hiddenByUs(): Set<String> = p.getStringSet("hiddenByUs", emptySet())!!.toSet()
@@ -334,7 +348,7 @@ fun aisleFor(t: String): String {
     }
 }
 
-/** Salted SHA-256 of the fixed escape code (same salt as the lock-screen PIN). */
+/** Salted SHA-256 of the starting VoidOS PIN (the old fixed escape code). */
 internal const val ESCAPE_HASH = "2d9c9466f67b138142547b1005b1ce01effe35337d374b6163cd3b3fdc210c90"
 
 /** An angle folded into -180..180, snapped to straight when it is within 4 degrees of a quarter turn. */

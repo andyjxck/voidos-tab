@@ -118,6 +118,8 @@ class GlassLook(
     /** A colour the glass is stained with (a chosen segment, a lit switch), if any. */
     val stain: Color? = null,
     val stainAlpha: Float = 0.3f,
+    /** How much the edges show (glints and the light soaking in): 0 for rimless glass. */
+    val edge: Float = 1f,
 )
 
 /**
@@ -212,9 +214,12 @@ fun Modifier.liquidGlass(shape: Shape, look: GlassLook = GlassLook()): Modifier 
                     }
                     // 3. thickness: light soaking in from every edge, in the colour around it
                     val rim = lerp(tint, Color.White, 0.35f)
-                    drawPath(path, rim.copy(alpha = 0.035f), style = Stroke(36f * dp))
-                    drawPath(path, rim.copy(alpha = 0.04f), style = Stroke(18f * dp))
-                    drawPath(path, rim.copy(alpha = 0.05f), style = Stroke(8f * dp))
+                    val e = look.edge
+                    if (e > 0f) {
+                        drawPath(path, rim.copy(alpha = 0.035f * e), style = Stroke(36f * dp))
+                        drawPath(path, rim.copy(alpha = 0.04f * e), style = Stroke(18f * dp))
+                        drawPath(path, rim.copy(alpha = 0.05f * e), style = Stroke(8f * dp))
+                    }
                     // 4. thick glass gathers light along its bottom
                     drawRect(
                         Brush.radialGradient(listOf(tint.copy(alpha = 0.20f * look.shine), Color.Transparent), center = Offset(w * 0.55f, h * 1.08f), radius = max(w * 0.55f, h * 0.6f)),
@@ -225,10 +230,12 @@ fun Modifier.liquidGlass(shape: Shape, look: GlassLook = GlassLook()): Modifier 
                         topLeft = Offset(-w * 0.25f, -glossH * 0.62f), size = Size(w * 1.5f, glossH * 1.25f),
                     )
                     // 6. specular: the corners catch the light
-                    drawPath(path, haloTL, style = Stroke(10f * dp))
-                    drawPath(path, glintTL, style = Stroke(4.5f * dp), alpha = 0.35f)
-                    drawPath(path, glintTL, style = Stroke(1.8f * dp))
-                    drawPath(path, glintBR, style = Stroke(3f * dp), alpha = 0.6f)
+                    if (e > 0f) {
+                        drawPath(path, haloTL, style = Stroke(10f * dp), alpha = e)
+                        drawPath(path, glintTL, style = Stroke(4.5f * dp), alpha = 0.35f * e)
+                        drawPath(path, glintTL, style = Stroke(1.8f * dp), alpha = e)
+                        drawPath(path, glintBR, style = Stroke(3f * dp), alpha = 0.6f * e)
+                    }
                 }
             }
         }

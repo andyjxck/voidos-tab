@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.clickable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -82,7 +83,7 @@ fun LockScreen(store: Store, onUnlock: () -> Unit) {
     val density = LocalDensity.current
 
     fun release() {
-        if (store.lockNeedsPin && store.hasPin) askPin = true else onUnlock()
+        if (store.lockNeedsPin) askPin = true else onUnlock()
     }
 
     CompositionLocalProvider(LocalRoom provides Rooms.lock) {
@@ -105,7 +106,7 @@ fun LockScreen(store: Store, onUnlock: () -> Unit) {
                 },
         ) {
             // under the PIN pad the lock screen is only a backdrop: keep it out of reach of touch and TalkBack
-            if (askPin) { LockBackdrop(now); return@Box }
+            if (askPin) { LockBackdrop(now); if (portrait) Box(Modifier.fillMaxSize().padding(top = 40.dp), contentAlignment = Alignment.TopCenter) { LockClockSmall(store, now) }; return@Box }
             LockBackdrop(now)
             if (portrait) {
                 Column(Modifier.fillMaxSize().padding(horizontal = 36.dp, vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -128,8 +129,8 @@ fun LockScreen(store: Store, onUnlock: () -> Unit) {
             }
         }
         if (askPin) {
-            Box(Modifier.fillMaxSize().background(V.Bg.copy(alpha = 0.97f))) {
-                LockPin(store, title = "Enter PIN to unlock", onOk = { askPin = false; onUnlock() }, onCancel = { askPin = false })
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f))) {
+                LockPin(store, title = "Enter PIN", onOk = { askPin = false; onUnlock() }, onCancel = { askPin = false })
             }
         }
     }
@@ -288,40 +289,33 @@ private fun SwipeHint() {
     }
 }
 
-/** The escape-hatch PIN pad, reused by the lock screen. */
+/** The VoidOS PIN pad on the lock screen: the same PIN as the way out. */
 @Composable
 fun LockPin(store: Store, title: String, onOk: () -> Unit, onCancel: () -> Unit) {
-    var entry by remember { mutableStateOf("") }
-    var wrong by remember { mutableStateOf(false) }
-    // PINs are always four digits (set on the escape-hatch pad), so check at four.
-    // After five wrong tries in a row the pad waits 30 seconds.
-    var misses by remember { mutableStateOf(0) }
-    var waitUntil by remember { mutableStateOf(0L) }
-    LaunchedEffect(entry) {
-        if (entry.length < 4) return@LaunchedEffect
-        if (store.checkPin(entry)) { misses = 0; onOk(); return@LaunchedEffect }
-        wrong = true; entry = ""
-        if (++misses >= 5) { misses = 0; waitUntil = System.currentTimeMillis() + 30_000 }
+    val portrait = LocalPortrait.current
+    Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Glyph(G.LOCK, V.Text, Modifier.size(22.dp))
+        Gap(h = 12.dp)
+        GlassPinPad(
+            title = title,
+            length = store.pinLength(),
+            check = { store.checkPin(it) },
+            keySize = if (portrait) 80.dp else 68.dp,
+            onPin = { onOk() },
+        )
+        Gap(h = 14.dp)
+        Box(Modifier.clip(Pill).clickable { onCancel() }.padding(horizontal = 22.dp, vertical = 10.dp)) {
+            VText("Cancel", size = 15.sp, color = V.Text)
+        }
     }
-    val now = rememberNow(1000)
-    val waiting = now < waitUntil
-    Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        VText(title, size = 16.sp, color = V.Text)
-        Gap(h = 14.dp)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            repeat(maxOf(4, entry.length)) { i -> Box(Modifier.size(14.dp).clip(CircleShape).background(if (i < entry.length) V.White else V.White.copy(alpha = 0.16f))) }
-        }
-        Gap(h = 6.dp)
-        VText(if (waiting) "Try again in ${(waitUntil - now + 999) / 1000}s" else if (wrong) "Wrong PIN" else " ", size = 11.sp, color = V.Coral)
-        Gap(h = 10.dp)
-        Box(Modifier.width(300.dp).size(300.dp, 340.dp)) {
-            NumPad(Modifier.fillMaxSize()) { k ->
-                if (waiting) return@NumPad
-                wrong = false
-                entry = when (k) { "<" -> entry.dropLast(1); "." -> ""; else -> entry + k }
-            }
-        }
-        Gap(h = 14.dp)
-        VButton("Cancel", accent = V.Muted) { onCancel() }
+}
+
+/** The time and date, small, above the PIN pad. */
+@Composable
+private fun LockClockSmall(store: Store, now: Long) {
+    val t = java.time.Instant.ofEpochMilli(now).atZone(java.time.ZoneId.systemDefault())
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.graphicsLayer { alpha = 0.55f }) {
+        VText(t.format(java.time.format.DateTimeFormatter.ofPattern(if (store.use24h) "HH:mm" else "h:mm")), size = 30.sp, color = V.White, font = SansLight)
+        VText(t.format(java.time.format.DateTimeFormatter.ofPattern("EEEE d MMMM")), size = 13.sp, color = V.Text)
     }
 }

@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -111,9 +112,7 @@ fun HubPane(store: Store, act: MainActivity) {
     SettingRow("VoidOS lock screen", "Clock, weather, what's playing, timers and notifications. Swipe up to open.") {
         VToggle(store.voidLock) { store.set("voidLock", it) }
     }
-    SettingRow("PIN to unlock", if (store.hasPin) "Asks for your lock screen PIN after the swipe." else "Set a lock screen PIN first (VoidOS rules).") {
-        VToggle(store.lockNeedsPin, V.Coral, enabled = store.hasPin) { store.set("lockNeedsPin", it) }
-    }
+    PinSettings(store)
     SettingRow("Notifications on the lock screen") { VToggle(store.lockNotices) { store.set("lockNotices", it) } }
     SettingRow("Show it now") { VButton("Lock", accent = V.Teal) { LockState.locked.value = true } }
     Gap(h = 18.dp)
@@ -122,6 +121,67 @@ fun HubPane(store: Store, act: MainActivity) {
         VButton("Open", accent = V.Purple) { open(ctx, Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS) }
     }
     if (act.isFinishing) Unit
+}
+
+// ------------------------------------------------------------------ VoidOS PIN
+
+private enum class PinStep { CHECK_OFF, CHECK_CHANGE, NEW, AGAIN }
+
+/**
+ * The VoidOS PIN: one code for the lock screen and for leaving VoidOS. Turning
+ * it off or changing it asks for the current one first.
+ */
+@Composable
+private fun PinSettings(store: Store) {
+    var step by remember { mutableStateOf<PinStep?>(null) }
+    var first by remember { mutableStateOf<String?>(null) }
+    var len by remember { mutableStateOf(4) }
+    var err by remember { mutableStateOf<String?>(null) }
+    var done by remember { mutableStateOf<String?>(null) }
+    SettingRow(
+        "Ask for PIN to unlock",
+        if (store.lockNeedsPin) "After you swipe up, VoidOS asks for its PIN. The same PIN lets you leave VoidOS." else "Swipe up opens VoidOS straight away. Leaving VoidOS still needs the PIN.",
+    ) {
+        VToggle(store.lockNeedsPin, V.Coral) { on ->
+            done = null
+            if (on) store.set("lockNeedsPin", true) else { step = PinStep.CHECK_OFF; err = null }
+        }
+    }
+    SettingRow("Change PIN", done ?: if (store.pinChanged) "${store.pinLength()} digits." else "Still the code you've been using to leave VoidOS.") {
+        VButton(if (step != null) "Cancel" else "Change", accent = V.Muted) {
+            done = null; err = null; first = null
+            step = if (step != null) null else PinStep.CHECK_CHANGE
+        }
+    }
+    val s = step ?: return
+    Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            when (s) {
+                PinStep.CHECK_OFF, PinStep.CHECK_CHANGE -> GlassPinPad(
+                    title = "Enter your current PIN",
+                    length = store.pinLength(),
+                    check = { store.checkPin(it) },
+                    keySize = 64.dp,
+                ) {
+                    if (s == PinStep.CHECK_OFF) { store.set("lockNeedsPin", false); step = null; done = null }
+                    else step = PinStep.NEW
+                }
+                PinStep.NEW -> {
+                    GlassSegments(listOf("4" to "4 digits", "6" to "6 digits"), len.toString(), Modifier.widthIn(max = 320.dp)) { len = it.toInt() }
+                    Gap(h = 14.dp)
+                    key(len) {
+                        GlassPinPad(title = "Choose a new PIN", length = len, error = err, keySize = 64.dp) { p ->
+                            first = p; err = null; step = PinStep.AGAIN
+                        }
+                    }
+                }
+                PinStep.AGAIN -> GlassPinPad(title = "Enter it again", length = len, error = err, keySize = 64.dp) { p ->
+                    if (p == first) { store.setPin(p); step = null; first = null; done = "Changed. Use your new PIN to unlock and to leave VoidOS." }
+                    else { first = null; err = "They didn't match. Choose again."; step = PinStep.NEW }
+                }
+            }
+        }
+    }
 }
 
 // --------------------------------------------------------------- do not disturb
@@ -374,62 +434,4 @@ object RootInfo {
         runCatching { c.getSystemService(android.app.KeyguardManager::class.java).isKeyguardSecure }.getOrDefault(false)
 }
 
-/** What the tablet shows at each stage, and who draws it. Pure, so it can be unit-tested. */
-object BootChain {
-    data class Stage(val name: String, val value: String, val ok: Boolean)
-
-    fun stages(bootModule: String?, androidLockSecure: Boolean, androidLockOff: Boolean, voidLock: Boolean, owner: Boolean): List<Stage> = listOf(
-        Stage("Power-on logo", "Logo partition: flash a VoidOS logo", false),
-        Stage("Boot animation", if (bootModule != null) "VoidOS" else "Android (no module)", bootModule != null),
-        Stage("Lock screen", when {
-            androidLockSecure -> "Android: remove the Android PIN"
-            voidLock && androidLockOff -> "VoidOS"
-            voidLock -> "VoidOS, Android's behind it"
-            androidLockOff -> "None"
-            else -> "Android"
-        }, voidLock && androidLockOff && !androidLockSecure),
-        Stage("Home screen", if (owner) "VoidOS (device owner)" else "VoidOS if set as Home", owner),
-    )
-}
-
-@Composable
-fun RootPane(store: Store? = null) {
-    val ctx = LocalContext.current
-    val bl = RootInfo.prop("ro.boot.verifiedbootstate")
-    val locked = RootInfo.prop("ro.boot.flash.locked")
-    val mod = RootInfo.moduleVersion()
-    val sysMod = RootInfo.systemModuleVersion()
-    val su = RootInfo.hasSu()
-    val owner = com.andysocial.voidos.Policy.isOwner(ctx)
-    Head("Boot & root", "VoidOS draws the lock and home screens itself. The boot animation and VoidOS as a system app need root (Magisk modules); the power-on logo needs the logo partition flashed. root/README.md in the voidos-tab repo has every step. Unlocking the bootloader wipes the tablet.")
-    Label("What the tablet shows")
-    Gap(h = 6.dp)
-    BootChain.stages(
-        bootModule = mod,
-        androidLockSecure = RootInfo.androidLockSecure(ctx),
-        androidLockOff = owner && (store?.noLockScreen ?: true),
-        voidLock = store?.voidLock ?: true,
-        owner = owner,
-    ).forEach { InfoRow(it.name, it.value, if (it.ok) V.Green else V.Yellow) }
-    Gap(h = 12.dp)
-    Label("Firmware and root")
-    Gap(h = 6.dp)
-    InfoRow("Firmware build", Build.DISPLAY)
-    InfoRow("Android", "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
-    InfoRow("Security patch", Build.VERSION.SECURITY_PATCH)
-    InfoRow("Bootloader", when { locked == "0" || bl == "orange" -> "Unlocked"; locked == "1" -> "Locked"; else -> "Unknown" },
-        if (locked == "0" || bl == "orange") V.Green else V.Yellow)
-    InfoRow("Root (Magisk)", if (su) "Yes" else "No", if (su) V.Green else V.Muted)
-    InfoRow("VoidOS boot module", mod ?: "Not installed", if (mod != null) V.Green else V.Muted)
-    val bs = RootInfo.bootAnimSize()
-    InfoRow("Boot animation file", if (bs > 0) "%.1f MB".format(bs / 1e6) else "Not visible")
-    InfoRow("VoidOS system module", sysMod ?: "Not installed", if (sysMod != null) V.Green else V.Muted)
-    val sys = RootInfo.isSystemApp(ctx)
-    InfoRow("VoidOS is a system app", if (sys) "Yes" else "No", if (sys) V.Green else V.Muted)
-    InfoRow("Time zone control", if (RootInfo.canSetTimeZone(ctx)) "Yes" else if (Build.VERSION.SDK_INT >= 30 && owner) "Via device owner" else "No")
-    Gap(h = 12.dp)
-    Label("Read the firmware build from the Mac")
-    Gap(h = 6.dp)
-    VText("./adb shell getprop ro.build.display.id", size = 12.sp, color = V.Teal, font = FontFamily.Monospace)
-}
 

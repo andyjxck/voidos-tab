@@ -7,6 +7,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.activity.compose.BackHandler
+import com.andysocial.voidos.Radio
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 import androidx.compose.foundation.layout.widthIn
 
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -75,8 +80,8 @@ private enum class Tab(val label: String, val g: G, val group: Int, val accent: 
     WIFI("Wi-Fi", G.WIFI, 0, V.Teal), BT("Bluetooth", G.BT, 0, Color(0xFF5A8CF0)), NET("Network", G.GLOBE, 0, V.Green),
     DISPLAY("Display & sound", G.SUN, 1, V.Orange), QUIET("Do not disturb", G.MOON, 1, V.Purple), BATTERY("Battery", G.BATTERY, 1, V.Green),
     HUB("Home & lock screen", G.FACE, 2, V.Coral), TIME("Date & time", G.TIMER, 2, V.Yellow), VOID("Lock mode", G.LOCK, 2, V.Purple),
-    STORAGE("Storage", G.APPS, 3, Color(0xFF8E8E98)), ROOT("Boot & root", G.POWER, 3, V.Coral), ANDROID("Android settings", G.SYSTEM, 3, Color(0xFF8E8E98)),
-    ABOUT("About", G.INFO, 3, V.Teal),
+    STORAGE("Storage", G.APPS, 3, Color(0xFF8E8E98)), ANDROID("Android settings", G.SYSTEM, 3, Color(0xFF8E8E98)),
+    ABOUT("About this tablet", G.INFO, 3, V.Teal),
 }
 
 private val groups = listOf("Connections", "Screen", "VoidOS", "Tablet")
@@ -107,9 +112,8 @@ fun SystemScreen(store: Store, act: MainActivity) {
                     Tab.NET -> NetworkPane()
                     Tab.STORAGE -> StoragePane(store)
                     Tab.ANDROID -> AndroidPane(act)
-                    Tab.ROOT -> RootPane(store)
                     Tab.VOID -> VoidPane(store, act)
-                    Tab.ABOUT -> AboutPane(act)
+                    Tab.ABOUT -> AboutTabletPane(store, act)
                 }
             }
         }
@@ -237,10 +241,14 @@ private fun WifiPane(act: MainActivity) {
         Column(Modifier.weight(1f)) {
             Head("Wi-Fi", if (current.isNotEmpty()) "Connected to $current" else if (enabled) "Not connected" else "Off")
         }
+        val wscope = rememberCoroutineScope()
         VToggle(enabled, enabled = true) { on ->
-            val ok = runCatching { wm.setWifiEnabled(on) }.getOrDefault(false)
-            if (!ok) msg = if (owner) "Android refused that." else "VoidOS needs to be device owner to switch Wi-Fi."
-            enabled = wm.isWifiEnabled
+            enabled = on
+            wscope.launch {
+                val ok = withContext(Dispatchers.IO) { Radio.setWifi(ctx, on) }
+                if (!ok) msg = if (owner) "Wi-Fi didn't switch. If Magisk asked about root, tap Allow and try again." else "VoidOS needs to be device owner to switch Wi-Fi."
+                enabled = wm.isWifiEnabled
+            }
         }
     }
     msg?.let { VText(it, size = 12.sp, color = V.Coral, font = FontFamily.Default); Gap(h = 8.dp) }
@@ -414,7 +422,8 @@ private fun BtPane() {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) { Head("Bluetooth", if (on) "On / ${bt.name ?: "tablet"}" else "Off") }
         @Suppress("DEPRECATION")
-        VToggle(on) { runCatching { if (it) bt.enable() else bt.disable() } }
+        val bscope = rememberCoroutineScope()
+        VToggle(on) { want -> bscope.launch { withContext(Dispatchers.IO) { Radio.setBt(want) } } }
     }
     if (!on) return
     Label("Paired")
@@ -450,9 +459,6 @@ private fun BtRow(name: String, state: String, col: Color, onClick: () -> Unit) 
 @Composable
 private fun VoidPane(store: Store, act: MainActivity) {
     val owner = Policy.isOwner(act)
-    var changingPin by remember { mutableStateOf(false) }
-    var pinStep by remember { mutableStateOf<String?>(null) }
-    var pinErr by remember { mutableStateOf<String?>(null) }
     val bloat = remember { Policy.bloatCandidates(act) }
 
     fun toggle(key: String, v: Boolean) { store.set(key, v); act.applyPolicies() }
@@ -482,72 +488,5 @@ private fun VoidPane(store: Store, act: MainActivity) {
         listOf("0" to "Never", "1" to "1 min", "5" to "5 min", "15" to "15 min"), store.ambientMinutes.toString(), Modifier.widthIn(max = 520.dp),
     ) { store.setAmbient(it.toInt()) }
     Gap(h = 18.dp)
-    SettingRow("Lock screen PIN", if (store.hasPin) "Asked for after the swipe when PIN to unlock is on." else "Not set yet.") {
-        VButton(if (changingPin) "Cancel" else "Change", accent = V.Muted) { changingPin = !changingPin; pinStep = null; pinErr = null }
-    }
-    if (changingPin) {
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            PinPad(
-                title = if (pinStep == null) "New PIN" else "Once more",
-                subtitle = "Four digits",
-                error = pinErr,
-                onPin = { p ->
-                    if (pinStep == null) { pinStep = p; pinErr = null }
-                    else if (p == pinStep) { store.setPin(p); changingPin = false; pinStep = null }
-                    else { pinStep = null; pinErr = "They didn't match." }
-                },
-            )
-        }
-    }
-}
 
-// ---------------------------------------------------------------------- About
-
-@Composable
-private fun AboutPane(act: MainActivity) {
-    val ctx = LocalContext.current
-    val mem = remember {
-        val mi = ActivityManager.MemoryInfo(); ctx.getSystemService(ActivityManager::class.java).getMemoryInfo(mi); mi
-    }
-    val disk = remember { runCatching { StatFs(Environment.getDataDirectory().path) }.getOrNull() }
-    val gb = { b: Long -> "%.1f GB".format(b / 1_073_741_824.0) }
-    val up = SystemClock.elapsedRealtime() / 60_000
-
-    VText("VoidOS", size = 40.sp, font = SansLight, color = V.White)
-    VText("Tablet edition \u00b7 ${BuildConfig.VERSION_NAME}", size = 12.sp, color = V.Teal)
-    Gap(h = 6.dp)
-    Gap(h = 18.dp)
-    listOf(
-        "Device" to "${Build.MANUFACTURER} ${Build.MODEL}",
-        "Chip" to (Build.HARDWARE.ifBlank { Build.BOARD }),
-        "Android" to "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
-        "Build" to Build.DISPLAY,
-        "Memory" to "${gb(mem.availMem)} free of ${gb(mem.totalMem)}",
-        "Storage" to (disk?.let { "${gb(it.availableBytes)} free of ${gb(it.totalBytes)}" } ?: "--"),
-        "Up for" to "${up / 60} h ${up % 60} min",
-        "Device owner" to if (Policy.isOwner(act)) "Yes" else "No",
-    ).let { rows ->
-        GlassGroup {
-            rows.forEach { (k, v) ->
-                // the Device line is also the hidden way out: no ripple, no count, no hint
-                val door = if (k == "Device") Modifier.pointerInput(Unit) { detectTapGestures { EscapeDoor.tap() } }.testTag("about-device") else Modifier
-                Row(door.fillMaxWidth().padding(horizontal = 18.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-                    VText(k, size = 15.sp, color = V.Muted, modifier = Modifier.width(150.dp))
-                    VText(v, size = 15.sp, color = V.Text, maxLines = 1, modifier = Modifier.weight(1f))
-                }
-                if (k != rows.last().first) Spacer(Modifier.height(2.dp))
-            }
-        }
-    }
-    Gap(h = 16.dp)
-    Label("From your Mac, to hand the tablet back")
-    Gap(h = 6.dp)
-    listOf(
-        "adb shell am broadcast -a com.andysocial.voidos.action.UNLOCK -n com.andysocial.voidos/.ReleaseReceiver",
-        "adb shell dpm remove-active-admin com.andysocial.voidos/.VoidAdmin",
-        "adb uninstall com.andysocial.voidos",
-    ).forEach {
-        VText(it, size = 12.sp, color = V.Teal, font = FontFamily.Monospace, lineHeight = 18.sp)
-        Gap(h = 4.dp)
-    }
 }

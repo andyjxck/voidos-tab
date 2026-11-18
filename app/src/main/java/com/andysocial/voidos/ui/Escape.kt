@@ -42,49 +42,8 @@ import kotlinx.coroutines.delay
 
 /** Four-digit PIN pad. */
 @Composable
-fun PinPad(title: String, subtitle: String, error: String?, onPin: (String) -> Unit, modifier: Modifier = Modifier) {
-    var entry by remember { mutableStateOf("") }
-    LaunchedEffect(error) { if (error != null) entry = "" }
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        VText(sentence(title), size = 22.sp, color = V.White)
-        Gap(h = 6.dp)
-        VText(subtitle, size = 13.sp, color = V.Muted, font = FontFamily.Default, align = TextAlign.Center)
-        Gap(h = 18.dp)
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            repeat(4) { i ->
-                Box(
-                    Modifier.size(22.dp).clip(androidx.compose.foundation.shape.CircleShape)
-                        .background(if (i < entry.length) V.Teal else Color.White.copy(alpha = 0.14f))
-                )
-            }
-        }
-        Gap(h = 8.dp)
-        VText(error ?: " ", size = 12.sp, color = V.Coral, font = FontFamily.Default)
-        Gap(h = 8.dp)
-        val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "<")
-        keys.chunked(3).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(vertical = 6.dp)) {
-                row.forEach { k ->
-                    Box(
-                        Modifier.size(78.dp, 58.dp)
-                            .then(if (k.isEmpty()) Modifier.clip(Pill) else Modifier.pane(Pill))
-                            .clickable(enabled = k.isNotEmpty()) {
-                                if (k == "<") entry = entry.dropLast(1)
-                                else if (entry.length < 4) {
-                                    entry += k
-                                    if (entry.length == 4) { val e = entry; entry = ""; onPin(e) }
-                                }
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (k == "<") Glyph(G.BACK, V.Muted, Modifier.size(22.dp))
-                        else VText(k, size = 24.sp, color = V.Text, font = SansLight)
-                    }
-                }
-            }
-        }
-    }
-}
+fun PinPad(title: String, subtitle: String, error: String?, onPin: (String) -> Unit, modifier: Modifier = Modifier) =
+    GlassPinPad(title, subtitle, error = error, modifier = modifier, onPin = onPin)
 
 /**
  * The only way out of VoidOS on the tablet itself, and deliberately hidden:
@@ -125,21 +84,11 @@ fun EscapeOverlay(store: Store, act: MainActivity, onClose: () -> Unit) {
     Box(Modifier.fillMaxSize().background(V.Bg.copy(alpha = 0.97f)).pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false) } }, contentAlignment = Alignment.Center) {
         Box(Modifier.align(Alignment.TopEnd).padding(24.dp)) { VButton("Close", accent = V.Muted, onClick = onClose) }
         if (!unlocked) {
-            PinPad(
-                title = "Code",
-                subtitle = "Four digits",
-                error = error,
-                onPin = { pin ->
-                    when {
-                        lockedUntil > System.currentTimeMillis() -> error = "Too many tries. Wait 30 seconds."
-                        store.checkEscape(pin) -> { fails = 0; unlocked = true }
-                        else -> {
-                            fails++
-                            if (fails >= 5) { fails = 0; lockedUntil = System.currentTimeMillis() + 30_000; error = "Too many tries. Wait 30 seconds." }
-                            else error = "Wrong code"
-                        }
-                    }
-                },
+            GlassPinPad(
+                title = "Enter your VoidOS PIN",
+                length = store.pinLength(),
+                check = { store.checkEscape(it) },
+                onPin = { unlocked = true },
             )
         } else if (released != null) {
             Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {

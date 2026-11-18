@@ -11,7 +11,8 @@ import com.andysocial.voidos.ui.fmtNum
 import com.andysocial.voidos.ui.glyphForPackage
 import com.andysocial.voidos.ui.initialsFor
 import com.andysocial.voidos.ui.G
-import com.andysocial.voidos.ui.BootChain
+import com.andysocial.voidos.ui.Startup
+import com.andysocial.voidos.ui.tabletName
 import com.andysocial.voidos.ui.WeatherRepo
 import com.andysocial.voidos.ui.eraseAt
 import com.andysocial.voidos.ui.octRadius
@@ -159,26 +160,135 @@ class LogicTest {
         assertEquals(accentFor("com.whatsapp"), accentFor("com.whatsapp"))
     }
 
-    @Test fun bootChainSaysWhoDrawsEachStage() {
-        fun v(name: String, st: List<BootChain.Stage>) = st.first { it.name == name }
-        // everything VoidOS: module in, device owner, Android lock off, VoidOS lock on
-        val all = BootChain.stages("1.0", androidLockSecure = false, androidLockOff = true, voidLock = true, owner = true)
-        assertEquals(listOf("Power-on logo", "Boot animation", "Lock screen", "Home screen"), all.map { it.name })
-        assertEquals("VoidOS", v("Boot animation", all).value)
-        assertEquals("VoidOS", v("Lock screen", all).value)
-        assertTrue(v("Lock screen", all).ok && v("Home screen", all).ok && v("Boot animation", all).ok)
-        assertFalse(v("Power-on logo", all).ok) // the app can't see the logo partition, so it never claims it
-        // an Android PIN keeps Android's keyguard in force whatever VoidOS does
-        val pin = BootChain.stages("1.0", androidLockSecure = true, androidLockOff = true, voidLock = true, owner = true)
-        assertEquals("Android: remove the Android PIN", v("Lock screen", pin).value)
-        assertFalse(v("Lock screen", pin).ok)
-        // no module, not owner
-        val stock = BootChain.stages(null, androidLockSecure = false, androidLockOff = false, voidLock = true, owner = false)
-        assertEquals("Android (no module)", v("Boot animation", stock).value)
-        assertEquals("VoidOS, Android's behind it", v("Lock screen", stock).value)
-        assertFalse(v("Home screen", stock).ok)
-        assertEquals("None", v("Lock screen", BootChain.stages(null, false, true, false, true)).value)
-        assertEquals("Android", v("Lock screen", BootChain.stages(null, false, false, false, true)).value)
+    @Test fun aboutStartupInPlainWords() {
+        val v = Startup.VOIDOS_LOGO_SHA
+        val st = Startup.STOCK_LOGO_SHA
+        val other = "0".repeat(64)
+        assertEquals(Startup.Logo.VOIDOS, Startup.logoFrom("$v  -\n$other  -"))
+        assertEquals(Startup.Logo.LENOVO, Startup.logoFrom("$other  -\n$st  -"))
+        assertEquals(Startup.Logo.OTHER, Startup.logoFrom("$other  -\n$other  -"))
+        assertEquals(Startup.Logo.UNKNOWN, Startup.logoFrom(null))
+        assertEquals(Startup.Logo.UNKNOWN, Startup.logoFrom("Permission denied"))
+        assertEquals("3.0", Startup.versionFrom("id=voidos_boot\nname=VoidOS\nversion=3.0\nversionCode=3"))
+        assertNull(Startup.versionFrom(null))
+        assertTrue(Startup.outdated("2.0"))
+        assertFalse(Startup.outdated("3.0"))
+        assertFalse(Startup.outdated("3.1"))
+        val lines = Startup.lines(Startup.State(Startup.Logo.VOIDOS, "3.0", true)).toMap()
+        assertEquals("VoidOS logo", lines["Startup logo"])
+        assertEquals("VoidOS animation", lines["Startup animation"])
+        assertEquals("VoidOS animation", lines["Shutdown animation"])
+        assertNull(Startup.note(Startup.State(Startup.Logo.VOIDOS, "3.0", true)))
+        val stock = Startup.lines(Startup.State(Startup.Logo.LENOVO, null, false)).toMap()
+        assertEquals("Lenovo logo", stock["Startup logo"])
+        assertEquals("Lenovo animation", stock["Startup animation"])
+        assertTrue(Startup.note(Startup.State(Startup.Logo.VOIDOS, "2.0", true))!!.contains("newer"))
+        // no jargon on the plain page
+        val words = (lines.keys + lines.values + stock.values).joinToString(" ").lowercase()
+        listOf("partition", "magisk", "module", "root", "adb", "system app").forEach { assertFalse(it, words.contains(it)) }
+        assertEquals("Lenovo Tab M10 HD (2nd Gen)", tabletName("LENOVO", "TB-X306F"))
+        assertEquals("Google Pixel 4", tabletName("google", "Pixel 4"))
+    }
+
+    @Test fun startupLogoHashesMatchTheFiles() {
+        val logo = java.io.File("../root/logo-voidos.bin").takeIf { it.exists() } ?: java.io.File("root/logo-voidos.bin")
+        if (!logo.exists()) return
+        val b = logo.readBytes()
+        assertEquals(Startup.VOIDOS_LOGO_LEN, b.size)
+        val sha = java.security.MessageDigest.getInstance("SHA-256").digest(b).joinToString("") { "%02x".format(it) }
+        assertEquals(Startup.VOIDOS_LOGO_SHA, sha)
+    }
+
+    @Test fun voidPinStartsAs4517AndIsHashed() {
+        val c = RuntimeEnvironment.getApplication()
+        assertTrue(store.lockNeedsPin)                 // on out of the box
+        assertTrue(store.checkPin("4517"))             // the code the user already uses to leave VoidOS
+        assertTrue(store.checkEscape("4517"))
+        assertFalse(store.checkPin("1234"))
+        assertFalse(store.pinChanged)
+        store.setPin("135790")
+        assertTrue(store.checkPin("135790"))
+        assertTrue(store.checkEscape("135790"))        // one PIN for both
+        assertFalse(store.checkPin("4517"))
+        assertEquals(6, store.pinLength())
+        val prefs = c.getSharedPreferences("voidos", android.content.Context.MODE_PRIVATE).all.values.joinToString(" ")
+        assertFalse(prefs.contains("135790"))          // never stored as typed
+        assertTrue(prefs.contains("pbkdf2$"))
+        store.resetPin()
+        assertTrue(store.checkPin("4517"))
+        store.set("lockNeedsPin", false)
+        assertFalse(store.lockNeedsPin)
+    }
+
+    @Test fun pinHashIsSaltedAndChecks() {
+        val a = PinHash.make("4517")
+        val b = PinHash.make("4517")
+        assertFalse(a == b)                            // different salt every time
+        assertTrue(PinHash.check("4517", a))
+        assertFalse(PinHash.check("4518", a))
+        assertFalse(PinHash.check("4517", "garbage"))
+    }
+
+    @Test fun pinLockoutAfterFiveWrong() {
+        PinGuard.reset()
+        repeat(4) { assertEquals(0L, PinGuard.miss(1000L)) }
+        assertFalse(PinGuard.waiting(1000L))
+        assertEquals(30_000L, PinGuard.miss(1000L))
+        assertTrue(PinGuard.waiting(20_000L))
+        assertFalse(PinGuard.waiting(31_001L))
+        repeat(4) { PinGuard.miss(40_000L) }
+        assertEquals(60_000L, PinGuard.miss(40_000L))  // longer the second time
+        PinGuard.ok()
+        assertFalse(PinGuard.waiting(40_001L))
+        assertEquals(0L, PinGuard.miss(50_000L))       // a right PIN starts the count again
+        PinGuard.reset()
+    }
+
+    @Test fun wifiListMergesAndSorts() {
+        val raw = listOf(
+            Triple("Home", -70, Radio.Sec.WPA),
+            Triple("Home", -50, Radio.Sec.WPA),
+            Triple("Cafe", -60, Radio.Sec.OPEN),
+            Triple("", -40, Radio.Sec.OPEN),
+            Triple("Neighbour", -85, Radio.Sec.SAE),
+        )
+        val list = Radio.merge(raw, saved = setOf("Cafe"), connected = "Home")
+        assertEquals(listOf("Home", "Cafe", "Neighbour"), list.map { it.ssid })   // connected first, then strongest; hidden ones dropped
+        assertEquals(4, list[0].bars)
+        assertTrue(list[0].connected && list[0].locked)
+        assertTrue(list[1].saved && !list[1].locked)
+        assertEquals(1, list[2].bars)
+        // connected but not in the scan yet: still shown
+        assertEquals("Office", Radio.merge(emptyList(), emptySet(), "Office").single().ssid)
+        assertEquals(Radio.Sec.WPA, Radio.secOf("[WPA2-PSK-CCMP][ESS]"))
+        assertEquals(Radio.Sec.SAE, Radio.secOf("[RSN-SAE-CCMP][ESS]"))
+        assertEquals(Radio.Sec.WEP, Radio.secOf("[WEP][ESS]"))
+        assertEquals(Radio.Sec.OPEN, Radio.secOf("[ESS]"))
+        assertEquals("My Wi-Fi", Radio.clean("\"My Wi-Fi\""))
+    }
+
+    @Suppress("DEPRECATION")
+    @Test fun wifiConfigForEachSecurity() {
+        val wpa = Radio.config("Home", Radio.Sec.WPA, "hunter22")
+        assertEquals("\"Home\"", wpa.SSID)
+        assertEquals("\"hunter22\"", wpa.preSharedKey)
+        assertTrue(wpa.allowedKeyManagement.get(android.net.wifi.WifiConfiguration.KeyMgmt.WPA_PSK))
+        val open = Radio.config("Cafe", Radio.Sec.OPEN, "")
+        assertTrue(open.allowedKeyManagement.get(android.net.wifi.WifiConfiguration.KeyMgmt.NONE))
+    }
+
+    @Test fun wifiSwitchFallsBackToRoot() {
+        val ran = mutableListOf<String>()
+        Su.fake = { ran += it; Su.Out(0, "") }
+        Radio.settleMs = 0
+        try {
+            val c = RuntimeEnvironment.getApplication()
+            val wm = c.getSystemService(android.net.wifi.WifiManager::class.java)
+            @Suppress("DEPRECATION") wm.setWifiEnabled(true)
+            Radio.setWifi(c, false)
+            // Robolectric lets the public call through, so root is only the fallback
+            assertFalse(wm.isWifiEnabled)
+        } finally { Su.fake = null; Radio.settleMs = null }
     }
 
     @Test fun timerGridGivesBigCells() {
@@ -231,12 +341,15 @@ class LogicTest {
         store.saveWidgets(emptyList())
     }
 
-    @Test fun escapeCodeIsFixedAndSeparate() {
+    @Test fun escapeCodeIsTheVoidPin() {
+        store.resetPin()
         assertTrue(store.checkEscape("4517"))
         listOf("0000", "1234", "4518", "", "45170").forEach { assertFalse(it, store.checkEscape(it)) }
-        // the lock-screen PIN is its own thing
+        // one VoidOS PIN for the lock screen and the way out
         store.setPin("2222")
-        assertFalse(store.checkEscape("2222")); assertTrue(store.checkPin("2222"))
+        assertTrue(store.checkEscape("2222")); assertTrue(store.checkPin("2222"))
+        assertFalse(store.checkEscape("4517"))
+        store.resetPin()
     }
 
     @Test fun widgetsStretchAndTurn() {

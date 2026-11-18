@@ -33,6 +33,10 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.assertIsDisplayed
 import com.andysocial.voidos.ui.BootAnim
 import com.andysocial.voidos.ui.ControlCentre
+import com.andysocial.voidos.ui.CcPart
+import com.andysocial.voidos.ui.CcSource
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.longClick
 import com.andysocial.voidos.ui.LocalPortrait
 import com.andysocial.voidos.ui.LockScreen
 import com.andysocial.voidos.ui.Module
@@ -444,17 +448,92 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         store.set("kiosk", false)
     }
 
-    @Test fun controlCentre() {
+    private fun fakeRadios() {
+        CcSource.live = false
+        CcSource.wifiOn = { true }
+        CcSource.ssid = { "Andy's Wi-Fi" }
+        CcSource.networks = {
+            listOf(
+                Radio.Net("Andy's Wi-Fi", 4, Radio.Sec.WPA, connected = true, saved = true),
+                Radio.Net("BT-Hub-7F2A", 3, Radio.Sec.WPA),
+                Radio.Net("Costa Free WiFi", 2, Radio.Sec.OPEN),
+                Radio.Net("Neighbour 5G", 1, Radio.Sec.SAE),
+            )
+        }
+        CcSource.btOn = { true }
+        CcSource.devices = {
+            listOf(
+                Radio.Dev("AirPods Pro", "AA:BB:CC:00:00:01", Radio.Kind.HEADPHONES, paired = true, connected = true),
+                Radio.Dev("JBL Flip 5", "AA:BB:CC:00:00:02", Radio.Kind.SPEAKER, paired = true),
+                Radio.Dev("Magic Keyboard", "AA:BB:CC:00:00:03", Radio.Kind.KEYBOARD, paired = true),
+            )
+        }
+    }
+
+    private fun showCc(part: CcPart? = null) {
+        fakeRadios()
         show {
             Box(Modifier.fillMaxSize()) {
                 Shell(store, act, Module.FACE)
-                ControlCentre(true, store, act, onClose = {}, onSettings = {})
+                ControlCentre(true, store, act, onClose = {}, onSettings = {}, startExpanded = part)
             }
         }
-        expect("Wi-Fi", "Bluetooth", "Do not disturb", "Rotation lock", "Auto", "Volume", "Stay awake", "Screen off", "Settings")
-        // no way out of VoidOS in the control centre any more
+        settle(600)
+    }
+
+    private fun described(d: String) = rule.onAllNodes(hasContentDescription(d), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+
+    /** Nothing in the control centre may run off the screen (the old bottom bar did in landscape). */
+    private fun fitsOnScreen(name: String) {
+        val off = clipped.filter { it.startsWith(name) && it.contains("OFFSCREEN") }
+        assertTrue("[$tag] $name runs off screen: $off", off.isEmpty())
+    }
+
+    @Test fun controlCentre() {
+        showCc()
+        listOf("Wi-Fi", "Bluetooth", "Do not disturb", "Rotation lock", "Brightness", "Volume").forEach {
+            assertTrue("[$tag] control centre should have $it", described(it))
+        }
+        expect("Stay awake", "Screen off", "Settings", "Not playing")
         rule.onAllNodesWithText("Leave VoidOS", substring = true).assertCountEquals(0)
-        shot("16_control_centre")
+        shot("16_control_centre"); fitsOnScreen("16_control_centre")
+        // holding Wi-Fi opens the network list, like an iPad
+        rule.onAllNodes(hasContentDescription("Wi-Fi"), useUnmergedTree = true).onFirst().performTouchInput { longClick() }
+        settle(900)
+        expect("Connected to Andy's Wi-Fi", "BT-Hub-7F2A", "Costa Free WiFi")
+        CcSource.reset()
+    }
+
+    @Test fun controlCentreWifi() {
+        showCc(CcPart.WIFI)
+        expect("Networks", "Andy's Wi-Fi", "BT-Hub-7F2A", "Neighbour 5G")
+        shot("16b_cc_wifi"); fitsOnScreen("16b_cc_wifi")
+        // a locked network asks for its password in a glass field
+        tap("BT-Hub-7F2A")
+        expect("Password for BT-Hub-7F2A", "Join", "Show")
+        shot("16c_cc_wifi_password")
+        // the connected one offers to forget it
+        tap("Andy's Wi-Fi")
+        expect("Forget this network")
+        CcSource.reset()
+    }
+
+    @Test fun controlCentreModules() {
+        listOf(
+            CcPart.CONNECT to listOf("Connections", "Andy's Wi-Fi"),
+            CcPart.BT to listOf("My devices", "AirPods Pro", "Connected to AirPods Pro"),
+            CcPart.DND to listOf("Alarms only", "Priority only", "Total silence"),
+            CcPart.ROTATE to listOf("Turn with the tablet", "Always portrait"),
+            CcPart.BRIGHT to listOf("Brightness", "Auto", "Night Light"),
+            CcPart.VOLUME to listOf("Media", "Alarms", "Notifications"),
+            CcPart.MEDIA to listOf("Nothing is playing"),
+        ).forEachIndexed { i, (part, words) ->
+            showCc(part)
+            expect(*words.toTypedArray())
+            val name = "16${'d' + i}_cc_${part.name.lowercase()}"
+            shot(name); fitsOnScreen(name)
+        }
+        CcSource.reset()
     }
 
     // ---- edge wheels: touches go in through the activity, exactly as on the tablet,
@@ -656,22 +735,22 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     /** The way out is hidden: About, then the Device line, twenty taps, no hint on the way. */
     @Test fun hiddenWayOut() {
         show { Shell(store, act, Module.SYSTEM) }
-        tap("About"); settle(600)
+        tap("About this tablet"); settle(600)
         val door = rule.onNodeWithTag("about-device", useUnmergedTree = true)
         repeat(19) { door.performTouchInput { click() }; settle(60) }
-        listOf("Four digits", "more tap", "taps away", "almost").forEach { hint ->
+        listOf("Enter your VoidOS PIN", "more tap", "taps away", "almost").forEach { hint ->
             assertTrue("[$tag] no hint or door after 19 taps (\"$hint\")",
                 rule.onAllNodesWithText(hint, substring = true, ignoreCase = true, useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
         }
         door.performTouchInput { click() }; settle(600)
-        expect("Four digits"); shot("45_hidden_way_out")
+        expect("Enter your VoidOS PIN"); shot("45_hidden_way_out")
     }
 
     @Test fun system() {
         show { Shell(store, act, Module.SYSTEM) }
         shot("20_system_wifi")
         listOf("Bluetooth", "Network", "Display & sound", "Do not disturb", "Battery", "Home & lock screen", "Date & time",
-            "Lock mode", "Storage", "Boot & root", "Android settings", "About").forEachIndexed { i, t ->
+            "Lock mode", "Storage", "Android settings", "About this tablet").forEachIndexed { i, t ->
             tap(t)
             shot("%02d_system_%s".format(21 + i, t.lowercase().replace(Regex("[^a-z]+"), "_").trim('_')))
             // upright, a page opens over the list: go back to it
@@ -685,6 +764,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     }
 
     @Test fun lockSwipe() {
+        store.set("lockNeedsPin", false)
         var unlocked = false
         show { LockScreen(store) { unlocked = true } }
         swipeUp()
@@ -692,19 +772,74 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     }
 
     @Test fun lockPin() {
-        store.setPin("1234"); store.set("lockNeedsPin", true)
+        PinGuard.reset()
+        store.resetPin(); store.set("lockNeedsPin", true)
         var unlocked = false
         show { LockScreen(store) { unlocked = true } }
         swipeUp()
         assertTrue("[$tag] PIN should be asked first", !unlocked)
-        expect("ENTER PIN TO UNLOCK"); shot("41_lock_pin")
+        expect("Enter PIN", "Cancel"); shot("41_lock_pin")
         "1235".forEach { tap(it.toString()) }
         assertTrue("[$tag] wrong PIN must not unlock", !unlocked)
-        expect("WRONG PIN")
-        "1234".forEach { tap(it.toString()) }
+        expect("Wrong PIN")
+        // the VoidOS PIN is the code the user already uses to leave VoidOS
+        "4517".forEach { tap(it.toString()) }
         settle(800)
         assertTrue("[$tag] right PIN should unlock", unlocked)
+    }
+
+    @Test fun lockPinLockout() {
+        PinGuard.reset()
+        store.resetPin(); store.set("lockNeedsPin", true)
+        var unlocked = false
+        show { LockScreen(store) { unlocked = true } }
+        swipeUp()
+        repeat(5) { "0000".forEach { tap(it.toString()) } }
+        expect("Try again in")
+        "4517".forEach { tap(it.toString()) }
+        assertTrue("[$tag] keys must not work during the wait", !unlocked)
+        shot("41b_lock_pin_wait")
+        PinGuard.reset()
+    }
+
+    @Test fun lockNoPin() {
         store.set("lockNeedsPin", false)
+        var unlocked = false
+        show { LockScreen(store) { unlocked = true } }
+        swipeUp()
+        assertTrue("[$tag] with the PIN off, swipe up unlocks", unlocked)
+        store.set("lockNeedsPin", true)
+    }
+
+    @Test fun about() {
+        show { Shell(store, act, Module.SYSTEM) }
+        tap("About this tablet"); settle(1500)
+        expect("Tablet", "Android", "Storage", "Battery", "Startup", "Startup logo", "Startup animation", "Shutdown animation", "Technical details")
+        listOf("Boot & root", "Logo partition", "system app", "Time zone control", "getprop").forEach {
+            val n = rule.onAllNodesWithText(it, substring = true, ignoreCase = true, useUnmergedTree = true).fetchSemanticsNodes()
+            assertTrue("[$tag] About should not show \"$it\"", n.isEmpty())
+        }
+        shot("50_about")
+        tap("Technical details")
+        expect("Model number", "Bootloader")
+    }
+
+    @Test fun pinSettings() {
+        PinGuard.reset(); store.resetPin()
+        show { Shell(store, act, Module.SYSTEM) }
+        tap("Home & lock screen"); settle(800)
+        expect("Ask for PIN to unlock", "Change PIN")
+        tap("Change")
+        expect("Enter your current PIN")
+        "4517".forEach { tap(it.toString()) }
+        expect("Choose a new PIN")
+        shot("51_pin_change")
+        "2468".forEach { tap(it.toString()) }
+        expect("Enter it again")
+        "2468".forEach { tap(it.toString()) }
+        assertTrue("[$tag] new PIN saved", store.checkPin("2468"))
+        assertTrue("[$tag] and it is the way out too", store.checkEscape("2468"))
+        store.resetPin()
     }
 
     private fun swipeUp() {
