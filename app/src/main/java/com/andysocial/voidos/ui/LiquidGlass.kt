@@ -126,19 +126,24 @@ class GlassLook(
  * A panel of liquid glass in [shape]. Content inside is clipped to it. This is
  * what [glass] and [pane] are made of.
  */
-fun Modifier.liquidGlass(shape: Shape, look: GlassLook = GlassLook()): Modifier = composed {
+fun Modifier.liquidGlass(
+    shape: Shape,
+    look: GlassLook = GlassLook(),
+    /** True for glass that moves or scales every frame (the wheels): it holds its own light instead of tracking the room's, so moving it redraws nothing. */
+    still: Boolean = false,
+): Modifier = composed {
     val room = LocalRoom.current
     val at = remember { mutableStateOf(Offset.Zero) }
     val roomSize = remember { mutableStateOf(Size.Zero) }
     this
-        .onGloballyPositioned { c ->
+        .then(if (still) Modifier else Modifier.onGloballyPositioned { c ->
             val p = c.positionInRoot()
             if (p != at.value) at.value = p
             var root = c
             while (true) root = root.parentLayoutCoordinates ?: break
             val s = Size(root.size.width.toFloat(), root.size.height.toFloat())
             if (s != roomSize.value) roomSize.value = s
-        }
+        })
         .drawWithCache {
             val outline = shape.createOutline(size, layoutDirection, this)
             val path = Path().apply { addOutline(outline) }
@@ -191,7 +196,7 @@ fun Modifier.liquidGlass(shape: Shape, look: GlassLook = GlassLook()): Modifier 
                     val tint = m.a
                     // 1. the lens: the light behind, magnified and brighter
                     val rs = roomSize.value
-                    if (rs.width > 0f && !room.detached) {
+                    if (!still && rs.width > 0f && !room.detached) {
                         val o = at.value
                         val cx = w / 2; val cy = h / 2
                         val mag = look.magnify

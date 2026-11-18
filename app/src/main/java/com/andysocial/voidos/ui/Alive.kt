@@ -1,5 +1,7 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.ui.graphics.CompositingStrategy
+
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.Shader
@@ -67,6 +69,15 @@ object Ambience {
     /** Off: the backdrop holds still (Settings > Home & lock screen). */
     val motion = mutableStateOf(true)
 
+    /**
+     * True while an edge wheel is open. The backdrop and the glass hold still meanwhile, so the
+     * page behind can sit in one cached layer and the GPU only has the wheel to draw.
+     */
+    val held = mutableStateOf(false)
+
+    /** Whether the moving parts should take their next step: motion on, and no wheel open. */
+    val moving: Boolean get() = motion.value && !held.value
+
     /** One mood per screen, in the pager's order: Home, Tools, Weather, Notes, Music, Apps, Settings. */
     val moods = listOf(
         Mood(V.Teal, V.Purple, V.Coral),
@@ -98,7 +109,7 @@ fun rememberTicker(periodMs: Long = 33L): State<Long> {
     LaunchedEffect(periodMs) {
         while (isActive) {
             delay(periodMs)
-            if (Ambience.motion.value) s.longValue = System.currentTimeMillis()
+            if (Ambience.moving) s.longValue = System.currentTimeMillis()
         }
     }
     return s
@@ -122,7 +133,7 @@ fun Aurora(modifier: Modifier = Modifier, mood: Mood? = null, intensity: Float =
         room.intensity.floatValue = intensity
         while (isActive) {
             delay(120L)
-            if (Ambience.motion.value) room.clock.longValue = System.currentTimeMillis()
+            if (Ambience.moving) room.clock.longValue = System.currentTimeMillis()
         }
     }
     Canvas(modifier.fillMaxSize()) {
@@ -297,3 +308,11 @@ fun tileBrush(accent: Color): Brush = Brush.verticalGradient(listOf(lerp(accent,
 
 @Suppress("unused")
 private val keep = Size.Zero
+
+/**
+ * While an edge wheel is open ([Ambience.held]) this part of the screen is drawn once into an
+ * offscreen texture and reused for every frame, instead of replaying all its glass each frame.
+ */
+fun Modifier.stillWhileHeld(): Modifier = this.graphicsLayer {
+    compositingStrategy = if (Ambience.held.value) CompositingStrategy.Offscreen else CompositingStrategy.Auto
+}

@@ -115,7 +115,7 @@ fun VoidRoot(store: Store, act: MainActivity) {
     val locked by LockState.locked
     BoxWithConstraints(Modifier.fillMaxSize().background(V.Bg)) {
         val portrait = maxHeight > maxWidth
-        Backdrop()
+        Backdrop(Modifier.stillWhileHeld())
         CompositionLocalProvider(LocalPortrait provides portrait) {
             // the hub is drawn under the start animation, so the animation
             // opens out into it instead of cutting to it (ui/Boot.kt)
@@ -191,7 +191,8 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
     }
 
     val side = if (portrait) 22.dp else 40.dp
-    Column(Modifier.fillMaxSize()) {
+    // while a wheel is open the page holds still in one cached texture, so the GPU only redraws the wheel
+    Column(Modifier.fillMaxSize().stillWhileHeld()) {
         StatusStrip(store, module, Modifier.padding(horizontal = side), onPull = { control = true })
         HorizontalPager(
             state = pager,
@@ -225,14 +226,18 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
         store.recentApps.filter { blockReason(ctx, store, it) == null }.take(7)
     }
     val all = remember(apps) { AppsRepo.all(ctx) }
-    EdgeWheels(
-        tabs = pages.map { m -> WheelItem(m.name, m.label) { mod, c -> Glyph(m.glyph, c, mod) } },
-        currentTab = module.name,
-        onTab = { k -> go(Module.valueOf(k), animate = false) },
-        apps = apps.mapNotNull { pkg ->
+    val tabItems = remember(pages) { pages.map { m -> WheelItem(m.name, m.label) { mod, c -> Glyph(m.glyph, c, mod) } } }
+    val appItems = remember(apps, all, store.iconStyle) {
+        apps.mapNotNull { pkg ->
             val e = all.firstOrNull { it.pkg == pkg } ?: return@mapNotNull null
             WheelItem(pkg, e.label) { mod, _ -> Box(mod) { AppGlyph(e, store.iconStyle, 36.dp) } }
-        },
+        }
+    }
+    EdgeWheels(
+        tabs = tabItems,
+        currentTab = module.name,
+        onTab = { k -> go(Module.valueOf(k), animate = false) },
+        apps = appItems,
         onApp = { pkg -> if (!launchApp(ctx, store, pkg)) store.forgetRecent(pkg) },
         onAllApps = { go(Module.APPS, animate = false) },
         // anything over the screens (lock, ringing timer, control centre, the way out, the ambient clock) keeps the edges
