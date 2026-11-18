@@ -350,12 +350,21 @@ fun AppsScreen(store: Store) {
                             VText("Tap Manage to pick the apps that appear here.", size = 14.sp, color = V.Muted)
                         }
                     }
+                } else if (q.isEmpty()) {
+                    // the honeycomb: pan around, tap to open, hold and drag up to open beside the clock
+                    Box(Modifier.weight(1f).fillMaxWidth()) {
+                        HoneycombApps(
+                            store, open,
+                            onOpen = { app -> launchApp(ctx, store, app.pkg) },
+                            onSplit = { app -> Split.open(ctx, store, app.pkg) },
+                        )
+                    }
                 } else {
                     LazyVerticalGrid(
                         columns = GridCells.Adaptive(if (portrait) 104.dp else 118.dp),
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(14.dp),
-                        contentPadding = PaddingValues(top = 12.dp, bottom = if (favs.isNotEmpty() && q.isEmpty()) 128.dp else 24.dp),
+                        contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
                     ) {
                         items(open, key = { it.pkg }) { app -> AppTile(app, store, starred = app.pkg in store.favs) }
                     }

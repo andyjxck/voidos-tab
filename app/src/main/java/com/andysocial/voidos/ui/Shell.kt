@@ -84,6 +84,8 @@ import java.util.Locale
 
 object Idle {
     @Volatile var last = System.currentTimeMillis()
+    /** True while VoidOS shares the screen with an app (split view). */
+    val split = mutableStateOf(false)
     val ambient = mutableStateOf(false)
     val homePressed = mutableIntStateOf(0)
     /** A screen picked on the wheel over another app: the shell opens it as VoidOS comes back. */

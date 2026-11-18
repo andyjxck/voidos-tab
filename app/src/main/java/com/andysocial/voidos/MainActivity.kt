@@ -182,7 +182,8 @@ class MainActivity : ComponentActivity() {
         getSystemService(ActivityManager::class.java).lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE
 
     fun enforceLockTask() {
-        val want = Policy.isOwner(this) && store.setupDone && store.kiosk && !visitingAndroid
+        // split view (an app beside the clock) needs the kiosk lock off while it lasts
+        val want = Policy.isOwner(this) && store.setupDone && store.kiosk && !visitingAndroid && store.splitApp.isEmpty()
         runCatching {
             if (want && !inLockTask()) startLockTask()
             else if (!want && inLockTask()) stopLockTask()
@@ -224,6 +225,12 @@ class MainActivity : ComponentActivity() {
         Policy.applyAll(this)
         applyBars()
         enforceLockTask()
+    }
+
+    override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: android.content.res.Configuration) {
+        super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
+        com.andysocial.voidos.ui.Idle.split.value = isInMultiWindowMode
+        if (!isInMultiWindowMode && store.splitApp.isNotEmpty()) { store.setSplit(""); enforceLockTask() }
     }
 
     override fun onDestroy() {

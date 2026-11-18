@@ -361,6 +361,13 @@ private fun WidgetMenu(store: Store, modifier: Modifier, onDone: () -> Unit) {
             row("Weather", G.WEATHER, V.Teal, "sky")
             row("Music", G.MEDIA, V.Teal, "sound")
             row("List", G.LIST, V.Teal, "list")
+            row("Battery", G.BATTERY, V.Teal, "battery")
+            row("Calendar", G.CALENDAR, V.Teal, "calendar")
+            row("World clock", G.WORLD, V.Teal, "world")
+            row("Stopwatch", G.STOPWATCH, V.Teal, "stopwatch")
+            row("Next alarm", G.BELL, V.Teal, "alarm")
+            row("Forecast", G.WEATHER, V.Teal, "forecast")
+            row("Focus", G.FOCUS_MODE, V.Purple, "focus")
             store.notes.take(8).forEach { n ->
                 row(n.text.lineSequence().firstOrNull()?.ifBlank { null } ?: if (n.ink.isNotEmpty()) "Drawing" else "Empty note", G.NOTES, V.Yellow, "note", n.id)
             }
@@ -424,6 +431,8 @@ private fun WidgetLayer(store: Store, now: Long, editing: Boolean, onOpen: (Modu
 private fun widgetSize(wd: FaceWidget): Pair<Dp, Dp> = when (wd.kind) {
     "note" -> 200.dp to 170.dp
     "sound" -> 230.dp to 120.dp
+    "world", "forecast" -> 230.dp to 150.dp
+    "stopwatch", "focus" -> 190.dp to 110.dp
     else -> 150.dp to 150.dp
 }
 
@@ -435,7 +444,11 @@ private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module)
         Modifier.fillMaxSize()
             .liquidGlass(shape, GlassLook(smoke = if (lifted) 0.9f else 0.72f, depth = if (lifted) 1.6f else 0.9f, shine = if (lifted) 1.3f else 1f, stain = if (lifted) accent else null, stainAlpha = 0.14f))
             .tap {
-                onOpen(when (wd.kind) { "sky" -> Module.WEATHER; "sound" -> Module.MEDIA; "list" -> Module.TOOLS; else -> Module.NOTES })
+                onOpen(when (wd.kind) {
+                    "sky", "forecast" -> Module.WEATHER; "sound" -> Module.MEDIA
+                    "list", "calendar", "world", "stopwatch", "alarm" -> Module.TOOLS; "battery", "focus" -> Module.SYSTEM
+                    else -> Module.NOTES
+                })
             }
             .padding(14.dp),
     ) {
@@ -484,6 +497,78 @@ private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module)
                 Gap(h = 6.dp)
                 if (left.isEmpty()) VText("All bought", size = 11.sp, color = V.Muted)
                 left.take(4).forEach { VText(it.text, size = 13.sp, color = V.Text, font = FontFamily.Default, maxLines = 1, lineHeight = 17.sp) }
+            }
+            "battery" -> {
+                val b = rememberBattery()
+                Label(if (b.charging) "Charging" else "Battery")
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    androidx.compose.foundation.Canvas(Modifier.size(84.dp)) {
+                        val sw = 8.dp.toPx()
+                        drawArc(Color.White.copy(alpha = 0.10f), -90f, 360f, false, style = androidx.compose.ui.graphics.drawscope.Stroke(sw))
+                        drawArc(if (b.pct in 0..15) V.Coral else accent, -90f, 3.6f * b.pct.coerceAtLeast(0), false, style = androidx.compose.ui.graphics.drawscope.Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    }
+                    VText(if (b.pct < 0) "--" else "${b.pct}%", size = 22.sp, color = V.White, font = SansLight)
+                }
+            }
+            "calendar" -> {
+                val d = java.time.LocalDate.now()
+                Label(d.format(java.time.format.DateTimeFormatter.ofPattern("EEEE", java.util.Locale.UK)))
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                    VText("${d.dayOfMonth}", size = 56.sp, color = V.White, font = SansLight)
+                }
+                VText(d.format(java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy", java.util.Locale.UK)), size = 12.sp, color = V.Muted, maxLines = 1)
+            }
+            "world" -> {
+                Label("World")
+                Gap(h = 6.dp)
+                val fmt = java.time.format.DateTimeFormatter.ofPattern(if (store.use24h) "HH:mm" else "h:mm a", java.util.Locale.UK)
+                store.worldClocks.take(3).forEach { (name, zone) ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                        VText(name, size = 14.sp, color = V.Text, maxLines = 1, modifier = Modifier.weight(1f))
+                        VText(runCatching { java.time.ZonedDateTime.now(java.time.ZoneId.of(zone)).format(fmt).lowercase() }.getOrDefault("--"), size = 18.sp, color = V.White, font = SansLight)
+                    }
+                }
+            }
+            "stopwatch" -> {
+                Label("Stopwatch")
+                Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    VText(stopwatchText(Stopwatch.elapsed(now)).substringBefore('.'), size = 30.sp, color = V.White, font = SansLight, modifier = Modifier.weight(1f))
+                    IconTap(if (Stopwatch.running) G.PAUSE else G.PLAY, V.White, size = 44.dp) { if (Stopwatch.running) Stopwatch.stop() else Stopwatch.start() }
+                }
+            }
+            "alarm" -> {
+                val list by com.andysocial.voidos.Alarms.list
+                val next = com.andysocial.voidos.AlarmMath.soonest(list, now, java.time.ZoneId.systemDefault())
+                Label("Alarm")
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                    if (next == null) VText("None set", size = 15.sp, color = V.Muted)
+                    else VText(com.andysocial.voidos.AlarmMath.clock(next.first.hour, next.first.minute, store.use24h), size = 36.sp, color = V.White, font = SansLight)
+                }
+                if (next != null) VText(com.andysocial.voidos.AlarmMath.untilLabel(next.second - now), size = 12.sp, color = V.Muted, maxLines = 1)
+            }
+            "forecast" -> {
+                val wx = WeatherRepo.state.value
+                Label(store.city.take(18))
+                Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    val days = wx?.days?.take(4).orEmpty()
+                    if (days.isEmpty()) VText("--", size = 22.sp, color = V.Muted)
+                    days.forEachIndexed { i, d ->
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            VText(if (i == 0) "Today" else java.time.LocalDate.now().plusDays(i.toLong()).format(java.time.format.DateTimeFormatter.ofPattern("EEE", java.util.Locale.UK)), size = 11.sp, color = V.Muted)
+                            Glyph(wxGlyph(d.code, true), wxColour(d.code, true), Modifier.size(24.dp).padding(vertical = 2.dp))
+                            VText(t(d.max), size = 15.sp, color = V.White)
+                        }
+                    }
+                }
+            }
+            "focus" -> {
+                val fm = store.focusModes.firstOrNull { it.name == store.focusOn }
+                Label("Focus")
+                Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Glyph(if (fm != null) focusGlyph(fm.glyph) else G.FOCUS_MODE, if (fm != null) V.Purple else V.Muted, Modifier.size(28.dp))
+                    Gap(w = 10.dp)
+                    VText(fm?.name ?: "Off", size = 20.sp, color = V.White, maxLines = 1)
+                }
             }
             else -> {
                 val n = store.notes.firstOrNull { it.id == wd.ref }
