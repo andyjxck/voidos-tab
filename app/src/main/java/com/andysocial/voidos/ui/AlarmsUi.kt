@@ -328,8 +328,7 @@ private fun SoundPicker(selected: String, volume: Float, onPick: (String) -> Uni
     var cat by remember { mutableStateOf(AlarmSounds.byKey(selected).cat) }
     val playing = AlarmPreview.playing.value
     Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp)) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(V.Line))
-        Gap(h = 12.dp)
+        Gap(h = 6.dp)
         // categories as chips that wrap onto the width they have
         GlassSegments(SoundCat.entries.map { it.name to it.label }, cat.name, Modifier.fillMaxWidth(), height = 40.dp, textSize = 13f) { cat = SoundCat.valueOf(it) }
         Gap(h = 8.dp)
@@ -341,8 +340,7 @@ private fun SoundPicker(selected: String, volume: Float, onPick: (String) -> Uni
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
-                    Modifier.size(40.dp).clip(CircleShape).background(if (playing == s.key) V.Teal else V.Panel2)
-                        .border(1.dp, V.White.copy(alpha = 0.06f), CircleShape)
+                    Modifier.size(40.dp).then(if (playing == s.key) Modifier.droplet(CircleShape, V.Teal, 2f) else Modifier.pane(CircleShape))
                         .semantics { contentDescription = "Preview ${s.name}" }
                         .clickable { AlarmPreview.toggle(ctx, s.key, volume) },
                     contentAlignment = Alignment.Center,

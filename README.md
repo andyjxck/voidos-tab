@@ -67,10 +67,14 @@ Device owner can only be set when no account (Google or other) has been added
 to the tablet. If one has, factory reset and skip every account during setup.
 
 ```
-adb install -t root/voidos-tab-1.8.0.apk
+adb install -t root/voidos-tab-1.9.0.apk
 adb shell dpm set-device-owner com.andysocial.voidos/.VoidAdmin
 adb shell am start -n com.andysocial.voidos/.MainActivity
 ```
+
+The edge wheels also work inside other apps (1.9.0+). That needs "draw over
+other apps": VoidOS asks root for it once (tap Allow in Magisk), or run
+`adb shell appops set com.andysocial.voidos SYSTEM_ALERT_WINDOW allow`.
 
 Update later with `adb install -r -t <apk>` (same signing key on every build,
 debug or release, so updates keep device owner). `root/` has the current

@@ -54,8 +54,7 @@ fun PinPad(title: String, subtitle: String, error: String?, onPin: (String) -> U
             repeat(4) { i ->
                 Box(
                     Modifier.size(22.dp).clip(androidx.compose.foundation.shape.CircleShape)
-                        .background(if (i < entry.length) V.Teal else Color.Transparent)
-                        .border(1.5.dp, if (i < entry.length) V.Teal else V.Tick, androidx.compose.foundation.shape.CircleShape)
+                        .background(if (i < entry.length) V.Teal else Color.White.copy(alpha = 0.14f))
                 )
             }
         }
@@ -67,9 +66,8 @@ fun PinPad(title: String, subtitle: String, error: String?, onPin: (String) -> U
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(vertical = 6.dp)) {
                 row.forEach { k ->
                     Box(
-                        Modifier.size(78.dp, 58.dp).clip(OctS)
-                            .background(if (k.isEmpty()) Color.Transparent else V.Panel2)
-                            .border(1.dp, if (k.isEmpty()) Color.Transparent else V.Line, OctS)
+                        Modifier.size(78.dp, 58.dp)
+                            .then(if (k.isEmpty()) Modifier.clip(Pill) else Modifier.pane(Pill))
                             .clickable(enabled = k.isNotEmpty()) {
                                 if (k == "<") entry = entry.dropLast(1)
                                 else if (entry.length < 4) {
@@ -189,7 +187,7 @@ fun EscapeOverlay(store: Store, act: MainActivity, onClose: () -> Unit) {
 @Composable
 private fun EscapeOption(title: String, detail: String, accent: Color, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(Oct).background(V.Panel).border(1.dp, accent.copy(alpha = 0.6f), Oct).clickable(onClick = onClick).padding(18.dp),
+        Modifier.fillMaxWidth().liquidGlass(Oct, GlassLook(smoke = 0.7f, depth = 0.6f, stain = accent, stainAlpha = 0.16f)).clickable(onClick = onClick).padding(18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {

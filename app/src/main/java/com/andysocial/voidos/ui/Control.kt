@@ -71,33 +71,6 @@ import kotlinx.coroutines.delay
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-/**
- * A frosted surface: a dark translucent fill that is lighter at the top, and a
- * hairline rim that catches the light along the top edge. Android 10 cannot blur
- * what is behind a view, so the depth comes from the gradient and the rim.
- */
-fun Modifier.glass(shape: Shape, alpha: Float = 0.86f): Modifier = this
-    .clip(shape)
-    .drawBehind { glassFill(alpha, 1f) }
-    .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.06f), Color.White.copy(alpha = 0.10f))), shape)
-
-/**
- * The glass itself: a dark translucent body lighter at the top, the screen's
- * colour soaking in from below (light bouncing off the aurora), and a soft
- * sheen across the top third where it catches the light.
- */
-fun androidx.compose.ui.graphics.drawscope.DrawScope.glassFill(alpha: Float, lift: Float) {
-    if (size.width <= 0f || size.height <= 0f) return
-    drawRect(Brush.verticalGradient(listOf(Color(0xFF2C2B33).copy(alpha = alpha * lift), Color(0xFF141418).copy(alpha = alpha * lift))))
-    val tint = Ambience.tint()
-    drawRect(Brush.verticalGradient(0.45f to Color.Transparent, 1f to tint.copy(alpha = 0.10f * lift), startY = 0f, endY = size.height))
-    drawRect(
-        Brush.radialGradient(listOf(tint.copy(alpha = 0.08f * lift), Color.Transparent), center = androidx.compose.ui.geometry.Offset(size.width * 0.1f, 0f), radius = maxOf(size.width, size.height) * 0.9f),
-    )
-    val sheen = minOf(size.height * 0.45f, 90.dp.toPx())
-    drawRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.075f * lift), Color.Transparent), startY = 0f, endY = sheen), size = androidx.compose.ui.geometry.Size(size.width, sheen))
-}
-
 /** The tablet switches the control centre drives. Each one fails quietly and reports what it managed. */
 object Tablet {
     private fun dpmSet(ctx: Context, key: String, v: String) =
@@ -215,8 +188,7 @@ fun ControlCentre(
                     .padding(22.dp),
             ) {
                 ControlBody(store, act, onClose, onSettings)
-                Spacer(Modifier.height(14.dp))
-                Box(Modifier.align(Alignment.CenterHorizontally).size(40.dp, 5.dp).clip(Pill).background(V.White.copy(alpha = 0.22f)))
+                Spacer(Modifier.height(10.dp))
             }
         }
     }
@@ -258,8 +230,6 @@ private fun ControlBody(store: Store, act: MainActivity, onClose: () -> Unit, on
             RollingText(now.format(DateTimeFormatter.ofPattern(if (store.use24h) "HH:mm" else "h:mm")), with(dens) { 54.sp.toPx() }, thin, tick = ticker)
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                SignatureLine(Modifier.size(44.dp, 2.dp), ticker)
-                Spacer(Modifier.width(10.dp))
                 VText(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM")), size = 14.sp, color = V.Muted)
             }
         }
@@ -360,10 +330,7 @@ private fun CcBubble(label: String, state: String, g: G, on: Boolean, accent: Co
                     if (lit > 0f) drawCircle(Brush.radialGradient(listOf(accent.copy(alpha = 0.45f * lit), Color.Transparent)), size.minDimension * 0.95f)
                 }
                 .graphicsLayer { val sc = 0.94f + 0.06f * lit; scaleX = sc; scaleY = sc }
-                .clip(CircleShape)
-                .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.14f), Color.White.copy(alpha = 0.06f))))
-                .background(Brush.verticalGradient(listOf(lerp(accent, Color.White, 0.25f), accent)), alpha = lit)
-                .border(1.dp, Color.White.copy(alpha = 0.14f + 0.36f * lit), CircleShape),
+                .liquidGlass(CircleShape, GlassLook(smoke = 0.7f - 0.45f * lit, depth = 0.7f, shine = 1f + 0.35f * lit, magnify = 1.12f + 0.25f * lit, stain = accent, stainAlpha = 0.78f * lit)),
             contentAlignment = Alignment.Center,
         ) { Glyph(g, lerp(V.Text, Color.White, lit), Modifier.size(24.dp)) }
         Spacer(Modifier.height(7.dp))
@@ -387,9 +354,10 @@ private fun CcTall(g: G, value: Float, modifier: Modifier, fill: List<Color>, on
         val shown by animateFloatAsState(v.coerceAtLeast(0.08f), spring(dampingRatio = 0.85f, stiffness = 900f), label = "level")
         Box(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(shown)
+                .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
                 .background(Brush.verticalGradient(fill))
-                // a bright lip on the fill, like liquid catching the light
-                .drawBehind { drawRect(Color.White.copy(alpha = 0.7f), size = androidx.compose.ui.geometry.Size(size.width, 2.dp.toPx())) },
+                // the top of the liquid catches the light: a soft glow that fades down, not a line
+                .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.34f), Color.White.copy(alpha = 0.08f), Color.Transparent), endY = 90f)),
         )
         Glyph(g, if (v > 0.16f) V.Bg else V.Text, Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp).size(24.dp))
     }
@@ -399,9 +367,7 @@ private fun CcTall(g: G, value: Float, modifier: Modifier, fill: List<Color>, on
 @Composable
 private fun AutoChip(on: Boolean, onChange: (Boolean) -> Unit) {
     Box(
-        Modifier.clip(Pill)
-            .background(if (on) V.Teal.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.06f))
-            .border(1.dp, if (on) V.Teal.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.12f), Pill)
+        Modifier.then(if (on) Modifier.droplet(Pill, V.Teal) else Modifier.glass(Pill, 0.55f))
             .semantics { contentDescription = "Auto brightness"; selected = on }
             .clickable { onChange(!on) }
             .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -411,11 +377,11 @@ private fun AutoChip(on: Boolean, onChange: (Boolean) -> Unit) {
 @Composable
 private fun BatteryPill(pct: Int, charging: Boolean) {
     Row(
-        Modifier.clip(Pill).background(Color.White.copy(alpha = 0.07f)).border(1.dp, Color.White.copy(alpha = 0.10f), Pill)
+        Modifier.glass(Pill, 0.55f)
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(22.dp, 11.dp).clip(RoundedCornerShape(3.dp)).border(1.dp, V.Text.copy(alpha = 0.6f), RoundedCornerShape(3.dp)).padding(2.dp)) {
+        Box(Modifier.size(22.dp, 11.dp).clip(RoundedCornerShape(4.dp)).background(V.Text.copy(alpha = 0.22f)).padding(2.dp)) {
             Box(Modifier.fillMaxHeight().fillMaxWidth((pct / 100f).coerceIn(0.05f, 1f)).clip(RoundedCornerShape(1.dp)).background(if (pct <= 15 && !charging) V.Coral else V.Text))
         }
         Spacer(Modifier.width(8.dp))

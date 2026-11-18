@@ -1,5 +1,6 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.graphics.lerp
 
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -95,8 +96,7 @@ fun Segmented(options: List<String>, selected: Int, modifier: Modifier = Modifie
 fun Chip(text: String, selected: Boolean, accent: Color, modifier: Modifier = Modifier, glyph: G? = null, onClick: () -> Unit) {
     Row(
         modifier.then(
-            if (selected) Modifier.clip(BarShape).background(Brush.verticalGradient(listOf(V.Teal.copy(alpha = 0.34f), V.Teal.copy(alpha = 0.16f))))
-                .border(1.dp, V.White.copy(alpha = 0.32f), BarShape)
+            if (selected) Modifier.droplet(BarShape, V.Teal)
             else Modifier.glass(BarShape, 0.7f),
         ).clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp),
@@ -208,12 +208,11 @@ internal fun timerGrid(n: Int, w: Float, h: Float): Pair<Int, Int> {
     return best
 }
 
-/** Quick-start lengths as one glass bar split by hairlines, not loose buttons. */
+/** Quick-start lengths as one glass capsule: no dividers, each length its own soft key. */
 @Composable
 private fun QuickBar(mins: List<Int>, modifier: Modifier = Modifier, keyWidth: Dp? = null, onPick: (Int) -> Unit) {
     Row(modifier.height(58.dp).glass(BarShape, 0.8f)) {
         mins.forEachIndexed { i, m ->
-            if (i > 0) Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 16.dp).background(Color.White.copy(alpha = 0.10f)))
             QuickKey(m, (if (keyWidth != null) Modifier.width(keyWidth) else Modifier.weight(1f)).fillMaxHeight()) { onPick(m) }
         }
     }
@@ -487,14 +486,13 @@ fun ShoppingPane(store: Store) {
                     item(key = "g_$aisle") {
                         Column(Modifier.fillMaxWidth().clip(Oct).background(V.Panel)) {
                             list.forEachIndexed { i, it2 ->
-                                if (i > 0) Box(Modifier.padding(start = 56.dp).fillMaxWidth().height(1.dp).background(V.Line.copy(alpha = 0.6f)))
+                                if (i > 0) Spacer(Modifier.height(2.dp))
                                 Row(
                                     Modifier.fillMaxWidth().clickable { store.toggleItem(it2.id) }.padding(start = 16.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Box(
-                                        Modifier.size(24.dp).clip(CircleShape).background(if (it2.done) V.Teal else Color.Transparent)
-                                            .border(1.5.dp, if (it2.done) V.Teal else V.Tick, CircleShape),
+                                        Modifier.size(24.dp).then(if (it2.done) Modifier.droplet(CircleShape, V.Teal, 1.6f) else Modifier.pane(CircleShape)),
                                         contentAlignment = Alignment.Center,
                                     ) { if (it2.done) Glyph(G.CHECK, V.Bg, Modifier.size(15.dp)) }
                                     Gap(w = 16.dp)

@@ -1,5 +1,8 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.shape.CircleShape
 
 import android.graphics.Paint
@@ -153,7 +156,7 @@ fun FaceScreen(store: Store, onOpen: (Module) -> Unit) {
                     Modifier.offset { IntOffset((clockBox.cx - clockBox.w / 2f).roundToInt(), (clockBox.cy - clockBox.h / 2f).roundToInt()) }
                         .size(with(d) { clockBox.w.toDp() }, with(d) { clockBox.h.toDp() })
                         .graphicsLayer { rotationZ = clockBox.rot }
-                        .border(1.dp, V.Teal.copy(alpha = 0.45f), RoundedCornerShape(28.dp)),
+                        .background(Brush.radialGradient(listOf(V.Teal.copy(alpha = 0.16f), Color.Transparent)), RoundedCornerShape(28.dp)),
                 )
                 WidgetLayer(store, now, editing, onOpen, faceW, faceH, live)
             }
@@ -246,8 +249,7 @@ private fun Dial(store: Store, now: Long, onOpen: (Module) -> Unit, scale: Float
                 )
             },
             below = {
-                // the logo's colours as one hairline, with a glint that runs along it
-                SignatureLine(Modifier.padding(bottom = 14.dp).size(with(d) { (timePx * 0.42f).toDp() }, 2.dp), tick)
+                Spacer(Modifier.height(10.dp))
                 if (running.isNotEmpty()) TimerPills(running, now, timePx / 400f, onOpen)
                 NextAlarm(now, store.use24h, timePx / 400f, top = running.isNotEmpty(), onOpen)
             },
@@ -430,8 +432,8 @@ private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module)
     val accent = V.Teal
     val shape = RoundedCornerShape(18.dp)
     Column(
-        Modifier.fillMaxSize().glass(shape, if (lifted) 0.95f else 0.72f)
-            .then(if (lifted) Modifier.border(1.5.dp, accent.copy(alpha = 0.7f), shape) else Modifier)
+        Modifier.fillMaxSize()
+            .liquidGlass(shape, GlassLook(smoke = if (lifted) 0.9f else 0.72f, depth = if (lifted) 1.6f else 0.9f, shine = if (lifted) 1.3f else 1f, stain = if (lifted) accent else null, stainAlpha = 0.14f))
             .tap {
                 onOpen(when (wd.kind) { "sky" -> Module.WEATHER; "sound" -> Module.MEDIA; "list" -> Module.TOOLS; else -> Module.NOTES })
             }

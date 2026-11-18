@@ -1,18 +1,19 @@
 [land] 17e_wheel_from_dots: ok
 [land] 17g_wheel_held: ok
 [land] 17g_wheel_held: ok
+[land] 17h_wheel_over_app: ok
 [land] 05_tools_alarms: ok
 [land] 05b_alarm_edit: ok
 [land] 05c_alarm_sounds: ok
 [land] 05d_alarm_new: ok
 [land] 05e_alarm_ringing: 9 issue(s)
   OVERLAP   "List" / "Gym"
-  OVERLAP   "+" / "09:02"
-  OVERLAP   "Laundry" / "09:02"
-  OVERLAP   "8:59" / "09:02"
-  OVERLAP   "+1 min" / "09:02"
+  OVERLAP   "+" / "11:34"
+  OVERLAP   "Laundry" / "11:34"
+  OVERLAP   "8:59" / "11:34"
+  OVERLAP   "+1 min" / "11:34"
   OVERLAP   "+1 min" / "Wednesday 18 November"
-  OVERLAP   "+5 min" / "09:02"
+  OVERLAP   "+5 min" / "11:34"
   OVERLAP   "+5 min" / "Wednesday 18 November"
   OVERLAP   "Stretch" / "Snooze"
 [land] 44_escape_pin: ok
@@ -35,9 +36,9 @@
   OVERLAP   "Chip" / "1"
   OVERLAP   "Chip" / "2"
   OVERLAP   "robolectric" / "3"
+  OVERLAP   "Memory" / "7"
   OVERLAP   "Memory" / "8"
   OVERLAP   "0.0 GB free of 0.0 GB" / "9"
-  OVERLAP   "Up for" / "0"
 [land] 01b_face_widgets: ok
 [land] 17c_flick_from_bezel: 1 issue(s)
   OVERLAP   "−" / "Notes"
@@ -76,13 +77,15 @@
 [port] 17e_wheel_from_dots: ok
 [port] 17g_wheel_held: ok
 [port] 17g_wheel_held: ok
+[port] 17h_wheel_over_app: 1 issue(s)
+  OVERLAP   "Some other app" / "Notes"
 [port] 05_tools_alarms: ok
 [port] 05b_alarm_edit: ok
 [port] 05c_alarm_sounds: ok
 [port] 05d_alarm_new: ok
 [port] 05e_alarm_ringing: 2 issue(s)
-  OVERLAP   "8:59" / "09:03"
-  OVERLAP   "21:59" / "09:03"
+  OVERLAP   "8:59" / "11:35"
+  OVERLAP   "21:59" / "11:35"
 [port] 44_escape_pin: ok
 [port] 20_system_wifi: ok
 [port] 21_system_bluetooth: ok
@@ -102,9 +105,9 @@
   OVERLAP   "0.0 GB free of 0.0 GB" / "1"
   OVERLAP   "0.0 GB free of 0.0 GB" / "2"
   OVERLAP   "0.0 GB free of 0.0 GB" / "3"
-  OVERLAP   "0 h 0 min" / "4"
-  OVERLAP   "0 h 0 min" / "5"
-  OVERLAP   "0 h 0 min" / "6"
+  OVERLAP   "No" / "7"
+  OVERLAP   "No" / "8"
+  OVERLAP   "No" / "9"
   OVERLAP   "adb shell am broadcast -a com.andysocial.voidos.action.UNLOCK -n com.andysocial.voidos/.ReleaseReceiver" / "0"
 [port] 01b_face_widgets: ok
 [port] 17c_flick_from_bezel: ok

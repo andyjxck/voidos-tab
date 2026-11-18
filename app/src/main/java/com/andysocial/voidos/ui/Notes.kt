@@ -1,5 +1,6 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -107,9 +108,7 @@ fun NotesScreen(store: Store) {
     } else {
         Row(Modifier.fillMaxSize()) {
             NoteList(store, query, { query = it }, openId, { openId = it; drawing = false }, ::create, Modifier.width(330.dp).fillMaxHeight())
-            Gap(w = 22.dp)
-            Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 8.dp).background(Color.White.copy(alpha = 0.06f)))
-            Gap(w = 22.dp)
+            Gap(w = 28.dp)
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 if (exists) NotePage(store, openId, drawing, { drawing = it }, Modifier.fillMaxSize(), onBack = null,
                     onDeleted = { openId = store.notes.firstOrNull()?.id ?: 0L; drawing = false })
@@ -185,7 +184,7 @@ private fun NoteRow(n: Note, selected: Boolean, first: Boolean, last: Boolean, o
             .background(Brush.horizontalGradient(listOf(V.Yellow.copy(alpha = if (selected) 0.20f else 0f), V.Coral.copy(alpha = if (selected) 0.06f else 0f))))
             .clickable(onClick = onClick),
     ) {
-        if (!first) Box(Modifier.padding(start = 18.dp).fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.06f)))
+        if (!first) Spacer(Modifier.height(4.dp))
         Row(Modifier.padding(start = 18.dp, end = 14.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 VText(title, size = 16.sp, font = SansMedium, color = V.White, maxLines = 1)
@@ -306,9 +305,7 @@ private fun PenCapsule(
     modifier: Modifier,
 ) {
     Row(
-        modifier.widthIn(max = 820.dp).clip(Pill)
-            .background(Brush.verticalGradient(listOf(Color(0xFF2A2A2F).copy(alpha = 0.94f), Color(0xFF1A1A1E).copy(alpha = 0.94f))))
-            .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.04f))), Pill)
+        modifier.widthIn(max = 820.dp).liquidGlass(Pill, GlassLook(smoke = 1.1f, depth = 1.2f))
             .horizontalScroll(rememberScrollState())
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -322,7 +319,7 @@ private fun PenCapsule(
                 Modifier.size(36.dp).clip(CircleShape).semantics { contentDescription = "Colour ${i + 1}" }.clickable { onPen(i) },
                 contentAlignment = Alignment.Center,
             ) {
-                Box(Modifier.size(if (on) 28.dp else 22.dp).clip(CircleShape).border(2.dp, if (on) V.White else Color.Transparent, CircleShape).padding(if (on) 4.dp else 0.dp).clip(CircleShape).background(c))
+                Box(Modifier.size(if (on) 28.dp else 22.dp).then(if (on) Modifier.glass(CircleShape, 0.4f) else Modifier).padding(if (on) 5.dp else 0.dp).clip(CircleShape).background(Brush.radialGradient(listOf(lerp(c, Color.White, 0.35f), c), center = androidx.compose.ui.geometry.Offset(8f, 8f))))
             }
         }
         Hair()
@@ -345,7 +342,7 @@ private fun PenCapsule(
 }
 
 @Composable
-private fun Hair() = Box(Modifier.padding(horizontal = 4.dp).width(1.dp).height(22.dp).background(Color.White.copy(alpha = 0.10f)))
+private fun Hair() = Box(Modifier.width(10.dp).height(22.dp))
 
 @Composable
 private fun PenTool(desc: String, on: Boolean, enabled: Boolean, onClick: () -> Unit, wide: Boolean = false, content: @Composable (Color) -> Unit) {

@@ -1,5 +1,6 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
@@ -298,10 +299,8 @@ private fun NowPlayingCard(src: Source?, hasFiles: Boolean, modifier: Modifier, 
     val tint = remember(src?.art) { artTint(src?.art) }
     val shape = RoundedCornerShape(28.dp)
     BoxWithConstraints(
-        modifier.clip(shape)
-            .background(Color(0xFF17171A).copy(alpha = 0.86f))
-            .background(Brush.radialGradient(listOf(tint.copy(alpha = 0.38f), Color.Transparent), center = Offset(0f, 0f), radius = 1400f))
-            .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.12f), Color.White.copy(alpha = 0.02f))), shape)
+        modifier.liquidGlass(shape, GlassLook(smoke = 0.8f, depth = 1f))
+            .background(Brush.radialGradient(listOf(tint.copy(alpha = 0.34f), Color.Transparent), center = Offset(0f, 0f), radius = 1400f))
             .padding(if (LocalPortrait.current) 24.dp else 28.dp),
     ) {
         val wide = maxWidth > maxHeight * 1.15f
@@ -367,8 +366,7 @@ private fun Progress(src: Source?, modifier: Modifier) {
     val f = if (dur > 0) (src!!.pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
     Column(modifier) {
         Box(Modifier.fillMaxWidth().height(22.dp), contentAlignment = Alignment.CenterStart) {
-            Box(Modifier.fillMaxWidth().height(5.dp).clip(Pill).background(Color.White.copy(alpha = 0.14f)))
-            Box(Modifier.fillMaxWidth(f).height(5.dp).clip(Pill).background(Color.White.copy(alpha = if (dur > 0) 0.85f else 0f)))
+            GlassChannel(f, if (dur > 0) 1f else 0f)
             if (dur > 0) VSliderTouch(Modifier.matchParentSize()) {
                 val to = (it * dur).toLong()
                 if (src!!.local) Player.seekTo(to) else com.andysocial.voidos.Now.seekTo(to)
@@ -428,8 +426,7 @@ private fun Volume(modifier: Modifier) {
         Glyph(G.VOLUME, V.Muted, Modifier.size(16.dp))
         Gap(w = 12.dp)
         Box(Modifier.weight(1f).height(26.dp), contentAlignment = Alignment.CenterStart) {
-            Box(Modifier.fillMaxWidth().height(5.dp).clip(Pill).background(Color.White.copy(alpha = 0.14f)))
-            Box(Modifier.fillMaxWidth(vol.coerceIn(0f, 1f)).height(5.dp).clip(Pill).background(Color.White.copy(alpha = 0.85f)))
+            GlassChannel(vol.coerceIn(0f, 1f), 1f)
             VSliderTouch(Modifier.matchParentSize()) {
                 vol = it
                 am.setStreamVolume(AudioManager.STREAM_MUSIC, (it * maxVol).toInt(), 0)
@@ -470,8 +467,7 @@ private fun FilesSidebar(tracks: List<Track>, modifier: Modifier, onClose: () ->
     val idx = Player.index.intValue
     val shape = RoundedCornerShape(24.dp)
     Column(
-        modifier.clip(shape).background(Color(0xFF18181B).copy(alpha = 0.97f))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), shape).tap { }.padding(16.dp),
+        modifier.liquidGlass(shape, GlassLook(smoke = 1.25f, depth = 1.2f)).tap { }.padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).padding(start = 4.dp)) {
@@ -501,9 +497,25 @@ private fun FilesSidebar(tracks: List<Track>, modifier: Modifier, onClose: () ->
                         Gap(w = 8.dp)
                         VText(fmtDur(t.ms), size = 12.sp, color = V.Muted)
                     }
-                    if (i < tracks.lastIndex && !sel && i + 1 != idx) Box(Modifier.padding(start = 10.dp).fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.05f)))
+                    if (i < tracks.lastIndex) Spacer(Modifier.height(2.dp))
                 }
             }
         }
+    }
+}
+
+/** A glass channel filled with clear light up to [f]: a capsule of glass, not a line. */
+@Composable
+private fun GlassChannel(f: Float, fill: Float) {
+    Canvas(Modifier.fillMaxWidth().height(10.dp)) {
+        val h = size.height
+        val cr = androidx.compose.ui.geometry.CornerRadius(h / 2)
+        drawRoundRect(Color.White.copy(alpha = 0.08f), cornerRadius = cr)
+        val fw = (size.width * f).coerceAtLeast(if (f > 0f) h else 0f)
+        if (fill > 0f && fw > 0f) drawRoundRect(
+            Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.95f), Color.White.copy(alpha = 0.70f))),
+            size = androidx.compose.ui.geometry.Size(fw, h), cornerRadius = cr, alpha = fill,
+        )
+        drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.08f), Color.Transparent), endY = h * 0.55f), cornerRadius = cr)
     }
 }

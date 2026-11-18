@@ -90,6 +90,9 @@ fun HubPane(store: Store, act: MainActivity) {
     SettingRow("Swipe between screens", "Swipe left or right on a screen to move to the next one. The edge wheels work either way.") {
         VToggle(store.swipeScreens) { store.set("swipeScreens", it) }
     }
+    SettingRow("Edge wheels in other apps", if (com.andysocial.voidos.EdgeOverlay.allowed.value) "Swipe in from either side inside any app to open the wheels." else "Needs one permission. Run this from your Mac: ./adb shell appops set com.andysocial.voidos SYSTEM_ALERT_WINDOW allow") {
+        VToggle(store.edgeInApps) { store.set("edgeInApps", it); com.andysocial.voidos.EdgeOverlay.sync(ctx, store) }
+    }
     SettingRow("Living background", "The slow coloured light behind every screen. Off holds it still.") {
         VToggle(store.motion) { store.set("motion", it) }
     }
@@ -215,7 +218,7 @@ fun BatteryPane() {
     Row(verticalAlignment = Alignment.CenterVertically) {
         VText(if (pct >= 0) "$pct%" else "--", size = 64.sp, color = V.White, font = SansLight)
         Gap(w = 20.dp)
-        Box(Modifier.weight(1f).height(26.dp).clip(OctS).background(V.Panel2).border(1.dp, V.Line, OctS)) {
+        Box(Modifier.weight(1f).height(26.dp).pane(Pill)) {
             Box(Modifier.fillMaxWidth((pct.coerceIn(0, 100)) / 100f).height(26.dp).background(if (pct < 20) V.Coral else if (charging) V.Green else V.Teal))
         }
     }

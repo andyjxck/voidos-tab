@@ -33,6 +33,12 @@ object EdgeSwipe {
     /** The wheels on screen, fed in window pixels. */
     @Volatile var sink: Sink? = null
 
+    /** The wheel in the window over other apps (EdgeOverlay), fed by its edge strips. */
+    @Volatile var overlaySink: Sink? = null
+
+    /** Opens the overlay wheel pinned, without a swipe: true for the tab wheel, false for the app wheel. */
+    val overlayRequest = mutableStateOf<Boolean?>(null)
+
     interface Sink {
         fun begin(left: Boolean, x: Float, y: Float, t: Long)
         fun move(x: Float, y: Float, t: Long)

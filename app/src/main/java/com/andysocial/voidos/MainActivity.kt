@@ -36,6 +36,8 @@ class MainActivity : ComponentActivity() {
         val dm = resources.displayMetrics
         val anim = try { android.provider.Settings.Global.getFloat(contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) } catch (_: Throwable) { -1f }
         EdgeSwipe.log("start ${dm.widthPixels}x${dm.heightPixels} density=${dm.density} animScale=$anim version=${BuildConfig.VERSION_NAME}")
+        EdgeOverlay.sync(this, store)
+        intent?.getStringExtra(EXTRA_MODULE)?.let { com.andysocial.voidos.ui.Idle.openModule.value = it }
         setContent {
             LaunchedEffect(Unit) {
                 snapshotFlow { VoidApp.releaseSignal.value }.collect { if (it > 0) leaveLockTask() }
@@ -52,6 +54,15 @@ class MainActivity : ComponentActivity() {
         Idle.touch()
         applyBars()
         enforceLockTask()
+        EdgeOverlay.hostShown(true)
+        // the permission may have just been given from the Mac
+        if (!EdgeOverlay.allowed.value) EdgeOverlay.sync(this, store)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // another app (or Android's own settings) is coming in front: the edge strips take over the wheels
+        EdgeOverlay.hostShown(false)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -63,6 +74,8 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         // Home pressed while already home: jump back to the face
         if (intent.hasCategory(Intent.CATEGORY_HOME)) Idle.homePressed.value++
+        // a screen picked on the wheel over another app
+        intent.getStringExtra(EXTRA_MODULE)?.let { com.andysocial.voidos.ui.Idle.openModule.value = it }
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
@@ -208,5 +221,10 @@ class MainActivity : ComponentActivity() {
         Policy.applyAll(this)
         applyBars()
         enforceLockTask()
+    }
+
+    companion object {
+        /** The screen to open, when the wheel over another app brings VoidOS back. */
+        const val EXTRA_MODULE = "com.andysocial.voidos.MODULE"
     }
 }

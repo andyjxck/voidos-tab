@@ -1,5 +1,6 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.draw.drawBehind
 
 import androidx.compose.foundation.lazy.LazyColumn
@@ -373,7 +374,7 @@ fun AppsScreen(store: Store) {
         msg?.let { m ->
             Row(
                 Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp, start = 16.dp, end = 16.dp).widthIn(max = 620.dp)
-                    .clip(Pill).background(Color(0xFF2A2A2F).copy(alpha = 0.97f)).border(1.dp, Color.White.copy(alpha = 0.12f), Pill)
+                    .liquidGlass(Pill, GlassLook(smoke = 1.25f, depth = 1.2f))
                     .padding(start = 20.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -422,7 +423,7 @@ private fun AppTile(app: AppEntry, store: Store, starred: Boolean) {
             contentAlignment = Alignment.Center,
         ) {
             AppGlyph(app, store.iconStyle, 64.dp)
-            if (starred) Box(Modifier.align(Alignment.TopEnd).size(10.dp).clip(CircleShape).background(V.Teal).border(2.dp, V.Bg, CircleShape))
+            if (starred) Box(Modifier.align(Alignment.TopEnd).size(10.dp).clip(CircleShape).background(Brush.radialGradient(listOf(Color.White, V.Teal))))
         }
         Gap(h = 8.dp)
         VText(app.label, size = 13.sp, color = V.Text, maxLines = 1, align = TextAlign.Center)
@@ -483,7 +484,7 @@ private fun ManageList(store: Store, apps: List<AppEntry>, reasons: Map<String, 
 @Composable
 private fun ManageRow(app: AppEntry, store: Store, on: Boolean, starred: Boolean, why: String?, first: Boolean, last: Boolean) {
     Column(Modifier.fillMaxWidth().clip(groupShape(first, last)).background(GroupFill).clickable { store.setAllowed(app.pkg, !on) }) {
-        if (!first) Box(Modifier.padding(start = 70.dp).fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.06f)))
+        if (!first) Spacer(Modifier.height(4.dp))
         Row(Modifier.padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.alpha(if (on) 1f else 0.55f)) { AppGlyph(app, store.iconStyle, 40.dp) }
             Gap(w = 16.dp)

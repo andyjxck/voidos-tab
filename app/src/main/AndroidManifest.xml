@@ -18,6 +18,7 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <!-- only granted when VoidOS is installed as a system app (see root/README.md) -->
     <uses-permission android:name="android.permission.SET_TIME_ZONE" tools:ignore="ProtectedPermissions" />
@@ -111,6 +112,9 @@
             </intent-filter>
         </receiver>
         <service android:name=".AlarmService" android:exported="false" />
+
+        <!-- the edge wheels over other apps: two invisible edge strips and the wheel window -->
+        <service android:name=".EdgeOverlayService" android:exported="false" />
 
         <service
             android:name=".VoidListener"

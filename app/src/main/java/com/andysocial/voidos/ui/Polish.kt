@@ -49,9 +49,8 @@ fun RoundIcon(
     onClick: () -> Unit,
 ) {
     Box(
-        modifier.size(size).clip(CircleShape)
-            .background(if (active) V.Teal.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.07f))
-            .border(1.dp, if (active) V.Teal.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.10f), CircleShape)
+        modifier.size(size)
+            .then(if (active) Modifier.droplet(CircleShape, V.Teal) else Modifier.glass(CircleShape, 0.6f))
             .semantics { contentDescription = desc; role = Role.Button }
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,

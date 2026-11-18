@@ -115,34 +115,19 @@ fun phase(t: Long, ms: Long): Float = (t % ms).toFloat() / ms
 @Composable
 fun Aurora(modifier: Modifier = Modifier, mood: Mood? = null, intensity: Float = 1f) {
     val tick = rememberTicker(40L)
-    Canvas(modifier.fillMaxSize()) {
-        val w = size.width; val h = size.height
-        if (w <= 0f || h <= 0f) return@Canvas
-        val p = if (mood == null) Ambience.pos.floatValue else 0f
-        val m = mood ?: Ambience.moodAt(p)
-        val k = (phase(tick.value, 60_000L) * 2 * PI).toFloat()
-        val r = max(w, h)
-        drawRect(Brush.verticalGradient(listOf(Color(0xFF0F0E17), V.Bg, Color(0xFF08080B))))
-        val par = -(p % 7f) * w * 0.05f
-        fun blob(c: Color, cx: Float, cy: Float, rad: Float, a: Float) {
-            val ctr = Offset(cx, cy)
-            drawCircle(
-                Brush.radialGradient(
-                    0f to c.copy(alpha = (a * intensity).coerceAtMost(1f)),
-                    0.42f to c.copy(alpha = (a * 0.42f * intensity).coerceAtMost(1f)),
-                    1f to Color.Transparent,
-                    center = ctr, radius = rad,
-                ),
-                rad, ctr,
-            )
+    val room = LocalRoom.current
+    // the glass reads the same light; it moves on a little less often, which the eye can't tell
+    LaunchedEffect(room, mood, intensity) {
+        room.mood.value = mood
+        room.intensity.floatValue = intensity
+        while (isActive) {
+            delay(120L)
+            if (Ambience.motion.value) room.clock.longValue = System.currentTimeMillis()
         }
-        blob(m.a, w * (0.16f + 0.07f * sin(k)) + par, h * (0.04f + 0.06f * cos(k)), r * 0.64f, 0.22f)
-        blob(m.b, w * (0.90f + 0.05f * cos(2 * k)) + par * 1.6f, h * (0.94f + 0.05f * sin(2 * k)), r * 0.60f, 0.19f)
-        blob(m.c, w * (0.60f + 0.14f * sin(3 * k + 1f)) + par * 0.6f, h * (0.42f + 0.10f * cos(2 * k + 2f)), r * 0.36f, 0.075f)
-        // the corners fall back into the dark, so the middle feels lit
-        drawRect(
-            Brush.radialGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.42f), center = Offset(w / 2, h / 2), radius = r * 0.8f),
-        )
+    }
+    Canvas(modifier.fillMaxSize()) {
+        val p = if (mood == null) Ambience.pos.floatValue else 0f
+        paintAurora(size.width, size.height, mood ?: Ambience.moodAt(p), tick.value, p, intensity, base = true)
     }
 }
 

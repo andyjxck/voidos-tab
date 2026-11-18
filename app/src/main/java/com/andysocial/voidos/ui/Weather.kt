@@ -167,7 +167,7 @@ fun wxAge(fetched: Long, now: Long = System.currentTimeMillis()): String {
 @Composable
 fun OfflineBadge(wx: Wx?, modifier: Modifier = Modifier) {
     Row(
-        modifier.clip(RoundedCornerShape(50)).background(V.Coral.copy(alpha = 0.16f)).border(1.5.dp, V.Coral, RoundedCornerShape(50))
+        modifier.droplet(RoundedCornerShape(50), V.Coral, 1.3f)
             .padding(horizontal = 12.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

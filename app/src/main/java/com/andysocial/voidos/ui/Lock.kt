@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -84,6 +85,7 @@ fun LockScreen(store: Store, onUnlock: () -> Unit) {
         if (store.lockNeedsPin && store.hasPin) askPin = true else onUnlock()
     }
 
+    CompositionLocalProvider(LocalRoom provides Rooms.lock) {
     BoxWithConstraints(Modifier.fillMaxSize().background(V.Bg)) {
         val hPx = with(density) { maxHeight.toPx() }
         Box(
@@ -131,6 +133,7 @@ fun LockScreen(store: Store, onUnlock: () -> Unit) {
             }
         }
     }
+    }
 }
 
 /**
@@ -149,12 +152,6 @@ private fun LockBackdrop(now: Long) {
             val c = Offset(w * (if (w > h) 0.27f else 0.5f) + 18f * cos(k), h * (if (w > h) 0.5f else 0.26f) + 14f * sin(2 * k))
             val r = minOf(w, h) * (0.52f + 0.04f * sin(k))
             drawCircle(Brush.radialGradient(listOf(V.Purple.copy(alpha = 0.20f), V.Teal.copy(alpha = 0.06f), Color.Transparent), center = c, radius = r), r, c)
-            // a thin ring of light around the orb, turning slowly, brightest at one point
-            drawCircle(
-                Brush.sweepGradient(listOf(Color.Transparent, V.Teal.copy(alpha = 0.28f), V.Purple.copy(alpha = 0.18f), Color.Transparent, Color.Transparent), center = c),
-                r * 0.78f, c, style = androidx.compose.ui.graphics.drawscope.Stroke(1.2f),
-                alpha = 1f,
-            )
         }
     }
 }
@@ -177,9 +174,7 @@ private fun LockClock(store: Store, now: Long, big: Boolean, start: Boolean = fa
             with(d) { (if (big) (if (portrait) 168.sp else 150.sp) else 96.sp).toPx() }, thin,
             Modifier.breathingGlow(tick, Ambience.LOCK, 1.3f), tick = tick,
         )
-        Gap(h = 18.dp)
-        SignatureLine(Modifier.size(150.dp, 2.dp), tick)
-        Gap(h = 18.dp)
+        Gap(h = 26.dp)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             wx?.let { w ->
                 Row(Modifier.glass(Pill, 0.7f).padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -290,16 +285,6 @@ private fun SwipeHint() {
         Glyph(G.CHEV, V.White.copy(alpha = 0.8f), Modifier.size(24.dp).graphicsLayer { rotationZ = -90f; translationY = bob * 8f; alpha = 0.55f + 0.45f * (1 - bob) / 2 })
         Gap(h = 4.dp)
         VText("Swipe up to open", size = 12.sp, color = V.Muted, align = TextAlign.Center, spacing = 0.5.sp)
-        Gap(h = 10.dp)
-        // the home bar, with a light that slides along it
-        val tick = rememberTicker(40L)
-        Canvas(Modifier.size(134.dp, 5.dp)) {
-            val cr = androidx.compose.ui.geometry.CornerRadius(size.height / 2)
-            drawRoundRect(Color.White.copy(alpha = 0.32f), cornerRadius = cr)
-            val g = phase(tick.value, 2_400L)
-            val x = -size.width * 0.3f + size.width * 1.6f * g
-            drawRoundRect(Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.9f), Color.Transparent), startX = x - size.width * 0.25f, endX = x + size.width * 0.25f), cornerRadius = cr)
-        }
     }
 }
 

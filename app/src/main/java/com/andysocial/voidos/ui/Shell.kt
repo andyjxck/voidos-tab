@@ -65,6 +65,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -85,6 +86,8 @@ object Idle {
     @Volatile var last = System.currentTimeMillis()
     val ambient = mutableStateOf(false)
     val homePressed = mutableIntStateOf(0)
+    /** A screen picked on the wheel over another app: the shell opens it as VoidOS comes back. */
+    val openModule = mutableStateOf<String?>(null)
     fun touch() {
         last = System.currentTimeMillis()
         if (ambient.value) ambient.value = false
@@ -158,6 +161,12 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
             val i = pages.indexOf(m)
             if (animate && kotlin.math.abs(i - pager.currentPage) <= 1) pager.animateScrollToPage(i) else pager.scrollToPage(i)
         }
+    }
+    val wanted by Idle.openModule
+    LaunchedEffect(wanted) {
+        val k = wanted ?: return@LaunchedEffect
+        Idle.openModule.value = null
+        runCatching { Module.valueOf(k) }.getOrNull()?.let { go(it, animate = false) }
     }
 
     LaunchedEffect(home) { if (home > 0) { go(Module.FACE, animate = false); escape = false; control = false } }
@@ -253,25 +262,23 @@ private fun edgeOff(escape: Boolean, control: Boolean, ambient: Boolean, locked:
 /** Small dots under the screens, so swiping sideways explains itself. */
 @Composable
 private fun PageDots(n: Int, pos: Float) {
-    // one lit pill that stretches between dots as you swipe, in the colour of where you're going
+    // round dots only, no pill: the one you're on is a small lit bead of glass that glides between them
     // tapping the dots opens the tab wheel, pinned: a way round that needs no edge swipe
     Canvas(
         Modifier.fillMaxWidth().clickable(interactionSource = null, indication = null) { EdgeSwipe.request.value = true }
-            .padding(top = 4.dp, bottom = 12.dp).height(6.dp)
+            .padding(top = 4.dp, bottom = 12.dp).height(10.dp)
             .semantics { contentDescription = "Screens" }
     ) {
-        val d = 6.dp.toPx(); val gap = 6.dp.toPx(); val step = d + gap
+        val d = 6.dp.toPx(); val gap = 9.dp.toPx(); val step = d + gap
         val total = n * d + (n - 1) * gap
         val x0 = size.width / 2 - total / 2
-        repeat(n) { i -> drawCircle(Color.White.copy(alpha = 0.18f), d / 2, Offset(x0 + i * step + d / 2, d / 2)) }
-        val lo = kotlin.math.floor(pos).toInt().coerceIn(0, n - 1)
-        val f = (pos - lo).coerceIn(0f, 1f)
-        val stretch = (1f - kotlin.math.abs(f - 0.5f) * 2f) * step
-        val left = x0 + (lo + f) * step - stretch * 0.0f
-        val wPill = 18.dp.toPx() + stretch
-        val cx = left + d / 2
-        val c = androidx.compose.ui.graphics.lerp(Color.White, Ambience.moodAt(pos).a, 0.45f)
-        drawRoundRect(c, Offset(cx - wPill / 2 + (wPill - 18.dp.toPx()) / 2 * 0f, 0f), androidx.compose.ui.geometry.Size(wPill, d), CornerRadius(d / 2))
+        val cy = size.height / 2
+        repeat(n) { i -> drawCircle(Color.White.copy(alpha = 0.16f), d / 2, Offset(x0 + i * step + d / 2, cy)) }
+        val cx = x0 + pos.coerceIn(0f, (n - 1).toFloat()) * step + d / 2
+        val c = androidx.compose.ui.graphics.lerp(Color.White, Ambience.moodAt(pos).a, 0.35f)
+        val r = 4.6f.dp.toPx()
+        drawCircle(Brush.radialGradient(listOf(c.copy(alpha = 0.45f), Color.Transparent), center = Offset(cx, cy), radius = r * 3f), r * 3f, Offset(cx, cy))
+        drawBead(Offset(cx, cy), r, c)
     }
 }
 
@@ -340,7 +347,6 @@ fun StatusStrip(store: Store, module: Module, modifier: Modifier = Modifier, onP
             .tap { pull() }
             .then(modifier),
     ) {
-        Box(Modifier.align(Alignment.TopCenter).padding(top = 6.dp).size(36.dp, 4.dp).clip(RoundedCornerShape(50)).background(V.White.copy(alpha = 0.16f)))
         Row(Modifier.fillMaxSize().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             if (module != Module.FACE) {
                 val fmt = if (store.use24h) "HH:mm" else "h:mm"

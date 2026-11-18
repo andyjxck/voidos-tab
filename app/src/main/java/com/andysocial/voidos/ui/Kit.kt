@@ -1,5 +1,7 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -62,9 +64,9 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /** Card corners. (Named Oct from the old octagon style; now plain rounded corners.) */
-val Oct = RoundedCornerShape(22.dp)
+val Oct = RoundedCornerShape(30.dp)
 /** Small control corners. */
-val OctS = RoundedCornerShape(14.dp)
+val OctS = RoundedCornerShape(20.dp)
 /** Fully round ends. */
 val Pill = RoundedCornerShape(50)
 
@@ -105,7 +107,6 @@ fun VPanel(
     Column(
         modifier
             .pane(Oct)
-            .then(if (accent != null) Modifier.border(1.dp, calm(accent).copy(alpha = 0.30f), Oct) else Modifier)
             .padding(padding),
         content = content,
     )
@@ -132,9 +133,7 @@ fun VButton(
             .then(
                 when {
                     !enabled -> Modifier.clip(BarShape).background(V.Panel2.copy(alpha = 0.4f))
-                    filled -> Modifier.clip(BarShape)
-                        .background(Brush.verticalGradient(listOf(lerp(c, V.White, 0.18f), c)))
-                        .border(1.dp, V.White.copy(alpha = 0.30f), BarShape)
+                    filled -> Modifier.droplet(BarShape, c, 2.4f)
                     else -> Modifier.glass(BarShape, 0.8f)
                 }
             )
@@ -154,27 +153,37 @@ fun VButton(
     }
 }
 
-/** On/off switch. */
+/** On/off switch: a glass capsule that fills with coloured glass, and a glossy bead that slides. */
 @Composable
 fun VToggle(checked: Boolean, accent: Color = V.Teal, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
-    val t by animateFloatAsState(if (checked) 1f else 0f, label = "tog")
+    val t by animateFloatAsState(if (checked) 1f else 0f, spring(dampingRatio = 0.62f, stiffness = 500f), label = "tog")
     val c = calm(accent)
-    Box(
+    Canvas(
         Modifier
-            .size(52.dp, 32.dp)
+            .size(54.dp, 32.dp)
             .clip(Pill)
-            .background(lerp(V.Line, if (enabled) c else V.Tick, t))
-            .clickable(enabled = enabled) { onChange(!checked) }
-            .padding(3.dp),
-    ) {
-        Box(
-            Modifier
-                .padding(start = (20 * t).dp)
-                .size(26.dp)
-                .clip(CircleShape)
-                .background(if (enabled) V.White else V.Muted)
-        )
-    }
+            .clickable(enabled = enabled) { onChange(!checked) },
+    ) { drawToggle(t, if (enabled) c else V.Tick, enabled) }
+}
+
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawToggle(t: Float, c: Color, enabled: Boolean) {
+    val w = size.width; val h = size.height
+    val cr = CornerRadius(h / 2)
+    drawRoundRect(Color.White.copy(alpha = 0.10f), cornerRadius = cr)
+    drawRoundRect(Brush.verticalGradient(listOf(lerp(c, Color.White, 0.25f), c, lerp(c, Color.Black, 0.15f))), cornerRadius = cr, alpha = t)
+    // gloss over the top half
+    drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.22f), Color.Transparent), endY = h * 0.55f), cornerRadius = cr)
+    val r = h / 2 - 3.dp.toPx()
+    val cx = h / 2 + (w - h) * t
+    val ctr = Offset(cx, h / 2)
+    drawCircle(Color.Black.copy(alpha = 0.28f), r + 1.dp.toPx(), ctr + Offset(0f, 1.5f.dp.toPx()))
+    drawBead(ctr, r, if (enabled) Color.White else V.Muted)
+}
+
+/** A glossy glass bead: lit from the top left, with a bright specular dot. */
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBead(ctr: Offset, r: Float, c: Color) {
+    drawCircle(Brush.radialGradient(listOf(c, lerp(c, Color(0xFFB8C2CC), 0.35f)), center = ctr - Offset(r * 0.3f, r * 0.4f), radius = r * 1.5f), r, ctr)
+    drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.95f), Color.Transparent), center = ctr - Offset(r * 0.35f, r * 0.42f), radius = r * 0.55f), r * 0.55f, ctr - Offset(r * 0.35f, r * 0.42f))
 }
 
 /** A setting row: title + optional detail on the left, control on the right. */
@@ -220,10 +229,15 @@ fun VSlider(value: Float, modifier: Modifier = Modifier, accent: Color = V.Teal,
         val y = size.height / 2
         val r = 12.dp.toPx()
         val x = r + (size.width - 2 * r) * value.coerceIn(0f, 1f)
-        drawLine(V.Line, Offset(r, y), Offset(size.width - r, y), strokeWidth = 5.dp.toPx(), cap = StrokeCap.Round)
-        drawLine(c, Offset(r, y), Offset(x, y), strokeWidth = 5.dp.toPx(), cap = StrokeCap.Round)
-        drawCircle(Color.Black.copy(alpha = 0.35f), r + 1.5.dp.toPx(), Offset(x, y + 1.dp.toPx()))
-        drawCircle(V.White, r, Offset(x, y))
+        // a glass channel, filled with coloured glass up to the bead
+        val th = 10.dp.toPx()
+        val cr = CornerRadius(th / 2)
+        drawRoundRect(Color.White.copy(alpha = 0.075f), Offset(0f, y - th / 2), Size(size.width, th), cr)
+        drawRoundRect(Brush.verticalGradient(listOf(lerp(c, Color.White, 0.3f), c), startY = y - th / 2, endY = y + th / 2), Offset(0f, y - th / 2), Size(x, th), cr)
+        drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.10f), Color.Transparent), startY = y - th / 2, endY = y), Offset(0f, y - th / 2), Size(size.width, th / 2), cr)
+        drawCircle(Brush.radialGradient(listOf(c.copy(alpha = 0.35f), Color.Transparent), center = Offset(x, y), radius = r * 2.2f), r * 2.2f, Offset(x, y))
+        drawCircle(Color.Black.copy(alpha = 0.32f), r + 1.5.dp.toPx(), Offset(x, y + 1.5.dp.toPx()))
+        drawBead(Offset(x, y), r, V.White)
     }
 }
 

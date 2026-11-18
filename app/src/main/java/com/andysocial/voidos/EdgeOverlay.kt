@@ -1,0 +1,356 @@
+package com.andysocial.voidos
+
+import android.annotation.SuppressLint
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.content.res.Configuration
+import android.graphics.PixelFormat
+import android.os.Build
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
+import android.provider.Settings
+import android.view.Gravity
+import android.view.MotionEvent
+import android.view.View
+import android.view.WindowManager
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.savedstate.SavedStateRegistry
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.andysocial.voidos.ui.AppGlyph
+import com.andysocial.voidos.ui.AppsRepo
+import com.andysocial.voidos.ui.EdgeSwipe
+import com.andysocial.voidos.ui.EdgeWheels
+import com.andysocial.voidos.ui.Glyph
+import com.andysocial.voidos.ui.LocalRoom
+import com.andysocial.voidos.ui.Module
+import com.andysocial.voidos.ui.Rooms
+import com.andysocial.voidos.ui.WheelItem
+import com.andysocial.voidos.ui.blockReason
+import com.andysocial.voidos.ui.launchApp
+import kotlin.math.abs
+
+/**
+ * The edge wheels over other apps.
+ *
+ * While another app is in front, two narrow, invisible strips sit on the left and right
+ * edges (the middle three quarters of the screen height). They are the only part of the
+ * screen VoidOS touches: everything else goes straight to the app. A swipe inwards from
+ * a strip opens a full-screen window with the same glass wheels as inside VoidOS; when
+ * the wheel closes that window is removed again. Picking a screen brings VoidOS back on
+ * that screen; picking an app opens it.
+ *
+ * It needs the "draw over other apps" permission. VoidOS asks root for it once (Magisk
+ * may ask you to allow), and the same can be done from the Mac with
+ * `adb shell appops set com.andysocial.voidos SYSTEM_ALERT_WINDOW allow`.
+ */
+object EdgeOverlay {
+    /** Whether VoidOS may draw over other apps. */
+    val allowed = mutableStateOf(false)
+
+    /** True while VoidOS itself is in front: it handles its own edges then, so the strips stand down. */
+    @Volatile var hostInFront = true
+        private set
+
+    internal var service: EdgeOverlayService? = null
+
+    fun canDraw(ctx: Context): Boolean = Settings.canDrawOverlays(ctx).also { allowed.value = it }
+
+    /** Starts or stops the overlay to match the setting and the permission. Call it whenever either may have changed. */
+    fun sync(ctx: Context, store: Store) {
+        val app = ctx.applicationContext
+        if (!store.edgeInApps) { app.stopService(Intent(app, EdgeOverlayService::class.java)); return }
+        if (canDraw(app)) {
+            runCatching {
+                val i = Intent(app, EdgeOverlayService::class.java)
+                if (Build.VERSION.SDK_INT >= 26) app.startForegroundService(i) else app.startService(i)
+            }.onFailure { EdgeSwipe.log("overlay: could not start (${it.message})") }
+        } else askRootOnce(app, store)
+    }
+
+    fun hostShown(shown: Boolean) {
+        hostInFront = shown
+        service?.refreshStrips()
+    }
+
+    /** Grants itself the overlay permission through root, once per version, off the main thread. */
+    private fun askRootOnce(ctx: Context, store: Store) {
+        val prefs = ctx.getSharedPreferences("voidos_overlay", Context.MODE_PRIVATE)
+        val key = "rootAsked_${BuildConfig.VERSION_CODE}"
+        if (prefs.getBoolean(key, false)) return
+        prefs.edit().putBoolean(key, true).apply()
+        Thread {
+            val ok = runCatching {
+                val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "appops set ${ctx.packageName} SYSTEM_ALERT_WINDOW allow"))
+                val done = p.waitFor(25, java.util.concurrent.TimeUnit.SECONDS)
+                if (!done) p.destroy()
+                done && p.exitValue() == 0
+            }.getOrDefault(false)
+            EdgeSwipe.log("overlay: root grant ${if (ok) "ok" else "not given"}")
+            Handler(Looper.getMainLooper()).post { if (canDraw(ctx)) sync(ctx, store) }
+        }.start()
+    }
+}
+
+class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
+    private val registry = LifecycleRegistry(this)
+    private val saved = SavedStateRegistryController.create(this)
+    override val lifecycle: Lifecycle get() = registry
+    override val savedStateRegistry: SavedStateRegistry get() = saved.savedStateRegistry
+
+    private val wm by lazy { getSystemService(WINDOW_SERVICE) as WindowManager }
+    private val store get() = (application as VoidApp).store
+    private val main = Handler(Looper.getMainLooper())
+
+    private var left: View? = null
+    private var right: View? = null
+    private var wheel: ComposeView? = null
+    private var wheelShown = false
+
+    /** For tests: the edge strip windows, and whether the wheel window is up. */
+    internal val strips: List<View> get() = listOfNotNull(left, right)
+    internal val wheelOpen: Boolean get() = wheelShown
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        saved.performRestore(null)
+        registry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+        registry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+        registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+        startForeground(NOTE_ID, note())
+        EdgeOverlay.service = this
+        addStrips()
+        EdgeSwipe.log("overlay: on")
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        refreshStrips()
+        return START_STICKY
+    }
+
+    override fun onDestroy() {
+        EdgeOverlay.service = null
+        hideWheel()
+        listOfNotNull(left, right).forEach { runCatching { wm.removeView(it) } }
+        left = null; right = null
+        registry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+        EdgeSwipe.log("overlay: off")
+        super.onDestroy()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // the strips cover the middle of the side edges, so they follow the screen round
+        listOfNotNull(left, right).forEach { v -> runCatching { wm.updateViewLayout(v, stripParams(v === left)) } }
+    }
+
+    private fun note(): Notification {
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(CHANNEL) == null) {
+            nm.createNotificationChannel(NotificationChannel(CHANNEL, "Edge wheels", NotificationManager.IMPORTANCE_MIN).apply { setShowBadge(false) })
+        }
+        val b = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL) else @Suppress("DEPRECATION") Notification.Builder(this)
+        return b.setSmallIcon(R.mipmap.ic_launcher).setContentTitle("Edge wheels").setOngoing(true).build()
+    }
+
+    // ---------------------------------------------------------------- the strips
+
+    private fun overlayType() = if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
+
+    private fun stripParams(isLeft: Boolean): WindowManager.LayoutParams {
+        val dm = resources.displayMetrics
+        return WindowManager.LayoutParams(
+            (STRIP_DP * dm.density).toInt(),
+            (dm.heightPixels * 0.76f).toInt(),
+            overlayType(),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = (if (isLeft) Gravity.LEFT else Gravity.RIGHT) or Gravity.CENTER_VERTICAL
+            title = if (isLeft) "VoidOS edge left" else "VoidOS edge right"
+        }
+    }
+
+    private fun addStrips() {
+        listOf(true, false).forEach { isLeft ->
+            val v = Strip(this, isLeft)
+            v.visibility = if (EdgeOverlay.hostInFront) View.GONE else View.VISIBLE
+            runCatching { wm.addView(v, stripParams(isLeft)) }
+                .onSuccess { if (isLeft) left = v else right = v }
+                .onFailure { EdgeSwipe.log("overlay: strip refused (${it.message})") }
+        }
+    }
+
+    fun refreshStrips() {
+        main.post {
+            val vis = if (EdgeOverlay.hostInFront || wheelShown) View.GONE else View.VISIBLE
+            left?.visibility = vis
+            right?.visibility = vis
+            if (EdgeOverlay.hostInFront && wheelShown) EdgeSwipe.overlaySink?.cancel()
+        }
+    }
+
+    /**
+     * One invisible strip. It opens the wheel only for a swipe inwards; a touch that
+     * doesn't move in is simply dropped, so a stray tap on the very edge does nothing.
+     */
+    @SuppressLint("ViewConstructor", "ClickableViewAccessibility")
+    private inner class Strip(ctx: Context, private val isLeft: Boolean) : View(ctx) {
+        private var downX = 0f
+        private var downY = 0f
+        private var downT = 0L
+        private var opened = false
+        private var dead = false
+        private val slop = SWIPE_DP * resources.displayMetrics.density
+
+        override fun onTouchEvent(ev: MotionEvent): Boolean {
+            val x = ev.rawX; val y = ev.rawY; val t = ev.eventTime
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = x; downY = y; downT = t; opened = false; dead = false
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (dead) return true
+                    if (!opened) {
+                        val inward = if (isLeft) x - downX else downX - x
+                        val dy = abs(y - downY)
+                        if (dy > slop * 2 && dy > inward) { dead = true; return true }
+                        if (inward >= slop && inward > dy * 0.8f) {
+                            opened = true
+                            openWheel(isLeft, downX, downY, downT)
+                            feed { it.move(x, y, t) }
+                        }
+                    } else feed { it.move(x, y, t) }
+                }
+                MotionEvent.ACTION_UP -> if (opened) feed { it.end(x, y, t) }
+                MotionEvent.ACTION_CANCEL -> if (opened) feed { it.cancel() }
+            }
+            return true
+        }
+    }
+
+    // ---------------------------------------------------------------- the wheel window
+
+    private val pending = ArrayList<(EdgeSwipe.Sink) -> Unit>()
+
+    /** Hands a touch to the wheel; until the wheel has composed (its first frame) touches wait in line. */
+    private fun feed(f: (EdgeSwipe.Sink) -> Unit) {
+        val s = EdgeSwipe.overlaySink
+        if (s != null && pending.isEmpty()) { f(s); return }
+        pending += f
+        flush()
+    }
+
+    private fun flush() {
+        val s = EdgeSwipe.overlaySink
+        if (s == null) { if (wheelShown) main.postDelayed({ flush() }, 16); return }
+        val q = pending.toList(); pending.clear()
+        q.forEach { it(s) }
+    }
+
+    private fun openWheel(isLeft: Boolean, x: Float, y: Float, t: Long) {
+        showWheel()
+        EdgeSwipe.log("overlay: wheel ${if (isLeft) "left" else "right"} from another app")
+        feed { it.begin(isLeft, x, y, t) }
+    }
+
+    private fun wheelParams() = WindowManager.LayoutParams(
+        WindowManager.LayoutParams.MATCH_PARENT,
+        WindowManager.LayoutParams.MATCH_PARENT,
+        overlayType(),
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+        PixelFormat.TRANSLUCENT,
+    ).apply { gravity = Gravity.TOP or Gravity.LEFT; title = "VoidOS edge wheel" }
+
+    private fun showWheel() {
+        if (wheelShown) return
+        val v = wheel ?: ComposeView(this).also { cv ->
+            cv.setViewTreeLifecycleOwner(this)
+            cv.setViewTreeSavedStateRegistryOwner(this)
+            cv.setContent { OverlayWheels(onClosed = { main.post { hideWheel() } }) }
+            wheel = cv
+        }
+        runCatching { wm.addView(v, wheelParams()) }
+            .onSuccess { wheelShown = true; refreshStrips() }
+            .onFailure { EdgeSwipe.log("overlay: wheel window refused (${it.message})") }
+    }
+
+    private fun hideWheel() {
+        if (!wheelShown) return
+        pending.clear()
+        wheel?.let { runCatching { wm.removeView(it) } }
+        // a fresh window next time: the wheel starts from closed, with today's apps
+        wheel?.disposeComposition()
+        wheel = null
+        EdgeSwipe.overlaySink = null
+        wheelShown = false
+        refreshStrips()
+    }
+
+    @androidx.compose.runtime.Composable
+    private fun OverlayWheels(onClosed: () -> Unit) {
+        val ctx = this
+        val st = store
+        val pages = Module.entries
+        val apps = remember { st.recentApps.filter { blockReason(ctx, st, it) == null }.take(7) }
+        val all = remember { AppsRepo.all(ctx) }
+        CompositionLocalProvider(LocalRoom provides Rooms.overlay) {
+            EdgeWheels(
+                tabs = pages.map { m -> WheelItem(m.name, m.label) { mod, c -> Glyph(m.glyph, c, mod) } },
+                currentTab = "",
+                onTab = { k -> backToVoid(k) },
+                apps = apps.mapNotNull { pkg ->
+                    val e = all.firstOrNull { it.pkg == pkg } ?: return@mapNotNull null
+                    WheelItem(pkg, e.label) { mod, _ -> Box(mod) { AppGlyph(e, st.iconStyle, 36.dp) } }
+                },
+                onApp = { pkg -> if (!launchApp(ctx, st, pkg)) st.forgetRecent(pkg) },
+                onAllApps = { backToVoid(Module.APPS.name) },
+                overlay = true,
+                onClosed = onClosed,
+            )
+        }
+    }
+
+    /** Brings VoidOS back to the front, on the screen picked. */
+    private fun backToVoid(module: String) {
+        com.andysocial.voidos.ui.Idle.openModule.value = module
+        runCatching {
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .putExtra(MainActivity.EXTRA_MODULE, module)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
+            )
+        }.onFailure { EdgeSwipe.log("overlay: could not bring VoidOS back (${it.message})") }
+    }
+
+    companion object {
+        const val CHANNEL = "edge"
+        const val NOTE_ID = 7301
+        /** How wide each invisible edge strip is. */
+        const val STRIP_DP = 14f
+        /** How far a finger must move inwards from a strip before the wheel opens. */
+        const val SWIPE_DP = 14f
+    }
+}

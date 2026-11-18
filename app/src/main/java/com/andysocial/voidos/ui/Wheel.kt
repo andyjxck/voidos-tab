@@ -44,6 +44,15 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.asComposePath
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
@@ -55,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlin.math.atan2
+import kotlin.math.max
 import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.roundToInt
@@ -95,6 +105,10 @@ fun EdgeWheels(
     onApp: (String) -> Unit,
     onAllApps: () -> Unit,
     enabled: Boolean = true,
+    /** True in the window over other apps: it takes its touches from the edge strips there, not from MainActivity. */
+    overlay: Boolean = false,
+    /** Called once the wheel has finished closing. */
+    onClosed: () -> Unit = {},
 ) {
     var side by remember { mutableStateOf<Edge?>(null) }
     var anchorY by remember { mutableFloatStateOf(0f) }
@@ -109,6 +123,7 @@ fun EdgeWheels(
     val cbTab by rememberUpdatedState(onTab)
     val cbApp by rememberUpdatedState(onApp)
     val cbAll by rememberUpdatedState(onAllApps)
+    val cbClosed by rememberUpdatedState(onClosed)
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val w = constraints.maxWidth.toFloat()
@@ -154,7 +169,7 @@ fun EdgeWheels(
         }
         fun closeWheel() {
             EdgeSwipe.log("wheel closed")
-            scope.launch { appear.animateTo(0f, tween(140)); side = null; sel = null; sticky = false }
+            scope.launch { appear.animateTo(0f, tween(140)); side = null; sel = null; sticky = false; cbClosed() }
         }
         fun pick(e: Edge, i: Int) {
             val list = if (e == Edge.RIGHT) apps else tabs
@@ -163,73 +178,162 @@ fun EdgeWheels(
             if (e == Edge.LEFT) cbTab(key) else cbApp(key)
         }
 
-        // ---- the open wheel
+        // ---- the open wheel: a lens of liquid glass
         val open = side
         if (open != null) {
             val t = appear.value
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.42f * t)))
+            val room = LocalRoom.current
+            val vel = angle.velocity
+            // the scrim falls off from the edge the wheel comes from, so the page stays faintly there
             Canvas(Modifier.fillMaxSize()) {
                 val c = centre(open)
-                val pad = step / 2 + Math.toRadians(5.0).toFloat()
+                drawRect(Color.Black.copy(alpha = 0.22f * t))
+                drawRect(
+                    Brush.radialGradient(
+                        0f to Color.Black.copy(alpha = 0.55f * t), 0.55f to Color.Black.copy(alpha = 0.30f * t), 1f to Color.Transparent,
+                        center = c, radius = max(w, h) * 0.75f,
+                    ),
+                )
+            }
+            Canvas(Modifier.fillMaxSize()) {
+                val c = centre(open)
+                val pad = step / 2 + Math.toRadians(3.0).toFloat()
                 val a0 = start - pad
                 val sweep = step * (n - 1) + 2 * pad
-                val rIn = px(Geo.rIn) * (0.6f + 0.4f * t)
-                val rOut = px(Geo.rOut) * (0.6f + 0.4f * t)
+                val grow = 0.62f + 0.38f * t
+                val rIn = px(Geo.rIn) * grow
+                val rOut = px(Geo.rOut) * grow
+                val rMid = (rIn + rOut) / 2
+                val thick = rOut - rIn
                 // angles on screen: the right wheel is the left one mirrored
                 fun deg(a: Float) = Math.toDegrees((if (open == Edge.LEFT) a else (Math.PI - a).toFloat()).toDouble()).toFloat()
                 val startDeg = if (open == Edge.LEFT) deg(a0) else deg(a0 + sweep)
                 val sweepDeg = Math.toDegrees(sweep.toDouble()).toFloat()
-                // THE 1.4.0-1.7.0 WHEEL BUG: a bare close() inside Path().apply { } here called the
-                // wheel's own close() above (Kotlin picks a local function over the Path's member), so the wheel shut
-                // itself on its first frame. The swipe registered; the wheel never stayed.
-                val band = Path()
-                band.arcTo(Rect(c, rOut), startDeg, sweepDeg, true)
-                band.arcTo(Rect(c, rIn), startDeg + sweepDeg, -sweepDeg, false)
-                band.close()
-                drawPath(band, Brush.radialGradient(
-                    0f to Color(0xFF2C2C31), 0.75f to Color(0xFF1E1E22), 1f to Color(0xFF161619),
-                    center = c, radius = rOut,
-                ), alpha = 0.94f * t)
-                // the screen's light pools in the glass toward the hub
-                drawPath(band, Brush.radialGradient(listOf(Ambience.tint().copy(alpha = 0.20f), Color.Transparent), center = c, radius = rOut * 1.05f), alpha = t)
-                // the rim catches the light: bright along the top of the outer edge, faint on the inner one
-                drawArc(
-                    Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.34f), Color.White.copy(alpha = 0.06f)), startY = c.y - rOut, endY = c.y + rOut),
-                    startDeg, sweepDeg, false, topLeft = Offset(c.x - rOut, c.y - rOut),
-                    size = androidx.compose.ui.geometry.Size(rOut * 2, rOut * 2), style = Stroke(px(1.2f)), alpha = t,
-                )
-                drawArc(
-                    Color.White.copy(alpha = 0.07f), startDeg, sweepDeg, false, topLeft = Offset(c.x - rIn, c.y - rIn),
-                    size = androidx.compose.ui.geometry.Size(rIn * 2, rIn * 2), style = Stroke(px(1f)), alpha = t,
-                )
-                // the selection: a glass bead that springs from slot to slot
-                if (sel != null) {
-                    val b = at(open, angle.value, px(Geo.rItem) * (0.6f + 0.4f * t))
-                    val r = px(29f)
-                    val hl = Ambience.tint()
-                    drawCircle(Brush.radialGradient(listOf(hl.copy(alpha = 0.42f), hl.copy(alpha = 0.10f)), center = b, radius = r * 1.25f), r * 1.25f, b, alpha = t)
-                    drawCircle(hl.copy(alpha = 0.85f), r, b, style = Stroke(px(1.4f)), alpha = t)
-                    drawArc(
-                        Color.White.copy(alpha = 0.55f), 200f, 70f, false,
-                        topLeft = Offset(b.x - r * 0.72f, b.y - r * 0.72f), size = androidx.compose.ui.geometry.Size(r * 1.44f, r * 1.44f),
-                        style = Stroke(px(1.6f), cap = androidx.compose.ui.graphics.StrokeCap.Round), alpha = t,
+                // THE 1.4.0-1.7.0 WHEEL BUG lived here: a bare close() inside Path().apply { } called the
+                // wheel's own close(), so the wheel shut itself on its first frame. Keep path calls qualified.
+                val band = wheelBand(c, rMid, thick, startDeg, sweepDeg)
+                val bandA = band.asAndroidPath()
+                // 1. depth: the band floats, casting a soft shadow out from the edge
+                drawIntoCanvas { cv ->
+                    val sh = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.Black.copy(alpha = 0.55f * t).toArgb()
+                        maskFilter = android.graphics.BlurMaskFilter(px(22f), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                    }
+                    cv.nativeCanvas.save()
+                    cv.nativeCanvas.translate(if (open == Edge.LEFT) px(6f) else -px(6f), px(10f))
+                    cv.nativeCanvas.drawPath(bandA, sh)
+                    cv.nativeCanvas.restore()
+                }
+                val m = room.moodNow()
+                val tint = Ambience.tint()
+                clipPath(band) {
+                    // 2. the lens: the light behind, bent and magnified through thick glass
+                    if (!room.detached) {
+                        withTransform({ scale(1.32f, 1.32f, c) }) {
+                            paintAurora(w, h, m, room.clock.longValue, Ambience.pos.floatValue, room.intensity.floatValue * 2.1f, base = false)
+                        }
+                    } else {
+                        drawRect(Brush.radialGradient(listOf(m.a.copy(alpha = 0.42f), Color.Transparent), center = c + Offset(0f, -rOut), radius = rOut * 1.3f))
+                        drawRect(Brush.radialGradient(listOf(m.b.copy(alpha = 0.36f), Color.Transparent), center = c + Offset(0f, rOut), radius = rOut * 1.2f))
+                    }
+                    // 3. the body: smoked glass, clearer in the middle of the band, denser at its edges
+                    drawCircle(
+                        Brush.radialGradient(
+                            0f to Color(0xFF15151A).copy(alpha = 0.55f),
+                            (rIn / rOut) to Color(0xFF1B1B21).copy(alpha = 0.62f),
+                            ((rIn + thick * 0.5f) / rOut) to Color(0xFF26252D).copy(alpha = 0.34f),
+                            1f to Color(0xFF101014).copy(alpha = 0.66f),
+                            center = c, radius = rOut,
+                        ),
+                        rOut, c,
                     )
+                    // 4. thickness: light soaking in from every edge, in the colour of the room
+                    val rim = lerp(tint, Color.White, 0.4f)
+                    drawPath(band, rim.copy(alpha = 0.05f), style = Stroke(px(30f)))
+                    drawPath(band, rim.copy(alpha = 0.06f), style = Stroke(px(14f)))
+                    drawPath(band, rim.copy(alpha = 0.08f), style = Stroke(px(5f)))
+                    // 5. gloss: a broad sheen across the upper half of the band
+                    drawCircle(
+                        Brush.radialGradient(listOf(Color.White.copy(alpha = 0.16f), Color.Transparent), center = c + Offset(if (open == Edge.LEFT) rMid * 0.55f else -rMid * 0.55f, -rMid * 0.8f), radius = rOut * 0.75f),
+                        rOut, c,
+                    )
+                    // 6. thick glass pools coloured light along its lower inner curve
+                    drawCircle(
+                        Brush.radialGradient(listOf(tint.copy(alpha = 0.30f), Color.Transparent), center = c + Offset(if (open == Edge.LEFT) rIn * 0.4f else -rIn * 0.4f, rIn * 0.95f), radius = rOut * 0.55f),
+                        rOut, c,
+                    )
+                    // 7. specular: the rim catches the light; the brightest point follows your finger
+                    val peak = deg(angle.value - 0.55f)
+                    fun spec(a: Float, peakDeg: Float, spread: Float): Brush {
+                        // a sweep gradient around the wheel's centre, bright at peakDeg and gone by +-spread degrees
+                        fun f(d: Float) = (((d - peakDeg) % 360f + 540f) % 360f - 180f)
+                        val stops = (0..36).map { k ->
+                            val d = k * 10f
+                            val x = (1f - kotlin.math.abs(f(d)) / spread).coerceIn(0f, 1f)
+                            (k / 36f) to Color.White.copy(alpha = a * x * x)
+                        }.toTypedArray()
+                        return Brush.sweepGradient(*stops, center = c)
+                    }
+                    drawPath(band, spec(0.16f, peak, 70f), style = Stroke(px(12f)))
+                    drawPath(band, spec(0.72f, peak, 50f), style = Stroke(px(2.2f)))
+                    drawPath(band, spec(0.40f, deg(angle.value + 1.1f), 45f), style = Stroke(px(2.2f)))
+                }
+
+                // 8. the selection: a drop of liquid glass that magnifies; it stretches along the arc as it moves
+                if (sel != null) {
+                    val b = at(open, angle.value, px(Geo.rItem) * grow)
+                    val r = px(31f)
+                    val stretch = (kotlin.math.abs(vel) * 0.06f).coerceAtMost(0.45f)
+                    val tangent = deg(angle.value) + 90f
+                    drawIntoCanvas { cv ->
+                        val sh = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                            color = Color.Black.copy(alpha = 0.45f * t).toArgb()
+                            maskFilter = android.graphics.BlurMaskFilter(px(10f), android.graphics.BlurMaskFilter.Blur.NORMAL)
+                        }
+                        cv.nativeCanvas.drawCircle(b.x, b.y + px(6f), r * 0.95f, sh)
+                    }
+                    withTransform({ rotate(tangent, b); scale(1f + stretch, 1f - stretch * 0.35f, b) }) {
+                        val hl = tint
+                        // stained, clear glass: the colour of the screen, brighter at the bottom where the light gathers
+                        drawCircle(Brush.verticalGradient(listOf(lerp(hl, Color.White, 0.25f).copy(alpha = 0.30f), hl.copy(alpha = 0.55f)), startY = b.y - r, endY = b.y + r), r, b, alpha = t)
+                        drawCircle(Brush.radialGradient(listOf(Color.Transparent, Color.Transparent, Color.White.copy(alpha = 0.22f)), center = b, radius = r), r, b, alpha = t)
+                        // the rim bends the light into a bright crescent at the top left and a softer one opposite
+                        drawCircle(
+                            Brush.sweepGradient(
+                                0f to Color.White.copy(alpha = 0.08f), 0.55f to Color.White.copy(alpha = 0.10f), 0.64f to Color.White.copy(alpha = 0.95f),
+                                0.75f to Color.White.copy(alpha = 0.12f), 0.92f to Color.White.copy(alpha = 0.05f), 1f to Color.White.copy(alpha = 0.08f),
+                                center = b,
+                            ),
+                            r - px(1.2f), b, style = Stroke(px(2.4f)), alpha = t,
+                        )
+                        drawCircle(
+                            Brush.sweepGradient(0f to Color.Transparent, 0.12f to Color.White.copy(alpha = 0.45f), 0.25f to Color.Transparent, 1f to Color.Transparent, center = b),
+                            r - px(1.2f), b, style = Stroke(px(2f)), alpha = t,
+                        )
+                        // the gloss: a soft oval highlight over the top
+                        drawOval(
+                            Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.55f), Color.White.copy(alpha = 0.0f)), startY = b.y - r * 0.9f, endY = b.y - r * 0.05f),
+                            topLeft = Offset(b.x - r * 0.62f, b.y - r * 0.9f), size = Size(r * 1.24f, r * 0.8f), alpha = t,
+                        )
+                    }
                 }
             }
-            // slot icons
+            // slot icons: magnified as the lens passes over them, like looking through a drop of water
             items.forEachIndexed { i, it ->
-                val p = at(open, slotAngle(i), px(Geo.rItem) * (0.6f + 0.4f * t))
+                val p = at(open, slotAngle(i), px(Geo.rItem) * (0.62f + 0.38f * t))
                 val on = i == sel
+                val near = if (sel != null) (1f - kotlin.math.abs(slotAngle(i) - angle.value) / step).coerceIn(0f, 1f) else 0f
+                val mag = 1f + 0.34f * near * near
                 Box(
                     Modifier.offset { IntOffset((p.x - px(20f)).roundToInt(), (p.y - px(20f)).roundToInt()) }
-                        .size(40.dp).alpha(t).scale(if (on) 1.12f else 1f)
+                        .size(40.dp).alpha(t).scale(mag)
                         .semantics { contentDescription = it.label },
                     contentAlignment = Alignment.Center,
-                ) { it.icon(Modifier.size(if (open == Edge.RIGHT) 36.dp else 26.dp), if (on) V.White else V.Text.copy(alpha = 0.72f)) }
+                ) { it.icon(Modifier.size(if (open == Edge.RIGHT) 36.dp else 26.dp), if (on) V.White else V.Text.copy(alpha = 0.66f + 0.34f * near)) }
             }
-            // the chosen slot's name, just outside the band
+            // the chosen slot's name, floating just outside the band in its own drop of glass
             sel?.let { i ->
-                val p = at(open, angle.value, px(Geo.rOut + 18f))
+                val p = at(open, angle.value, px(Geo.rOut + 22f))
                 Box(
                     Modifier.layout { m, cs ->
                         val pl = m.measure(cs.copy(minWidth = 0, minHeight = 0))
@@ -239,8 +343,8 @@ fun EdgeWheels(
                         }
                     }.alpha(t),
                 ) {
-                    Box(Modifier.glass(Pill, 0.9f).padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        VText(items.getOrNull(i)?.label ?: "", size = 17.sp, font = SansMedium, color = V.White, maxLines = 1)
+                    Box(Modifier.glass(Pill, 0.75f).padding(horizontal = 20.dp, vertical = 10.dp)) {
+                        VText(items.getOrNull(i)?.label ?: "", size = 18.sp, font = SansMedium, color = V.White, maxLines = 1)
                     }
                 }
             }
@@ -250,11 +354,12 @@ fun EdgeWheels(
                     VText("Apps you open from VoidOS appear here.", size = 15.sp, color = V.Text, align = androidx.compose.ui.text.style.TextAlign.End)
                 }
             }
-            // the hub: the VoidOS mark on the tab wheel, the app grid on the other
+            // the hub: a glass orb with the VoidOS mark on the tab wheel, the app grid on the other
             val hubC = hubAt(open)
             Box(
                 Modifier.offset { IntOffset((hubC.x - px(Geo.hub)).roundToInt(), (hubC.y - px(Geo.hub)).roundToInt()) }
-                    .size((Geo.hub * 2).dp).alpha(t).clip(CircleShape).glass(CircleShape, 0.95f),
+                    .size((Geo.hub * 2).dp).alpha(t)
+                    .liquidGlass(CircleShape, GlassLook(smoke = 0.55f, depth = 1.2f, shine = 1.4f, magnify = 1.5f)),
                 contentAlignment = Alignment.Center,
             ) {
                 if (open == Edge.LEFT) VoidMark(Modifier.size(30.dp), mono = V.Text)
@@ -315,7 +420,8 @@ fun EdgeWheels(
                 }
             }
             override fun end(x: Float, y: Float, t: Long) {
-                val e = side ?: return
+                // nothing open: over another app, give the screen straight back
+                val e = side ?: run { if (overlay) cbClosed(); return }
                 move(x, y, t)
                 val onHub = hypot(lastPt.x - hubAt(e).x, lastPt.y - hubAt(e).y) < px(Geo.hub)
                 val list = if (e == Edge.RIGHT) apps else tabs
@@ -328,13 +434,13 @@ fun EdgeWheels(
                     else -> closeWheel()
                 }
             }
-            override fun cancel() { if (side != null && !sticky) closeWheel() }
+            override fun cancel() { if (side != null && !sticky) closeWheel() else if (side == null && overlay) cbClosed() }
         }
         // the page dots and the edge handles open a wheel pinned, no swipe needed
-        val req by EdgeSwipe.request
+        val req by (if (overlay) EdgeSwipe.overlayRequest else EdgeSwipe.request)
         LaunchedEffect(req) {
             val r = req ?: return@LaunchedEffect
-            EdgeSwipe.request.value = null
+            if (overlay) EdgeSwipe.overlayRequest.value = null else EdgeSwipe.request.value = null
             if (!enabled || side != null) return@LaunchedEffect
             openAt(if (r) Edge.LEFT else Edge.RIGHT, h / 2)
             sticky = true
@@ -342,47 +448,24 @@ fun EdgeWheels(
         }
         // a pinned-open wheel takes its taps itself (the overlay above), so the edges stand down meanwhile
         SideEffect {
-            EdgeSwipe.sink = sink
-            EdgeSwipe.enabled = enabled && !(side != null && sticky)
+            if (overlay) {
+                EdgeSwipe.overlaySink = sink
+            } else {
+                EdgeSwipe.sink = sink
+                EdgeSwipe.enabled = enabled && !(side != null && sticky)
+            }
         }
         DisposableEffect(Unit) {
-            onDispose { if (EdgeSwipe.sink === sink) EdgeSwipe.sink = null; EdgeSwipe.enabled = false }
+            onDispose {
+                if (overlay) { if (EdgeSwipe.overlaySink === sink) EdgeSwipe.overlaySink = null }
+                else { if (EdgeSwipe.sink === sink) EdgeSwipe.sink = null; EdgeSwipe.enabled = false }
+            }
         }
         if (!enabled && side != null) LaunchedEffect(Unit) { closeWheel() }
         Box(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInWindow() })
 
-        // a glass handle on each edge: it shows where to pull, and a tap on it opens the wheel
-        if (enabled && side == null) {
-            val tick = rememberTicker(50L)
-            listOf(Edge.LEFT, Edge.RIGHT).forEach { e ->
-                Box(
-                    Modifier.align(if (e == Edge.LEFT) Alignment.CenterStart else Alignment.CenterEnd)
-                        .size(30.dp, 132.dp)
-                        .pointerInput(e) {
-                            awaitEachGesture {
-                                awaitFirstDown()
-                                if (waitForUpOrCancellation() != null) EdgeSwipe.request.value = e == Edge.LEFT
-                            }
-                        }
-                        .drawBehind {
-                            // breathes softly, lit in the colour of the screen you're on
-                            val br = 0.5f + 0.5f * sin(phase(tick.value, 4_000L) * 2 * Math.PI.toFloat() + if (e == Edge.LEFT) 0f else 1.6f)
-                            val pw = 5.dp.toPx(); val ph = 70.dp.toPx()
-                            val x = if (e == Edge.LEFT) 5.dp.toPx() else size.width - 5.dp.toPx() - pw
-                            val y = (size.height - ph) / 2
-                            val tint = Ambience.tint()
-                            drawRoundRect(
-                                Brush.radialGradient(listOf(tint.copy(alpha = 0.22f + 0.14f * br), Color.Transparent), center = Offset(x + pw / 2, size.height / 2), radius = ph * 0.75f),
-                                topLeft = Offset(0f, 0f), size = size,
-                            )
-                            drawRoundRect(
-                                Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.55f + 0.2f * br), Color.White.copy(alpha = 0.30f)), startY = y, endY = y + ph),
-                                topLeft = Offset(x, y), size = androidx.compose.ui.geometry.Size(pw, ph), cornerRadius = androidx.compose.ui.geometry.CornerRadius(pw / 2),
-                            )
-                        }
-                )
-            }
-        }
+        // no handles drawn on the edges: the edges are simply where the wheels live.
+        // Tapping the page dots still opens the tab wheel without a swipe.
     }
 }
 
@@ -407,4 +490,18 @@ fun EdgeDebugOverlay() {
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 40.dp).background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 10.dp, vertical = 6.dp),
         )
     }
+}
+
+/** The wheel's band as one closed shape: a thick arc with fully round ends, so it's a capsule bent around the edge. */
+internal fun wheelBand(c: Offset, rMid: Float, thick: Float, startDeg: Float, sweepDeg: Float): Path {
+    val arc = android.graphics.Path()
+    arc.addArc(c.x - rMid, c.y - rMid, c.x + rMid, c.y + rMid, startDeg, sweepDeg)
+    val p = android.graphics.Paint().apply {
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = thick
+        strokeCap = android.graphics.Paint.Cap.ROUND
+    }
+    val out = android.graphics.Path()
+    p.getFillPath(arc, out)
+    return out.asComposePath()
 }

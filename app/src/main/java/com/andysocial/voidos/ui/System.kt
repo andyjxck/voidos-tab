@@ -1,5 +1,6 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.graphics.Brush
 
 import androidx.compose.ui.platform.testTag
@@ -133,7 +134,7 @@ fun SystemScreen(store: Store, act: MainActivity) {
                 Column(Modifier.fillMaxWidth().pane(Oct)) {
                     val pages = Tab.entries.filter { it.group == gi }
                     pages.forEachIndexed { i, t ->
-                        if (i > 0) Box(Modifier.padding(start = 62.dp).fillMaxWidth().height(1.dp).background(V.White.copy(alpha = 0.07f)))
+                        if (i > 0) Spacer(Modifier.height(2.dp))
                         NavItem(t, sel = !portrait && t == tab) { tab = t; open = true }
                     }
                 }
@@ -179,8 +180,7 @@ private fun NavItem(t: Tab, sel: Boolean, onClick: () -> Unit) {
     ) {
         // a lit glass tile in the page's colour, like the icons in an iPad's settings
         Box(
-            Modifier.size(32.dp).clip(RoundedCornerShape(9.dp)).background(tileBrush(t.accent))
-                .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.45f), Color.Transparent)), RoundedCornerShape(9.dp)),
+            Modifier.size(32.dp).droplet(RoundedCornerShape(10.dp), t.accent, 2.2f),
             contentAlignment = Alignment.Center,
         ) {
             Glyph(t.g, Color.White, Modifier.size(18.dp))
@@ -266,8 +266,7 @@ private fun WifiPane(act: MainActivity) {
     results.forEach { r ->
         val isCur = r.SSID == current
         Row(
-            Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(OctS).background(if (isCur) V.Teal.copy(alpha = 0.10f) else V.Panel2)
-                .border(1.dp, if (isCur) V.Teal else V.Line, OctS).clickable(enabled = !isCur) { joining = r; msg = null }.padding(12.dp),
+            Modifier.fillMaxWidth().padding(vertical = 4.dp).then(if (isCur) Modifier.droplet(OctS, V.Teal, 0.6f) else Modifier.pane(OctS)).clickable(enabled = !isCur) { joining = r; msg = null }.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             val bars = WifiManager.calculateSignalLevel(r.level, 4)
@@ -436,7 +435,7 @@ private fun BtPane() {
 @Composable
 private fun BtRow(name: String, state: String, col: Color, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(OctS).background(V.Panel2).border(1.dp, V.Line, OctS).clickable(onClick = onClick).padding(12.dp),
+        Modifier.fillMaxWidth().padding(vertical = 4.dp).pane(OctS).clickable(onClick = onClick).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Glyph(G.BT, col, Modifier.size(20.dp))
@@ -536,7 +535,7 @@ private fun AboutPane(act: MainActivity) {
                     VText(k, size = 15.sp, color = V.Muted, modifier = Modifier.width(150.dp))
                     VText(v, size = 15.sp, color = V.Text, maxLines = 1, modifier = Modifier.weight(1f))
                 }
-                if (k != rows.last().first) Box(Modifier.padding(start = 18.dp).fillMaxWidth().height(1.dp).background(V.White.copy(alpha = 0.07f)))
+                if (k != rows.last().first) Spacer(Modifier.height(2.dp))
             }
         }
     }

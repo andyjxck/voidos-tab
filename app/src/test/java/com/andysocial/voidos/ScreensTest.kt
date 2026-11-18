@@ -554,6 +554,45 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         settle(600)
     }
 
+    /**
+     * The wheel over another app: the same glass wheel, in its own window, fed by the
+     * edge strips (here fed directly). Picking a screen asks VoidOS to come back on it.
+     */
+    @Test fun wheelOverAnotherApp() {
+        var picked: String? = null
+        show {
+            Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFFF2F2F5))) {
+                androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+                    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color(0xFFE8ECF4), androidx.compose.ui.graphics.Color(0xFFFFFFFF))))) {
+                        com.andysocial.voidos.ui.VText("Some other app", size = androidx.compose.ui.unit.TextUnit(40f, androidx.compose.ui.unit.TextUnitType.Sp), color = androidx.compose.ui.graphics.Color(0xFF222222), modifier = Modifier.align(androidx.compose.ui.Alignment.Center))
+                    }
+                }
+                CompositionLocalProvider(com.andysocial.voidos.ui.LocalRoom provides com.andysocial.voidos.ui.Rooms.overlay) {
+                    com.andysocial.voidos.ui.EdgeWheels(
+                        tabs = Module.entries.map { m -> com.andysocial.voidos.ui.WheelItem(m.name, m.label) { mod, c -> com.andysocial.voidos.ui.Glyph(m.glyph, c, mod) } },
+                        currentTab = "", onTab = { picked = it }, apps = emptyList(), onApp = {}, onAllApps = {}, overlay = true,
+                    )
+                }
+            }
+        }
+        settle(300)
+        val sink = com.andysocial.voidos.ui.EdgeSwipe.overlaySink
+        assertTrue("overlay wheel listening", sink != null)
+        val midY = winH * 0.5f
+        val t = android.os.SystemClock.uptimeMillis()
+        rule.runOnUiThread {
+            sink!!.begin(true, 2f, midY, t)
+            sink.move(30f * dens, midY + 10f, t + 40)
+            sink.move(70f * dens, midY + 20f * dens, t + 120)
+        }
+        settle(600)
+        shot("17h_wheel_over_app")
+        listOf("Tools", "Notes", "Settings").forEach { assertTrue("$it slot over the app", rule.onAllNodesWithContentDescription(it, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) }
+        rule.runOnUiThread { sink!!.end(70f * dens, midY + 20f * dens, t + 900) }
+        settle(800)
+        assertTrue("picked a screen: $picked", picked != null)
+    }
+
     /** The page dots are a second way in: a tap opens the tab wheel, no swipe needed. */
     @Test fun dotsOpenWheel() {
         show { Shell(store, act, Module.FACE) }
