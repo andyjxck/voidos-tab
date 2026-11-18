@@ -363,6 +363,7 @@ def main(argv=None):
     g.add_argument("--all-fullscreen", action="store_true", help="also replace the full-screen charging/low-battery pictures")
     s.add_argument("--max-size", type=int, help="partition size in bytes, when the input is not a full partition dump")
     s.add_argument("--preview", help="also save the VoidOS picture as PNG here")
+    s.add_argument("--art", help="use this PNG (panel size) instead of the built-in picture, e.g. root/preview/void_still_800x1280.png from tools/void_balloon.py, so the logo is the boot animation's first frame")
     s = sub.add_parser("verify"); s.add_argument("logo"); s.add_argument("new")
     s.add_argument("--max-size", type=int)
     s = sub.add_parser("preview", help="only draw the VoidOS picture as PNG (no logo dump needed)")
@@ -393,7 +394,13 @@ def main(argv=None):
                 targets = [int(x) for x in a.indices.split(",")]
             else:
                 targets = None
-            art = render_art(size, a.rotate)
+            if a.art:
+                from PIL import Image
+                art = Image.open(a.art).convert("RGB")
+                if a.rotate:
+                    art = art.rotate(-a.rotate, expand=True)
+            else:
+                art = render_art(size, a.rotate)
             if a.preview:
                 art.save(a.preview)
             new, done = build(stock, size, targets, a.rotate, a.swap_rb, a.max_size, art)

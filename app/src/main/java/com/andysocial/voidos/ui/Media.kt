@@ -1,5 +1,21 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import android.content.ContentUris
@@ -48,7 +64,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -201,156 +216,294 @@ private fun currentSource(tick: Long): Source? {
     }
 }
 
+/**
+ * Sound, laid out like a music player rather than a dashboard: one card for
+ * whatever is playing (an app such as YouTube or Spotify, or a file on the
+ * tablet) with big artwork, the title, a thin progress line, the controls and
+ * volume. Your own music files are in a sidebar behind the Files button,
+ * which slides in from the right (over the card when the tablet is upright).
+ * Brown noise is one quiet row underneath.
+ */
 @Composable
 fun MediaScreen() {
     val ctx = LocalContext.current
-    val am = remember { ctx.getSystemService(AudioManager::class.java) }
-    val maxVol = remember { am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1) }
-    var vol by remember { mutableFloatStateOf(am.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxVol) }
+    val portrait = LocalPortrait.current
     val tracks by Player.tracks
-    val noiseOn by Noise.on
-    var swell by remember { mutableStateOf(Noise.swell) }
     var files by remember { mutableStateOf(false) }
+    val now = rememberNow(500)
+    val src = currentSource(now)
     // look for music files quietly; the list only appears when you open it
     LaunchedEffect(Unit) { Player.scan(ctx) }
 
-    Row(Modifier.fillMaxSize()) {
-        Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            NowPlayingPanel(Modifier.fillMaxWidth().weight(1f), hasFiles = tracks.isNotEmpty(), filesOpen = files) { files = !files }
-            // volume and brown noise: one quiet strip
-            Row(
-                Modifier.fillMaxWidth().clip(OctS).background(V.Panel).border(1.dp, V.Line, OctS).padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Glyph(G.VOLUME, V.Muted, Modifier.size(22.dp))
-                Gap(w = 10.dp)
-                VSlider(vol, Modifier.weight(1f), accent = V.Teal) {
-                    vol = it
-                    am.setStreamVolume(AudioManager.STREAM_MUSIC, (it * maxVol).toInt(), 0)
+    Box(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxSize()) {
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        PageTitle("Sound", portrait)
+                        VText(if (src != null) "Playing on ${src.app}" else "Nothing playing", size = 13.sp, color = V.Muted, maxLines = 1)
+                    }
+                    RoundIcon(G.FOLDER, "Files", active = files) { files = !files }
                 }
-                Gap(w = 16.dp)
-                VButton(if (noiseOn) "Noise off" else "Brown noise", accent = V.Teal, filled = noiseOn) { if (noiseOn) Noise.stop() else Noise.start() }
-                if (noiseOn) {
-                    Gap(w = 10.dp)
-                    VText("Swell", size = 10.sp, color = V.Muted)
-                    Gap(w = 6.dp)
-                    VToggle(swell) { swell = it; Noise.swell = it }
-                }
+                Gap(h = 16.dp)
+                NowPlayingCard(src, tracks.isNotEmpty(), Modifier.fillMaxWidth().weight(1f)) { files = true }
+                Gap(h = 12.dp)
+                NoiseRow()
+            }
+            if (!portrait) {
+                AnimatedVisibility(
+                    files,
+                    enter = expandHorizontally() + fadeIn(),
+                    exit = shrinkHorizontally() + fadeOut(),
+                ) { FilesSidebar(tracks, Modifier.padding(start = 18.dp).width(330.dp).fillMaxHeight()) { files = false } }
             }
         }
-        // your own music files: a drawer you open when you want it
-        androidx.compose.animation.AnimatedVisibility(
-            files && tracks.isNotEmpty(),
-            enter = androidx.compose.animation.expandHorizontally() + androidx.compose.animation.fadeIn(),
-            exit = androidx.compose.animation.shrinkHorizontally() + androidx.compose.animation.fadeOut(),
-        ) {
-            val idx = Player.index.intValue
-            VPanel(Modifier.padding(start = 14.dp).width(if (LocalPortrait.current) 260.dp else 320.dp).fillMaxHeight(), padding = 12.dp) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 6.dp)) {
-                    Label("Files on the tablet", modifier = Modifier.weight(1f))
-                    IconTap(G.CLOSE, V.Muted, 40.dp) { files = false }
-                }
-                Gap(h = 8.dp)
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(bottom = 8.dp)) {
-                    itemsIndexed(tracks, key = { _, t -> t.uri.toString() }) { i, t ->
-                        val sel = i == idx
-                        Row(
-                            Modifier.fillMaxWidth().clip(OctS).background(if (sel) V.Teal.copy(alpha = 0.12f) else V.Panel2)
-                                .border(1.dp, if (sel) V.Teal else V.Line, OctS).clickable { Player.play(ctx, i) }.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                VText(t.title, size = 14.sp, color = if (sel) V.Teal else V.Text, font = FontFamily.Default, maxLines = 1)
-                                if (t.artist.isNotEmpty()) VText(t.artist, size = 11.sp, color = V.Muted, font = FontFamily.Default, maxLines = 1)
-                            }
-                            val s = t.ms / 1000
-                            VText("%d:%02d".format(s / 60, s % 60), size = 11.sp, color = V.Muted)
-                        }
-                    }
-                }
+        if (portrait) {
+            // upright there is no room beside the card: the sidebar slides over it, a tap outside closes it
+            AnimatedVisibility(files, enter = fadeIn(), exit = fadeOut()) {
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)).tap { files = false })
             }
+            AnimatedVisibility(
+                files, modifier = Modifier.align(Alignment.CenterEnd),
+                enter = slideInHorizontally { it } + fadeIn(),
+                exit = slideOutHorizontally { it } + fadeOut(),
+            ) { FilesSidebar(tracks, Modifier.fillMaxWidth(0.86f).fillMaxHeight()) { files = false } }
         }
     }
 }
 
+/** One soft colour from the artwork, for the card's glow. Grey when there's no artwork. */
+private fun artTint(a: android.graphics.Bitmap?): Color {
+    if (a == null) return Color.Transparent
+    return runCatching {
+        val px = android.graphics.Bitmap.createScaledBitmap(a, 1, 1, true).getPixel(0, 0)
+        val c = Color(px)
+        // keep the colour, tame the brightness so the card stays dark
+        val hsv = FloatArray(3).also { android.graphics.Color.colorToHSV(px, it) }
+        hsv[1] = hsv[1].coerceAtMost(0.6f); hsv[2] = hsv[2].coerceIn(0.35f, 0.7f)
+        if (c.alpha == 0f) Color.Transparent else Color(android.graphics.Color.HSVToColor(hsv))
+    }.getOrDefault(Color.Transparent)
+}
+
 /**
  * Whatever is playing: YouTube, Spotify, BBC Sounds, the browser, or a music
- * file on the tablet. Apps need notification access once; until then the
- * buttons send plain media keys.
+ * file on the tablet, all with the same card and buttons. Apps need
+ * notification access once; until then the buttons send plain media keys.
  */
 @Composable
-private fun NowPlayingPanel(modifier: Modifier, hasFiles: Boolean, filesOpen: Boolean, onFiles: () -> Unit) {
+private fun NowPlayingCard(src: Source?, hasFiles: Boolean, modifier: Modifier, onFiles: () -> Unit) {
     val ctx = LocalContext.current
     val connected by com.andysocial.voidos.VoidListener.connected
-    val now = rememberNow(500)
-    val access = remember(now / 5000) { com.andysocial.voidos.VoidListener.enabled(ctx) }
-    val src = currentSource(now)
-    VPanel(modifier, accent = V.Teal) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Label(if (src != null) "Playing on ${src.app}" else "Sound", Modifier.weight(1f))
-            if (hasFiles) VButton(if (filesOpen) "Hide files" else "Files", accent = V.Muted) { onFiles() }
-        }
-        Gap(h = 10.dp)
-        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            val wide = maxWidth > maxHeight * 1.3f
-            val art: @Composable (Modifier) -> Unit = { m ->
-                Box(m.aspectRatio(1f).clip(Oct).background(V.Panel2).border(1.dp, V.Line, Oct), contentAlignment = Alignment.Center) {
-                    val a = src?.art
-                    if (a != null) androidx.compose.foundation.Image(a.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-                    else Glyph(if (src?.local == true) G.NOTES else G.MEDIA, V.Tick, Modifier.fillMaxSize(0.4f))
-                }
+    val access = remember(System.currentTimeMillis() / 5000) { com.andysocial.voidos.VoidListener.enabled(ctx) }
+    val tint = remember(src?.art) { artTint(src?.art) }
+    val shape = RoundedCornerShape(28.dp)
+    BoxWithConstraints(
+        modifier.clip(shape)
+            .background(Color(0xFF17171A).copy(alpha = 0.86f))
+            .background(Brush.radialGradient(listOf(tint.copy(alpha = 0.38f), Color.Transparent), center = Offset(0f, 0f), radius = 1400f))
+            .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.12f), Color.White.copy(alpha = 0.02f))), shape)
+            .padding(if (LocalPortrait.current) 24.dp else 28.dp),
+    ) {
+        val wide = maxWidth > maxHeight * 1.15f
+        val artSide = if (wide) minOf(maxHeight, maxWidth * 0.42f) else minOf(maxWidth * 0.82f, maxHeight * 0.48f)
+        val art: @Composable () -> Unit = {
+            Box(
+                Modifier.size(artSide).clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = 0.06f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                val a = src?.art
+                if (a != null) androidx.compose.foundation.Image(a.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                else Glyph(G.MEDIA, V.Tick, Modifier.fillMaxSize(0.32f))
             }
-            val info: @Composable (Modifier) -> Unit = { m ->
-                Column(m.verticalScroll(rememberScrollState()), horizontalAlignment = if (wide) Alignment.Start else Alignment.CenterHorizontally) {
-                    if (src == null) {
-                        VText("Nothing playing", size = 22.sp, color = V.White)
-                        Gap(h = 6.dp)
-                        VText(
-                            if (access || connected) "Play something in YouTube, Spotify or any app and it shows here."
-                            else "Turn on notification access so VoidOS can see and control what's playing in other apps.",
-                            size = 14.sp, color = V.Muted, font = FontFamily.Default, lineHeight = 19.sp,
-                        )
-                        if (!access && !connected) {
-                            Gap(h = 10.dp)
-                            VButton("Turn on access", accent = V.Teal) {
-                                runCatching { ctx.startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                            }
+        }
+        val details: @Composable (Modifier) -> Unit = { m ->
+            Column(m, horizontalAlignment = if (wide) Alignment.Start else Alignment.CenterHorizontally) {
+                if (src == null) {
+                    VText("Not playing", size = 26.sp, font = SansMedium, color = V.White)
+                    Gap(h = 6.dp)
+                    VText(
+                        if (access || connected) "Play something in YouTube, Spotify or any app and it shows here."
+                        else "Turn on notification access so VoidOS can see and control what's playing in other apps.",
+                        size = 15.sp, color = V.Muted, lineHeight = 21.sp, align = if (wide) TextAlign.Start else TextAlign.Center,
+                    )
+                    Gap(h = 16.dp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (!access && !connected) VButton("Turn on access", accent = V.Teal, filled = true) {
+                            runCatching { ctx.startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                         }
-                    } else {
-                        VText(src.title, size = 26.sp, color = V.White, font = FontFamily.Default, maxLines = 2, lineHeight = 31.sp)
-                        if (src.artist.isNotBlank()) VText(src.artist, size = 16.sp, color = V.Muted, font = FontFamily.Default, maxLines = 1)
-                        Gap(h = 14.dp)
-                        if (src.dur > 0) {
-                            VSlider((src.pos.toFloat() / src.dur).coerceIn(0f, 1f), Modifier.fillMaxWidth(), accent = V.Teal) {
-                                val to = (it * src.dur).toLong()
-                                if (src.local) Player.seekTo(to) else com.andysocial.voidos.Now.seekTo(to)
-                            }
-                            Row(Modifier.fillMaxWidth()) {
-                                VText(fmtDur(src.pos), size = 11.sp, color = V.Muted, modifier = Modifier.weight(1f))
-                                VText(fmtDur(src.dur), size = 11.sp, color = V.Muted)
-                            }
-                        }
+                        if (hasFiles) VButton("Play your music", accent = V.Teal) { Player.play(ctx, 0); onFiles() }
+                    }
+                } else {
+                    VText(src.title, size = if (wide) 30.sp else 26.sp, font = SansMedium, color = V.White, maxLines = 2, lineHeight = 36.sp,
+                        align = if (wide) TextAlign.Start else TextAlign.Center)
+                    Gap(h = 4.dp)
+                    if (src.artist.isNotBlank()) VText(src.artist, size = 19.sp, color = V.Text.copy(alpha = 0.65f), maxLines = 1)
+                    if (!src.local) {
+                        Gap(h = 4.dp)
+                        VText("Open ${src.app} \u203a", size = 14.sp, color = V.Teal, maxLines = 1,
+                            modifier = Modifier.clip(Pill).clickable { com.andysocial.voidos.Now.open(ctx) }.padding(vertical = 4.dp))
                     }
                 }
-            }
-            if (wide) Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                art(Modifier.fillMaxHeight()); Gap(w = 22.dp); info(Modifier.weight(1f))
-            } else Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-                art(Modifier.weight(1f, fill = false).fillMaxWidth(0.7f)); Gap(h = 16.dp); info(Modifier.fillMaxWidth())
+                Gap(h = 22.dp)
+                Progress(src, Modifier.fillMaxWidth())
+                Gap(h = 14.dp)
+                Controls(src, Modifier.fillMaxWidth())
+                Gap(h = 18.dp)
+                Volume(Modifier.fillMaxWidth())
             }
         }
-        Gap(h = 12.dp)
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally)) {
-            val local = src?.local == true
-            val live = src != null && !local
-            IconTap(G.PREV, V.Text, 56.dp) { if (local) Player.prev(ctx) else if (live) com.andysocial.voidos.Now.prev() else mediaKey(ctx, KeyEvent.KEYCODE_MEDIA_PREVIOUS) }
-            SmallKey("-10S") { if (local) Player.skip(-10_000) else com.andysocial.voidos.Now.skip(-10_000) }
-            IconTap(if (src?.playing == true) G.PAUSE else G.PLAY, V.Teal, 72.dp) {
-                if (local) Player.toggle(ctx) else if (live) com.andysocial.voidos.Now.playPause() else mediaKey(ctx, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+        if (wide) Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+            art(); Gap(w = 36.dp); details(Modifier.weight(1f))
+        } else Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            art(); Gap(h = 28.dp); details(Modifier.fillMaxWidth().widthIn(max = 560.dp))
+        }
+    }
+}
+
+/** A thin line that shows how far along the track is; drag it to move. */
+@Composable
+private fun Progress(src: Source?, modifier: Modifier) {
+    val dur = src?.dur ?: 0L
+    val f = if (dur > 0) (src!!.pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
+    Column(modifier) {
+        Box(Modifier.fillMaxWidth().height(22.dp), contentAlignment = Alignment.CenterStart) {
+            Box(Modifier.fillMaxWidth().height(5.dp).clip(Pill).background(Color.White.copy(alpha = 0.14f)))
+            Box(Modifier.fillMaxWidth(f).height(5.dp).clip(Pill).background(Color.White.copy(alpha = if (dur > 0) 0.85f else 0f)))
+            if (dur > 0) VSliderTouch(Modifier.matchParentSize()) {
+                val to = (it * dur).toLong()
+                if (src!!.local) Player.seekTo(to) else com.andysocial.voidos.Now.seekTo(to)
             }
-            SmallKey("+10S") { if (local) Player.skip(10_000) else com.andysocial.voidos.Now.skip(10_000) }
-            IconTap(G.NEXT, V.Text, 56.dp) { if (local) Player.next(ctx) else if (live) com.andysocial.voidos.Now.next() else mediaKey(ctx, KeyEvent.KEYCODE_MEDIA_NEXT) }
-            if (live) { Gap(w = 8.dp); VButton("Open app", accent = V.Teal) { com.andysocial.voidos.Now.open(ctx) } }
+        }
+        Row(Modifier.fillMaxWidth()) {
+            VText(if (dur > 0) fmtDur(src!!.pos) else "--:--", size = 12.sp, color = V.Muted, modifier = Modifier.weight(1f))
+            VText(if (dur > 0) "-" + fmtDur((dur - src!!.pos).coerceAtLeast(0)) else "--:--", size = 12.sp, color = V.Muted)
+        }
+    }
+}
+
+/** Back, back 10 seconds, play or pause, forward 10 seconds, next. Same buttons for every source. */
+@Composable
+private fun Controls(src: Source?, modifier: Modifier) {
+    val ctx = LocalContext.current
+    val local = src?.local == true
+    val live = src != null && !local
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceEvenly) {
+        SkipTen("-10", "Back 10 seconds") { if (local) Player.skip(-10_000) else com.andysocial.voidos.Now.skip(-10_000) }
+        BareIcon(G.PREV, "Previous", 34.dp) { if (local) Player.prev(ctx) else if (live) com.andysocial.voidos.Now.prev() else mediaKey(ctx, KeyEvent.KEYCODE_MEDIA_PREVIOUS) }
+        Box(
+            Modifier.size(74.dp).clip(CircleShape).background(V.White)
+                .semantics { contentDescription = if (src?.playing == true) "Pause" else "Play" }
+                .clickable { if (local) Player.toggle(ctx) else if (live) com.andysocial.voidos.Now.playPause() else mediaKey(ctx, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) },
+            contentAlignment = Alignment.Center,
+        ) { Glyph(if (src?.playing == true) G.PAUSE else G.PLAY, V.Bg, Modifier.size(34.dp)) }
+        BareIcon(G.NEXT, "Next", 34.dp) { if (local) Player.next(ctx) else if (live) com.andysocial.voidos.Now.next() else mediaKey(ctx, KeyEvent.KEYCODE_MEDIA_NEXT) }
+        SkipTen("+10", "Forward 10 seconds") { if (local) Player.skip(10_000) else com.andysocial.voidos.Now.skip(10_000) }
+    }
+}
+
+@Composable
+private fun BareIcon(g: G, desc: String, size: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
+    Box(
+        Modifier.size(size + 22.dp).clip(CircleShape).semantics { contentDescription = desc }.clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { Glyph(g, V.White, Modifier.size(size)) }
+}
+
+@Composable
+private fun SkipTen(text: String, desc: String, onClick: () -> Unit) {
+    Box(
+        Modifier.size(48.dp).clip(CircleShape).semantics { contentDescription = desc }.clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { VText(text, size = 15.sp, font = SansMedium, color = V.Text.copy(alpha = 0.7f)) }
+}
+
+/** Media volume, with a quiet and a loud speaker at either end. */
+@Composable
+private fun Volume(modifier: Modifier) {
+    val ctx = LocalContext.current
+    val am = remember { ctx.getSystemService(AudioManager::class.java) }
+    val maxVol = remember { am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1) }
+    var vol by remember { mutableFloatStateOf(am.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxVol) }
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Glyph(G.VOLUME, V.Muted, Modifier.size(16.dp))
+        Gap(w = 12.dp)
+        Box(Modifier.weight(1f).height(26.dp), contentAlignment = Alignment.CenterStart) {
+            Box(Modifier.fillMaxWidth().height(5.dp).clip(Pill).background(Color.White.copy(alpha = 0.14f)))
+            Box(Modifier.fillMaxWidth(vol.coerceIn(0f, 1f)).height(5.dp).clip(Pill).background(Color.White.copy(alpha = 0.85f)))
+            VSliderTouch(Modifier.matchParentSize()) {
+                vol = it
+                am.setStreamVolume(AudioManager.STREAM_MUSIC, (it * maxVol).toInt(), 0)
+            }
+        }
+        Gap(w = 12.dp)
+        Glyph(G.VOLUME, V.Text, Modifier.size(22.dp))
+    }
+}
+
+/** Brown noise made on the tablet: one row, a switch, and Swell once it's on. */
+@Composable
+private fun NoiseRow() {
+    val noiseOn by Noise.on
+    var swell by remember { mutableStateOf(Noise.swell) }
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(GroupFill).padding(horizontal = 18.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            VText("Brown noise", size = 16.sp, color = V.Text)
+            VText(if (noiseOn) "Playing, made on the tablet" else "Steady background sound, no internet needed", size = 12.sp, color = V.Muted, maxLines = 1)
+        }
+        if (noiseOn) {
+            VText("Swell", size = 13.sp, color = V.Muted)
+            Gap(w = 8.dp)
+            VToggle(swell) { swell = it; Noise.swell = it }
+            Gap(w = 18.dp)
+        }
+        VToggle(noiseOn) { if (it) Noise.start() else Noise.stop() }
+    }
+}
+
+/** Your own music files: title and artist, the one playing in the accent. */
+@Composable
+private fun FilesSidebar(tracks: List<Track>, modifier: Modifier, onClose: () -> Unit) {
+    val ctx = LocalContext.current
+    val idx = Player.index.intValue
+    val shape = RoundedCornerShape(24.dp)
+    Column(
+        modifier.clip(shape).background(Color(0xFF18181B).copy(alpha = 0.97f))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), shape).tap { }.padding(16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).padding(start = 4.dp)) {
+                VText("Your music", size = 20.sp, font = SansMedium, color = V.White)
+                VText(if (tracks.size == 1) "1 song" else "${tracks.size} songs", size = 12.sp, color = V.Muted)
+            }
+            RoundIcon(G.CLOSE, "Close files", size = 36.dp, onClick = onClose)
+        }
+        Gap(h = 12.dp)
+        if (tracks.isEmpty()) {
+            Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                VText("No music files yet", size = 16.sp, color = V.Muted)
+                Gap(h = 6.dp)
+                VText("Copy songs into the tablet's Music folder and they show up here.", size = 13.sp, color = V.Tick, align = TextAlign.Center)
+            }
+            return@Column
+        }
+        LazyColumn(contentPadding = PaddingValues(bottom = 8.dp)) {
+            itemsIndexed(tracks, key = { _, t -> t.uri.toString() }) { i, t ->
+                val sel = i == idx
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (sel) Color.White.copy(alpha = 0.07f) else Color.Transparent).clickable { Player.play(ctx, i) }) {
+                    Row(Modifier.padding(horizontal = 10.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            VText(t.title, size = 15.sp, color = if (sel) V.Teal else V.Text, maxLines = 1)
+                            if (t.artist.isNotEmpty()) VText(t.artist, size = 12.sp, color = V.Muted, maxLines = 1)
+                        }
+                        Gap(w = 8.dp)
+                        VText(fmtDur(t.ms), size = 12.sp, color = V.Muted)
+                    }
+                    if (i < tracks.lastIndex && !sel && i + 1 != idx) Box(Modifier.padding(start = 10.dp).fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.05f)))
+                }
+            }
         }
     }
 }

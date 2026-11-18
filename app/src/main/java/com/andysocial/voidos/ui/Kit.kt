@@ -310,6 +310,7 @@ enum class G(@DrawableRes val res: Int) {
     MESSAGE(R.drawable.vi_message), VIDEO(R.drawable.vi_video), POWER(R.drawable.vi_power), GLOBE(R.drawable.vi_globe),
     CAMERA(R.drawable.vi_camera), STAR(R.drawable.vi_star), STAR_OFF(R.drawable.vi_star_off), USER(R.drawable.vi_user),
     SHUFFLE(R.drawable.vi_shuffle), PHONE(R.drawable.vi_phone), CUTLERY(R.drawable.vi_cutlery),
+    PEN(R.drawable.vi_pen), COMPOSE(R.drawable.vi_compose), FOLDER(R.drawable.vi_folder),
 }
 
 @Suppress("UNUSED_PARAMETER")

@@ -35,15 +35,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import voidmark as vm  # noqa: E402
 
-VERSION = "1.0"
-VERSION_CODE = 1
+VERSION = "2.0"
+VERSION_CODE = 2
 
 MODULE_PROP = f"""id=voidos_boot
-name=VoidOS boot animation
+name=VoidOS boot and shutdown animation
 version={VERSION}
 versionCode={VERSION_CODE}
 author=andyjxck
-description=VoidOS Tab Edition boot animation (the square-root "void" wordmark, lap colours). Systemless: remove the module to restore the stock animation.
+description=VoidOS power-on and power-off animations: the "void" wordmark balloons up at boot and caves in on itself at shutdown. Systemless: remove the module to restore the stock Lenovo animations.
 """
 
 # The standard Magisk module installer stub (Magisk 20.4+ does the real work).
@@ -83,7 +83,7 @@ exit 0
 """
 
 CUSTOMIZE = """# Runs inside Magisk's installer.
-ui_print "- VoidOS boot animation"
+ui_print "- VoidOS boot and shutdown animation"
 ui_print "- Reboot to see it. Remove this module in Magisk to undo."
 set_perm_recursive $MODPATH/system 0 0 0755 0644
 """
@@ -103,6 +103,13 @@ def build(out: Path):
         # bootanimation.zip itself must stay uncompressed inside (it's already stored)
         for path in ("system/media/bootanimation.zip", "system/product/media/bootanimation.zip"):
             z.writestr(zipfile.ZipInfo(path), data, compress_type=zipfile.ZIP_STORED)
+        # the shutdown animation: the TB-X306F's only one is
+        # /system/media/shutdownanimation.zip (its bootanimation binary also
+        # looks in /product/media and /oem/media, which have none), so only
+        # that file is replaced
+        shut = vm.ROOT / "root/shutdownanimation.zip"
+        if shut.exists():
+            z.writestr(zipfile.ZipInfo("system/media/shutdownanimation.zip"), shut.read_bytes(), compress_type=zipfile.ZIP_STORED)
     print(f"{out}: {out.stat().st_size / 1e6:.1f} MB")
 
 

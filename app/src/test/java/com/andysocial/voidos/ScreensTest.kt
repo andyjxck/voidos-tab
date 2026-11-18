@@ -15,6 +15,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.onNodeWithTag
@@ -326,15 +329,58 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     }
 
     @Test fun sky() { show { Shell(store, act, Module.WEATHER) }; shot("07_sky") }
+    private fun tapDesc(d: String) { rule.onAllNodesWithContentDescription(d)[0].performClick(); settle() }
+    private fun typeInto(i: Int, text: String) { rule.onAllNodes(hasSetTextAction())[i].performTextInput(text); settle() }
+
     @Test fun notes() {
-        show { Shell(store, act, Module.NOTES) }; shot("08_notes")
-        tap("Sketch"); expect("Eraser", "Undo", "Clear"); shot("08b_notes_draw")
+        show { Shell(store, act, Module.NOTES) }
+        expect("No notes yet"); shot("08_notes_empty")
+        // a new note: the first line becomes its title in the list
+        tapDesc("New note")
+        // the list's search is field 0 in landscape; upright the note opens on its own, so it's the only field
+        val field = rule.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().size - 1
+        typeInto(field, "Shopping\nmilk, eggs, bread")
+        settle(900) // autosave
+        assertEquals("Shopping\nmilk, eggs, bread", store.notes.first().text)
+        expect("4 words")
+        // on Home as a widget, and back off again
+        tapDesc("Show on Home")
+        assertTrue("[$tag] note should be a Home widget", store.widgets.any { it.kind == "note" && it.ref == store.notes.first().id })
+        tapDesc("Remove from Home")
+        assertTrue("[$tag] note widget should be gone", store.widgets.none { it.kind == "note" })
+        shot("08_notes")
+        // drawing: the pen tools appear in one capsule
+        tapDesc("Draw"); expect("Eraser", "Clear")
+        listOf("Undo", "Solid", "Dotted", "Dashed", "Size 1", "Size 4", "Colour 1", "Colour 7").forEach {
+            assertTrue("[$tag] pen tool $it missing", rule.onAllNodesWithContentDescription(it).fetchSemanticsNodes().isNotEmpty())
+        }
+        shot("08b_notes_draw")
+        tapDesc("Done drawing")
+        if (tag.startsWith("port")) {
+            // upright the note fills the screen and there's a way back to the list
+            tap("Notes"); expect("Shopping", "1 note"); shot("08c_notes_list")
+        } else expect("Shopping", "1 note")
     }
+
+    @Test fun notesSketch() {
+        show { Shell(store, act, Module.NOTES) }
+        tapDesc("Sketch"); expect("Eraser", "Clear")
+        assertEquals(1, store.notes.size)
+    }
+
     @Test fun sound() {
         show { Shell(store, act, Module.MEDIA) }
-        expect("Nothing playing"); shot("09_media")
+        expect("Nothing playing", "Not playing", "Brown noise"); shot("09_media")
         val old = rule.onAllNodesWithText("On this tablet", substring = true, ignoreCase = true, useUnmergedTree = true).fetchSemanticsNodes()
         assertTrue("[$tag] the separate On this tablet section should be gone", old.isEmpty())
+        // the same controls whatever plays
+        listOf("Play", "Previous", "Next", "Back 10 seconds", "Forward 10 seconds").forEach {
+            assertTrue("[$tag] control $it missing", rule.onAllNodesWithContentDescription(it).fetchSemanticsNodes().isNotEmpty())
+        }
+        // your files are in a sidebar behind Files
+        tapDesc("Files"); settle(500); expect("Your music"); shot("09b_media_files")
+        tapDesc("Close files"); settle(500)
+        rule.onAllNodesWithText("Your music").assertCountEquals(0)
     }
 
     private fun chooseApps(vararg pkgs: String) {
@@ -346,7 +392,8 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         chooseApps("com.spotify.music", "com.whatsapp", "com.google.android.youtube", "com.bbc.sounds")
         show { Shell(store, act, Module.APPS) }
         expect("Spotify", "WhatsApp"); shot("12_apps")
-        tap("Manage"); expect("Done", "Hidden", "Chrome"); shot("13_apps_manage")
+        tap("Manage"); expect("Done", "Shown", "Hidden"); shot("13_apps_manage")
+        typeInto(0, "chro"); expect("Chrome"); rule.onAllNodesWithText("Spotify").assertCountEquals(0)
         tap("Done")
         store.setIconStyle("letter"); settle(); expect("SP", "BS"); shot("14_apps_icons_letters")
         store.setIconStyle("colour"); settle(); shot("15_apps_icons_colour")
@@ -367,7 +414,8 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         }
         shot("12b_apps_hidden")
         // Manage shows them all again, to choose from
-        tap("Manage"); expect("WhatsApp", "Chrome", "Hidden")
+        tap("Manage"); expect("Hidden")
+        typeInto(0, "whats"); expect("WhatsApp")
         tap("WhatsApp"); tap("Done"); expect("Spotify", "WhatsApp")
         store.set("kiosk", false)
     }

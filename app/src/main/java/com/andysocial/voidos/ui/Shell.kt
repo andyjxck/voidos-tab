@@ -109,17 +109,19 @@ fun VoidRoot(store: Store, act: MainActivity) {
     val locked by LockState.locked
     BoxWithConstraints(Modifier.fillMaxSize().background(V.Bg)) {
         val portrait = maxHeight > maxWidth
-        if (!booting) Backdrop()
+        Backdrop()
         CompositionLocalProvider(LocalPortrait provides portrait) {
+            // the hub is drawn under the start animation, so the animation
+            // opens out into it instead of cutting to it (ui/Boot.kt)
             when {
-                booting -> BootAnim { VoidApp.booted = true; booting = false }
                 !store.setupDone -> Setup(store, act)
                 else -> {
                     Shell(store, act)
                     if (locked && store.voidLock) LockScreen(store) { LockState.locked.value = false; Idle.touch() }
                 }
             }
-            if (!booting) TimerAlert()
+            if (booting) BootAnim { VoidApp.booted = true; booting = false }
+            else TimerAlert()
         }
     }
 }
