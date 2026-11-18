@@ -97,6 +97,8 @@ object Locator {
         // within ~3 km of where we already are: keep the name, skip the lookup
         val moved = Math.abs(lat - store.lat) > 0.03f || Math.abs(lon - store.lon) > 0.03f
         if (!moved) return false
+        // a place was picked while the fix was coming in: leave it alone
+        if (!store.autoPlace) return false
         store.setPlace(name(ctx, loc.latitude, loc.longitude), lat, lon)
         return true
     }
