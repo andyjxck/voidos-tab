@@ -767,6 +767,46 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         shot("43_book_closed")
     }
 
+    /** Double-tap the background and drag: a box picks several widgets, and dragging one moves them all. */
+    @Test fun faceGroupMove() {
+        com.andysocial.voidos.ui.Book.reset()
+        store.saveWidgets(emptyList())
+        store.addWidget("sky"); store.addWidget("list")
+        val sky = store.widgets.first { it.kind == "sky" }.id
+        val list = store.widgets.first { it.kind == "list" }.id
+        store.placeWidget(sky, 0.15f, 0.08f, 1f, 1f, 0f)
+        store.placeWidget(list, 0.85f, 0.08f, 1f, 1f, 0f)
+        show { Shell(store, act, Module.FACE) }
+        settle(400)
+        fun box(k: String) = rule.onNodeWithTag("widget-$k", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val y0 = winH * 0.86f; val x0 = winW * 0.14f
+        // first tap, then the second tap held and dragged up to the top right
+        down(x0, y0); up(x0, y0)
+        down(x0, y0); drag(x0, y0, winW * 0.9f, winH * 0.05f, steps = 10)
+        settle(200)
+        shot("46_face_lasso")
+        assertTrue("[$tag] box drawn", rule.onAllNodesWithTag("lasso", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        up(winW * 0.9f, winH * 0.05f)
+        settle(400)
+        assertTrue("[$tag] both picked", listOf("sky", "list").all { k -> rule.onAllNodesWithTag("picked-$k", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() })
+        shot("47_face_picked")
+        // drag the weather widget down: the list comes too
+        val s0 = box("sky"); val l0 = box("list")
+        val c = s0.center
+        down(c.x, c.y); drag(c.x, c.y, c.x + 10f, c.y + 160f, steps = 8); up(c.x + 10f, c.y + 160f)
+        settle(600)
+        val s1 = box("sky"); val l1 = box("list")
+        assertTrue("[$tag] weather moved down: $s0 -> $s1", s1.top > s0.top + 60f)
+        assertTrue("[$tag] list moved with it: $l0 -> $l1", l1.top > l0.top + 60f)
+        assertEquals(Module.FACE, com.andysocial.voidos.ui.ShellNow.module.value)
+        shot("48_face_group_moved")
+        // a tap on the background puts them down
+        down(x0, y0); up(x0, y0)
+        settle(600)
+        assertTrue("[$tag] put down", rule.onAllNodesWithTag("picked-sky", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        store.saveWidgets(emptyList())
+    }
+
     /** Pull a slot out of the tab wheel and let go on the right half: it opens there, beside the face. */
     @Test fun bookDragFromWheel() {
         com.andysocial.voidos.ui.Book.reset()
