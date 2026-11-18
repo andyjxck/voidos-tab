@@ -77,7 +77,6 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 
-private val Group = RoundedCornerShape(18.dp)
 
 private fun use24h() = runCatching { VoidApp.instance.store.use24h }.getOrDefault(true)
 
@@ -149,8 +148,7 @@ private fun AlarmCard(a: Alarm, now: Long, onEdit: () -> Unit) {
     val skipping = a.enabled && a.skipUntil > now
     val sound = AlarmSounds.byKey(a.sound)
     Column(
-        Modifier.fillMaxWidth().clip(Oct).background(V.Panel)
-            .border(1.dp, V.White.copy(alpha = 0.05f), Oct)
+        Modifier.fillMaxWidth().pane(Oct)
             .clickable(onClick = onEdit).padding(start = 20.dp, end = 16.dp, top = 14.dp, bottom = 14.dp)
             .testTag("alarm_${a.id}"),
     ) {
@@ -221,7 +219,7 @@ fun AlarmEditor(start: Alarm, isNew: Boolean, onClose: () -> Unit) {
                 if (!isNew) {
                     Gap(h = 16.dp)
                     Box(
-                        Modifier.fillMaxWidth().clip(Group).background(V.Panel).clickable { AlarmPreview.stop(); Alarms.remove(ctx, a.id); onClose() }
+                        Modifier.fillMaxWidth().pane(Oct).clickable { AlarmPreview.stop(); Alarms.remove(ctx, a.id); onClose() }
                             .padding(vertical = 16.dp),
                         contentAlignment = Alignment.Center,
                     ) { VText("Delete alarm", size = 16.sp, color = V.Coral) }
@@ -264,13 +262,9 @@ private fun AlarmOptions(a: Alarm, pickSound: Boolean, setPick: (Boolean) -> Uni
             }
         }
         Gap(h = 12.dp)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(0 to "Once", AlarmMath.WEEKDAYS to "Weekdays", AlarmMath.WEEKENDS to "Weekends", AlarmMath.EVERY_DAY to "Every day").forEach { (mask, name) ->
-                val on = a.days == mask
-                Box(
-                    Modifier.clip(Pill).background(if (on) V.Text else V.Panel2).clickable { set(a.copy(days = mask)) }.padding(horizontal = 12.dp, vertical = 8.dp),
-                ) { VText(name, size = 13.sp, color = if (on) V.Bg else V.Text, maxLines = 1) }
-            }
+        val presets = listOf(0 to "Once", AlarmMath.WEEKDAYS to "Weekdays", AlarmMath.WEEKENDS to "Weekends", AlarmMath.EVERY_DAY to "Every day")
+        GlassSegments(presets.map { it.first.toString() to it.second }, a.days.toString(), Modifier.fillMaxWidth(), height = 40.dp) { k ->
+            set(a.copy(days = k.toInt()))
         }
     }
     Gap(h = 18.dp)
@@ -326,7 +320,7 @@ private fun AlarmOptions(a: Alarm, pickSound: Boolean, setPick: (Boolean) -> Uni
 
 @Composable
 private fun GroupBox(padding: Dp = 16.dp, content: @Composable ColumnScope.() -> Unit) =
-    Column(Modifier.fillMaxWidth().clip(Group).background(V.Panel).padding(padding), content = content)
+    Column(Modifier.fillMaxWidth().pane(Oct).padding(padding), content = content)
 
 @Composable
 private fun SoundPicker(selected: String, volume: Float, onPick: (String) -> Unit) {
@@ -337,15 +331,7 @@ private fun SoundPicker(selected: String, volume: Float, onPick: (String) -> Uni
         Box(Modifier.fillMaxWidth().height(1.dp).background(V.Line))
         Gap(h = 12.dp)
         // categories as chips that wrap onto the width they have
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            SoundCat.entries.forEach { c ->
-                val on = c == cat
-                Box(
-                    Modifier.weight(1f).clip(Pill).background(if (on) V.Text else V.Panel2).clickable { cat = c }.padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center,
-                ) { VText(c.label, size = 13.sp, color = if (on) V.Bg else V.Text, maxLines = 1) }
-            }
-        }
+        GlassSegments(SoundCat.entries.map { it.name to it.label }, cat.name, Modifier.fillMaxWidth(), height = 40.dp, textSize = 13f) { cat = SoundCat.valueOf(it) }
         Gap(h = 8.dp)
         AlarmSounds.all.filter { it.cat == cat }.forEach { s ->
             val on = s.key == selected

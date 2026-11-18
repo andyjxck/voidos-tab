@@ -15,12 +15,14 @@ bars and pin itself in lock mode. No root needed.
 | Screen | What it does |
 | --- | --- |
 | Home | The date and a large, thin clock, running timers as small pills underneath, and optional widgets (weather, music, the list, notes) you hold to drag anywhere |
-| Tools | Timers that ring over everything (and keep going in the background), a unit converter (weight, volume, temperature incl. gas marks, length) and a list sorted by aisle |
+| Tools | Timers that ring over everything (and keep going in the background), alarms (below), a unit converter (weight, volume, temperature incl. gas marks, length) and a list sorted by aisle |
 | Weather | Open-Meteo weather (no key): now, 12-hour graph, six days; last known weather when offline |
 | Notes | Like Notes on an iPad: list by day with search, the first line is the title, a floating pen capsule for drawing (7 colours, 4 sizes, solid/dotted/dashed, eraser, undo, clear), any note can go on Home as a widget |
 | Sound | One now-playing card for whatever is playing, YouTube, Spotify or a file on the tablet (artwork, progress, controls, volume; apps need notification access), your music files in a sidebar behind Files, brown noise made on-device |
 | Apps | A plain icon grid of only the apps you switch on in Manage that will actually open; everything else is hidden from VoidOS. Search, starred apps in a dock (long-press), quick actions |
 | Settings | A grouped list (Connections, Screen, VoidOS, Tablet) with the page beside it, or over it when upright |
+
+**Alarms** (Tools > Alarms): set the time on iPhone-style wheels, repeat on any days (or once), label, snooze length (or no snooze), volume, and gradual volume that fades any sound in over 30 s to 5 min. Skip the next ring of a repeating alarm. 20 bundled sounds in five groups: gentle, classic, loud, funny, and three that build up on their own (Sunrise, Escalation, Pulse). Alarms use Android's exact alarm-clock timer, wake the screen and ring full screen over the lock screen and the VoidOS lock, play on the alarm channel so Do Not Disturb lets them through, are put back after a reboot or a clock change, and stop after 15 minutes with a missed-alarm note. The next alarm within a day shows under the clock on Home. Sounds, sources and licences (all CC0): [`docs/alarm-sounds.md`](docs/alarm-sounds.md).
 
 Getting around (no sidebar):
 

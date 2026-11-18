@@ -1,3 +1,17 @@
+[land] 05_tools_alarms: ok
+[land] 05b_alarm_edit: ok
+[land] 05c_alarm_sounds: ok
+[land] 05d_alarm_new: ok
+[land] 05e_alarm_ringing: 9 issue(s)
+  OVERLAP   "List" / "Gym"
+  OVERLAP   "+" / "02:28"
+  OVERLAP   "Laundry" / "02:28"
+  OVERLAP   "8:54" / "02:28"
+  OVERLAP   "+1 min" / "02:28"
+  OVERLAP   "+1 min" / "Wednesday 18 November"
+  OVERLAP   "+5 min" / "02:28"
+  OVERLAP   "+5 min" / "Wednesday 18 November"
+  OVERLAP   "Stretch" / "Snooze"
 [land] 44_escape_pin: ok
 [land] 20_system_wifi: ok
 [land] 21_system_bluetooth: ok
@@ -53,6 +67,13 @@
 [land] 12b_apps_hidden: ok
 [land] 01c_face_stretched: ok
 [land] 01d_face_clock_moved: ok
+[port] 05_tools_alarms: ok
+[port] 05b_alarm_edit: ok
+[port] 05c_alarm_sounds: ok
+[port] 05d_alarm_new: ok
+[port] 05e_alarm_ringing: 2 issue(s)
+  OVERLAP   "8:58" / "02:29"
+  OVERLAP   "21:58" / "02:29"
 [port] 44_escape_pin: ok
 [port] 20_system_wifi: ok
 [port] 21_system_bluetooth: ok

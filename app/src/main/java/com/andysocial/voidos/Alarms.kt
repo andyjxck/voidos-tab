@@ -335,6 +335,7 @@ class AlarmReceiver : BroadcastReceiver() {
 /** Puts the alarms back after a reboot, a clock or time-zone change, or an update of VoidOS. */
 class AlarmBootReceiver : BroadcastReceiver() {
     override fun onReceive(c: Context, i: Intent) {
+        if (i.action !in setOf(Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED, Intent.ACTION_MY_PACKAGE_REPLACED)) return
         Alarms.load(c, force = true)
         Alarms.rescheduleAll(c)
     }
