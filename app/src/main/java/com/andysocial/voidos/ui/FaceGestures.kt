@@ -28,6 +28,13 @@ import kotlin.math.sin
  *
  * The handler sits on the whole face, not on each widget, so the second finger
  * counts even when it lands just outside a small widget.
+ *
+ * Moving several at once: double-tap the empty background and keep the finger down on
+ * the second tap, then drag. A glass box opens out from the finger, and whatever's
+ * inside it when you let go is picked. Drag any picked one and they all move together,
+ * keeping their places to each other. A tap on the background puts them down. A single
+ * swipe on the background is still the page swipe; only the second tap of a double-tap
+ * draws the box.
  */
 
 /** A box on the face in pixels: its centre, its unturned width and height, and its turn in degrees. */
@@ -91,6 +98,35 @@ internal fun pinchStep(t: FaceTarget, box: FaceBox, a0: Offset, b0: Offset, a1: 
     return FaceBox(c.x, c.y, w, h, box.rot + turn)
 }
 
+/** The box drawn by a double-tap drag, corner [a] to corner [b]. */
+data class Lasso(val a: Offset, val b: Offset) {
+    val left get() = minOf(a.x, b.x)
+    val top get() = minOf(a.y, b.y)
+    val right get() = maxOf(a.x, b.x)
+    val bottom get() = maxOf(a.y, b.y)
+    fun holds(p: Offset) = p.x in left..right && p.y in top..bottom
+}
+
+/** What a lasso picks: everything whose middle is inside it. */
+internal fun lassoPick(l: Lasso, targets: List<FaceTarget>): Set<Long> =
+    targets.filter { l.holds(it.box.centre) }.map { it.id }.toSet()
+
+/**
+ * How far a group can move by [d] and keep every one of them on the face (the same rule
+ * as [keepOn], for all of them at once, so they keep their places to each other).
+ */
+internal fun groupDelta(boxes: Collection<FaceBox>, d: Offset, faceW: Float, faceH: Float): Offset {
+    var loX = Float.NEGATIVE_INFINITY; var hiX = Float.POSITIVE_INFINITY
+    var loY = Float.NEGATIVE_INFINITY; var hiY = Float.POSITIVE_INFINITY
+    for (b in boxes) {
+        val e = b.halfExtent()
+        if (e.x < faceW) { loX = maxOf(loX, e.x / 2f - b.cx); hiX = minOf(hiX, faceW - e.x / 2f - b.cx) }
+        if (e.y < faceH) { loY = maxOf(loY, e.y / 2f - b.cy); hiY = minOf(hiY, faceH - e.y / 2f - b.cy) }
+    }
+    fun fit(v: Float, lo: Float, hi: Float) = if (lo > hi) 0f else v.coerceIn(minOf(lo, 0f), maxOf(hi, 0f))
+    return Offset(fit(d.x, loX, hiX), fit(d.y, loY, hiY))
+}
+
 /** Keeps most of a box on the face: at most a quarter of it can hang over an edge. */
 internal fun keepOn(box: FaceBox, faceW: Float, faceH: Float): FaceBox {
     val e = box.halfExtent()
@@ -111,19 +147,91 @@ fun Modifier.faceGestures(
     targets: () -> List<FaceTarget>,
     onChange: (Long, FaceBox) -> Unit,
     onEnd: (Long, FaceBox) -> Unit,
+    /** What's picked to move together (see the double-tap drag above). */
+    picked: Set<Long> = emptySet(),
+    onPick: (Set<Long>) -> Unit = {},
+    /** The box being drawn, or null. */
+    onLasso: (Lasso?) -> Unit = {},
 ): Modifier {
     val list by rememberUpdatedState(targets)
     val change by rememberUpdatedState(onChange)
     val end by rememberUpdatedState(onEnd)
+    val group by rememberUpdatedState(picked)
+    val pick by rememberUpdatedState(onPick)
+    val lasso by rememberUpdatedState(onLasso)
     if (!enabled) return this
     return this.pointerInput(faceW, faceH) {
         val hold = viewConfiguration.longPressTimeoutMillis
         val slop = viewConfiguration.touchSlop
+        val doubleGap = viewConfiguration.doubleTapTimeoutMillis
+        // the last quick tap on the empty background, for the double-tap drag
+        var lastTapAt = 0L
+        var lastTapPos = Offset.Zero
         awaitEachGesture {
             // the Initial pass sees each touch before the widget under it, so once we
             // pick something up, its tap and the page swipe both stand down
             val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-            val t = list().lastOrNull { it.box.contains(down.position, 8f) } ?: return@awaitEachGesture
+            val all = list()
+            val t = all.lastOrNull { it.box.contains(down.position, 8f) }
+            if (t == null) {
+                val second = down.uptimeMillis - lastTapAt < doubleGap && (down.position - lastTapPos).getDistance() < slop * 6f
+                if (second) {
+                    // the second tap of a double-tap: drag out a box; nothing else sees this touch
+                    lastTapAt = 0L
+                    down.consume()
+                    var l = Lasso(down.position, down.position)
+                    var drew = false
+                    while (true) {
+                        val ev = awaitPointerEvent(PointerEventPass.Initial)
+                        val c = ev.changes.firstOrNull { it.id == down.id } ?: ev.changes.first()
+                        ev.changes.forEach { it.consume() }
+                        if (!c.pressed) break
+                        l = Lasso(down.position, c.position)
+                        if (!drew && (c.position - down.position).getDistance() > slop) drew = true
+                        if (drew) lasso(l)
+                    }
+                    lasso(null)
+                    pick(if (drew) lassoPick(l, list()) else emptySet())
+                    return@awaitEachGesture
+                }
+                // a first tap: remember it; anything that moves is the page's swipe
+                while (true) {
+                    val ev = awaitPointerEvent(PointerEventPass.Initial)
+                    val c = ev.changes.firstOrNull { it.id == down.id } ?: return@awaitEachGesture
+                    if ((c.position - down.position).getDistance() > slop || ev.changes.size > 1) return@awaitEachGesture
+                    if (!c.pressed) {
+                        if (c.uptimeMillis - down.uptimeMillis < hold) {
+                            lastTapAt = c.uptimeMillis; lastTapPos = c.position
+                            // a tap on the background puts a picked group down
+                            if (group.isNotEmpty()) pick(emptySet())
+                        }
+                        return@awaitEachGesture
+                    }
+                }
+            }
+            if (group.size >= 2 && t.id in group) {
+                // a picked group: drag any of them and they all go; a tap still opens the widget
+                var boxes = all.filter { it.id in group }.associate { it.id to it.box }
+                var moving = false
+                var last = down.position
+                while (true) {
+                    val ev = awaitPointerEvent(PointerEventPass.Initial)
+                    val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                    if (!c.pressed) { if (moving) ev.changes.forEach { it.consume() }; break }
+                    if (!moving && (c.position - down.position).getDistance() > slop) moving = true
+                    if (moving) {
+                        val d = groupDelta(boxes.values, c.position - last, faceW, faceH)
+                        boxes = boxes.mapValues { (_, b) -> b.copy(cx = b.cx + d.x, cy = b.cy + d.y) }
+                        boxes.forEach { (id, b) -> change(id, b) }
+                        ev.changes.forEach { it.consume() }
+                    }
+                    last = c.position
+                }
+                if (moving) boxes.forEach { (id, b) -> end(id, b) }
+                return@awaitEachGesture
+            }
+            // anything else picked up on its own puts the group down
+            if (group.isNotEmpty()) pick(emptySet())
             var box = t.box
             var active = false
             val start = System.currentTimeMillis()

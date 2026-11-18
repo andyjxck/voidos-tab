@@ -107,6 +107,11 @@ fun FaceScreen(store: Store, onOpen: (Module) -> Unit) {
             val clockBase = clockPx(faceW, faceH)
             val clockBox = live[CLOCK_TARGET] ?: clockBoxOf(store.clock, faceW, faceH, clockBase)
             val clockNow = if (live[CLOCK_TARGET] != null) placeOf(clockBox, faceW, faceH, clockBase) else store.clock
+            // picked with a double-tap drag on the background, to move together
+            var picked by remember { mutableStateOf(emptySet<Long>()) }
+            var lasso by remember { mutableStateOf<Lasso?>(null) }
+            LaunchedEffect(store.widgets) { picked = picked.filter { id -> id == CLOCK_TARGET || store.widgets.any { it.id == id } }.toSet() }
+            LaunchedEffect(editing) { if (editing) picked = emptySet() }
             Box(
                 Modifier.fillMaxSize().faceGestures(
                     enabled = true, faceW = faceW, faceH = faceH,
@@ -141,6 +146,9 @@ fun FaceScreen(store: Store, onOpen: (Module) -> Unit) {
                         }
                         live.remove(id)
                     },
+                    picked = picked,
+                    onPick = { picked = it },
+                    onLasso = { lasso = it },
                 ),
             ) {
                 Dial(
@@ -152,13 +160,22 @@ fun FaceScreen(store: Store, onOpen: (Module) -> Unit) {
                     },
                 )
                 // a faint outline while the clock is picked up
-                if (live[CLOCK_TARGET] != null) Box(
+                if (live[CLOCK_TARGET] != null || CLOCK_TARGET in picked) Box(
                     Modifier.offset { IntOffset((clockBox.cx - clockBox.w / 2f).roundToInt(), (clockBox.cy - clockBox.h / 2f).roundToInt()) }
                         .size(with(d) { clockBox.w.toDp() }, with(d) { clockBox.h.toDp() })
                         .graphicsLayer { rotationZ = clockBox.rot }
                         .background(Brush.radialGradient(listOf(V.Teal.copy(alpha = 0.16f), Color.Transparent)), RoundedCornerShape(Radius.panel)),
                 )
-                WidgetLayer(store, now, editing, onOpen, faceW, faceH, live)
+                WidgetLayer(store, now, editing, onOpen, faceW, faceH, live, picked)
+                // the box being drawn: a thin sheet of glass from the finger
+                lasso?.let { l ->
+                    Box(
+                        Modifier.offset { IntOffset(l.left.roundToInt(), l.top.roundToInt()) }
+                            .size(with(d) { (l.right - l.left).toDp() }, with(d) { (l.bottom - l.top).toDp() })
+                            .liquidGlass(RoundedCornerShape(Radius.panel), GlassLook(smoke = 0.25f, depth = 0.8f, shine = 1.1f), still = true)
+                            .testTag("lasso"),
+                    )
+                }
             }
             // the one control on the face: add, move and remove widgets
             Box(Modifier.align(Alignment.TopEnd)) {
@@ -463,7 +480,7 @@ internal fun widgetBoxOf(wd: FaceWidget, baseW: Float, baseH: Float, faceW: Floa
 
 /** Every widget at its saved place, size and turn. Hold to drag, pinch to stretch and turn, tap to open its screen. */
 @Composable
-private fun WidgetLayer(store: Store, now: Long, editing: Boolean, onOpen: (Module) -> Unit, faceW: Float, faceH: Float, live: Map<Long, FaceBox>) {
+private fun WidgetLayer(store: Store, now: Long, editing: Boolean, onOpen: (Module) -> Unit, faceW: Float, faceH: Float, live: Map<Long, FaceBox>, picked: Set<Long> = emptySet()) {
     val d = LocalDensity.current
     val wiggle by rememberInfiniteTransition(label = "wig").animateFloat(-1f, 1f, infiniteRepeatable(tween(260), RepeatMode.Reverse), label = "wig")
     store.widgets.forEach { wd ->
@@ -476,6 +493,12 @@ private fun WidgetLayer(store: Store, now: Long, editing: Boolean, onOpen: (Modu
                 .graphicsLayer { rotationZ = box.rot }
                 .testTag("widget-${wd.kind}"),
         ) {
+            // picked to move with others: a soft teal glow behind it
+            if (wd.id in picked) Box(
+                Modifier.fillMaxSize().graphicsLayer { scaleX = 1.12f; scaleY = 1.18f }
+                    .background(Brush.radialGradient(listOf(V.Teal.copy(alpha = 0.22f), Color.Transparent)), RoundedCornerShape(Radius.panel))
+                    .testTag("picked-${wd.kind}"),
+            )
             Box(Modifier.fillMaxSize().offset(x = if (editing && held == null) (wiggle * 1.2f).dp else 0.dp)) {
                 WidgetBody(store, wd, now, onOpen, lifted = held != null)
             }
