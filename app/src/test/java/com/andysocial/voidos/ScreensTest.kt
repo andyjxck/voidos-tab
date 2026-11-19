@@ -418,11 +418,24 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         assertTrue("[$tag] note widget should be gone", store.widgets.none { it.kind == "note" })
         shot("08_notes")
         // drawing: the pen tools appear in one capsule
-        tapDesc("Draw"); expect("Eraser", "Clear")
-        listOf("Undo", "Solid", "Dotted", "Dashed", "Size 1", "Size 4", "Colour 1", "Colour 7").forEach {
+        tapDesc("Draw")
+        // one pill of icons, no text buttons
+        listOf("Undo", "Redo", "Pen", "Highlighter", "Eraser", "Colour", "Size", "Brush options", "Clear page").forEach {
             assertTrue("[$tag] pen tool $it missing", rule.onAllNodesWithContentDescription(it, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         }
+        listOf("Eraser", "Clear").forEach { rule.onAllNodesWithText(it, useUnmergedTree = true).assertCountEquals(0) }
         shot("08b_notes_draw")
+        // the colour wheel, with brightness and opacity
+        tapDesc("Colour"); expect("Colour wheel", "Brightness", "Opacity", "Pick a colour from the page"); shot("08d_notes_colour")
+        // any size, with fine steps
+        tapDesc("Size"); expect("Line preview", "Thinner", "Thicker"); shot("08e_notes_size")
+        // line styles, shapes, paper and smoothing tucked into one menu
+        tapDesc("Brush options")
+        listOf("Solid", "Dotted", "Spaced dots", "Dashed", "Long dash", "Dash dot", "Freehand", "Straight line", "Arrow", "Rectangle", "Ellipse",
+            "Plain paper", "Lined paper", "Grid paper", "Dotted paper", "Smooth lines off").forEach { expect(it) }
+        shot("08f_notes_brush")
+        tapDesc("Grid paper"); tapDesc("Close panel")
+        rule.onAllNodesWithContentDescription("Colour wheel", useUnmergedTree = true).assertCountEquals(0)
         tapDesc("Done drawing")
         if (tag.startsWith("port")) {
             // upright the note fills the screen and there's a way back to the list
@@ -432,8 +445,44 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
 
     @Test fun notesSketch() {
         show { Shell(store, act, Module.NOTES) }
-        tapDesc("Sketch"); expect("Eraser", "Clear")
+        tapDesc("Sketch"); expect("Eraser", "Clear page", "Redo")
         assertEquals(1, store.notes.size)
+        // every tool in the pill is the same size and sits on one line
+        val cells = listOf("Undo", "Redo", "Pen", "Highlighter", "Eraser", "Colour", "Size", "Brush options", "Clear page")
+            .map { rule.onAllNodesWithContentDescription(it, useUnmergedTree = true)[0].fetchSemanticsNode().boundsInRoot }
+        cells.forEach {
+            assertEquals("[$tag] tools share one centre line", cells[0].center.y, it.center.y, 1f)
+            assertEquals("[$tag] tools are one size", cells[0].height, it.height, 1f)
+        }
+        // a line dragged off the top of the page stays on the page
+        val pill = cells[0]
+        val start = Offset(pill.center.x + 200f, pill.top - 160f)
+        rule.onRoot().performTouchInput {
+            down(start)
+            repeat(12) { moveBy(Offset(20f, -(start.y + 60f) / 12f)) }
+            moveBy(Offset(400f, -20f)); up()
+        }
+        settle(900)
+        val ink = store.notes.first().ink
+        assertEquals("[$tag] one stroke drawn", 1, ink.size)
+        ink[0].pts.forEachIndexed { i, v ->
+            if (i % 2 == 0) assertTrue("[$tag] x $v off the page", v in 0f..1f) else assertTrue("[$tag] y $v above the page", v >= 0f)
+        }
+        assertTrue("[$tag] the line ran along the top edge", ink[0].pts.filterIndexed { i, _ -> i % 2 == 1 }.any { it == 0f })
+        // undo, redo, then a clear that needs a second tap and can be undone
+        tapDesc("Undo"); settle(900); assertTrue(store.notes.first().ink.isEmpty())
+        tapDesc("Redo"); settle(900); assertEquals(1, store.notes.first().ink.size)
+        // the test clock would run past the 2.5 s confirm window, so hold it still for the two taps
+        rule.mainClock.autoAdvance = false
+        rule.onAllNodesWithContentDescription("Clear page", useUnmergedTree = true)[0].performClick()
+        rule.mainClock.advanceTimeBy(300)
+        assertEquals("[$tag] one tap only arms Clear", 1, store.notes.first().ink.size)
+        rule.onAllNodesWithContentDescription("Tap again to clear the page", useUnmergedTree = true)[0].performClick()
+        rule.mainClock.advanceTimeBy(300)
+        rule.mainClock.autoAdvance = true
+        settle(900); assertTrue(store.notes.first().ink.isEmpty())
+        tapDesc("Undo"); settle(900); assertEquals(1, store.notes.first().ink.size)
+        shot("08g_notes_drawn")
     }
 
     @Test fun sound() {
