@@ -303,12 +303,14 @@ object Alarms {
         list.value = (list.value.filter { it.id != snoozed.id } + snoozed).sortedWith(compareBy({ it.hour }, { it.minute }))
         save(c); schedule(c, snoozed)
         ringing.value = null
+        runCatching { com.andysocial.voidos.ui.Sensors.refresh() }
         return at
     }
 
     /** Stops what is ringing. (A one-off alarm already turned itself off when it fired.) */
     fun dismiss() {
         ringing.value = null
+        runCatching { com.andysocial.voidos.ui.Sensors.refresh() }
     }
 
     /** Cancel a snooze from the list ("Snoozed until 7:39" > stop). */

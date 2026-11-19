@@ -1041,8 +1041,24 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         store.saveWidgets(emptyList())
     }
 
-    /** Pull a slot out of the tab wheel and let go on the right half: it opens there, beside the face. */
-    @Test fun bookDragFromWheel() {
+    private fun dropNodes() = rule.onAllNodes(androidx.compose.ui.test.SemanticsMatcher("drop") { x -> x.config.getOrElseNullable(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription) { null }?.any { d -> d.startsWith("Drop ") } == true }, useUnmergedTree = true).fetchSemanticsNodes()
+    private fun slotAt(label: String): Offset = rule.onAllNodesWithContentDescription(label, useUnmergedTree = true).fetchSemanticsNodes().first().boundsInWindow.center
+
+    /** Flick in from the left edge and lift: the tab wheel stays pinned open, waiting for a new touch. */
+    private fun pinTabWheel() {
+        val midY = winH * 0.5f
+        down(4f, midY); drag(4f, midY, 140f * dens, midY + 10f, steps = 4)
+        up(140f * dens, midY + 10f)
+        settle(800)
+        assertTrue("[$tag] wheel pinned open; log ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", rule.onAllNodesWithContentDescription("Notes", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+    }
+
+    /**
+     * 1.19.0: the touch that opens the wheel can never start a split. Sliding in from the edge and
+     * on across the screen used to pull the slot out and open it in the book, when all the user
+     * wanted was to swap screens. Now nothing is carried, and letting go swaps screens as before.
+     */
+    @Test fun wheelOpeningTouchNeverSplits() {
         com.andysocial.voidos.ui.Book.reset()
         store.saveWidgets(emptyList())
         show { Shell(store, act, Module.FACE) }
@@ -1050,14 +1066,35 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         val midY = winH * 0.5f
         down(4f, midY); drag(4f, midY, 70f * dens, midY, steps = 6)
         settle(200)
-        // out past the wheel and on across to the right half
         drag(70f * dens, midY, winW * 0.55f, midY, steps = 8)
         settle(200)
         drag(winW * 0.55f, midY, winW * 0.8f, midY + 20f, steps = 6)
         settle(300)
+        assertTrue("[$tag] the opening touch must not carry a slot; log ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", dropNodes().isEmpty())
+        touchT += 600
+        up(winW * 0.8f, midY + 20f)
+        settle(1200)
+        val st = com.andysocial.voidos.ui.Book.state.value
+        assertTrue("[$tag] no split opened: $st", st.first == null && st.second == null)
+        assertTrue("[$tag] swapped screens instead; log ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", com.andysocial.voidos.ui.EdgeSwipe.last.value.contains("picked") || com.andysocial.voidos.ui.ShellNow.module.value != Module.FACE)
+        com.andysocial.voidos.ui.Book.reset()
+    }
+
+    /** Lift first, then a new touch pulls a slot out of the pinned wheel and lets go on the right half: it opens there, beside the face. */
+    @Test fun bookDragFromWheel() {
+        com.andysocial.voidos.ui.Book.reset()
+        store.saveWidgets(emptyList())
+        show { Shell(store, act, Module.FACE) }
+        settle(300)
+        pinTabWheel()
+        val s = slotAt("Notes")
+        val midY = winH * 0.5f
+        down(s.x, s.y); drag(s.x, s.y, winW * 0.55f, midY, steps = 8)
+        settle(200)
+        drag(winW * 0.55f, midY, winW * 0.8f, midY + 20f, steps = 6)
+        settle(300)
         shot("44_book_carrying")
-        val drops = rule.onAllNodes(androidx.compose.ui.test.SemanticsMatcher("drop") { x -> x.config.getOrElseNullable(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription) { null }?.any { d -> d.startsWith("Drop ") } == true }, useUnmergedTree = true).fetchSemanticsNodes()
-        assertTrue("[$tag] carrying a slot; edge log: ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", drops.isNotEmpty())
+        assertTrue("[$tag] carrying a slot; edge log: ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", dropNodes().isNotEmpty())
         up(winW * 0.8f, midY + 20f)
         settle(1200)
         val st = com.andysocial.voidos.ui.Book.state.value
@@ -1068,20 +1105,20 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         com.andysocial.voidos.ui.Book.reset()
     }
 
-    /** The other direction: pulled out of the tab wheel and let go on the left (portrait: top) half. */
+    /** The other direction: lift, then pulled out of the pinned tab wheel and let go on the left (portrait: top) half. */
     @Test fun bookDragFromWheelToFirstHalf() {
         com.andysocial.voidos.ui.Book.reset()
         store.saveWidgets(emptyList())
         show { Shell(store, act, Module.FACE) }
         settle(300)
+        pinTabWheel()
         val midY = winH * 0.5f
         val port = winH > winW
         // let go on the first half: left of centre in landscape, the top half upright
         val endX = if (port) winW * 0.6f else winW * 0.3f
         val endY = if (port) winH * 0.2f else midY + 20f
-        down(4f, midY); drag(4f, midY, 70f * dens, midY, steps = 6)
-        settle(200)
-        drag(70f * dens, midY, winW * 0.55f, midY, steps = 8)
+        val s = slotAt("Notes")
+        down(s.x, s.y); drag(s.x, s.y, winW * 0.55f, midY, steps = 8)
         settle(200)
         drag(winW * 0.55f, midY, endX, endY, steps = 6)
         settle(300)
@@ -1093,6 +1130,71 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         assertEquals("[$tag] Home on the other half", false, st.faceFirst)
         shot("45b_book_dropped_first")
         com.andysocial.voidos.ui.Book.reset()
+    }
+
+    /**
+     * The app wheel after 1.19.0: a tap on an app still swaps to it, holding an app then pulling
+     * straight down still closes it, and the swipe that opens the wheel can't carry an app out.
+     */
+    @Test fun appWheelSwapAndHoldClose() {
+        var opened: String? = null
+        var closed: String? = null
+        var dropped: String? = null
+        val apps = listOf("com.spotify.music" to "Spotify", "com.whatsapp" to "WhatsApp", "com.android.chrome" to "Chrome").map { (k, l) ->
+            com.andysocial.voidos.ui.WheelItem(k, l) { mod, c -> com.andysocial.voidos.ui.Glyph(Module.APPS.glyph, c, mod) }
+        }
+        show {
+            Box(Modifier.fillMaxSize()) {
+                com.andysocial.voidos.ui.EdgeWheels(
+                    tabs = Module.entries.map { m -> com.andysocial.voidos.ui.WheelItem(m.name, m.label) { mod, c -> com.andysocial.voidos.ui.Glyph(m.glyph, c, mod) } },
+                    currentTab = "FACE", onTab = {}, apps = apps, onApp = { opened = it }, onAllApps = {},
+                    onDrop = { k, _, _ -> dropped = k }, onCloseApp = { closed = it },
+                )
+            }
+        }
+        settle(300)
+        val midY = winH * 0.5f
+        // the swipe that opens the app wheel, dragged on out across the screen: no carry
+        down(winW - 4f, midY); drag(winW - 4f, midY, winW - 70f * dens, midY, steps = 6)
+        settle(200)
+        drag(winW - 70f * dens, midY, winW * 0.3f, midY, steps = 10)
+        settle(300)
+        assertTrue("[$tag] opening swipe carried an app; log ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", dropNodes().isEmpty())
+        touchT += 600
+        up(winW * 0.3f, midY)
+        settle(1000)
+        assertEquals("[$tag] nothing dropped", null, dropped)
+        opened = null
+        // pinned open by the page-edge request (a tap), so the finger is already up: tap an app to swap to it
+        rule.runOnUiThread { com.andysocial.voidos.ui.EdgeSwipe.request.value = false }
+        settle(800)
+        val chrome = slotAt("Chrome")
+        down(chrome.x, chrome.y); up(chrome.x, chrome.y)
+        settle(1000)
+        assertEquals("[$tag] tap swaps to the app", "com.android.chrome", opened)
+        // pinned again: hold WhatsApp still, then pull straight down to close it
+        rule.runOnUiThread { com.andysocial.voidos.ui.EdgeSwipe.request.value = false }
+        settle(800)
+        val wa = slotAt("WhatsApp")
+        down(wa.x, wa.y)
+        touchT += 500
+        settle(600)
+        assertTrue("[$tag] held: the close hint shows; log ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", rule.onAllNodesWithContentDescription("Swipe down to close", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() || rule.onAllNodesWithContentDescription("Let go to close", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        drag(wa.x, wa.y, wa.x, wa.y + 140f * dens, steps = 6)
+        settle(200)
+        up(wa.x, wa.y + 140f * dens)
+        settle(1000)
+        assertEquals("[$tag] hold and pull down closes the app", "com.whatsapp", closed)
+        // pinned once more: a new touch can carry an app out past the wheel
+        rule.runOnUiThread { com.andysocial.voidos.ui.EdgeSwipe.request.value = false }
+        settle(800)
+        val sp = slotAt("Spotify")
+        down(sp.x, sp.y); drag(sp.x, sp.y, winW * 0.3f, sp.y, steps = 10)
+        settle(300)
+        assertTrue("[$tag] a fresh touch after lifting carries the app; log ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", dropNodes().isNotEmpty())
+        up(winW * 0.3f, sp.y)
+        settle(1000)
+        assertEquals("[$tag] dropped into the split", "com.spotify.music", dropped)
     }
 
     /** The page dots are a second way in: a tap opens the tab wheel, no swipe needed. */

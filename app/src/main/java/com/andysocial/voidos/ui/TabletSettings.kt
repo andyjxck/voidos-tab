@@ -216,7 +216,7 @@ fun TabletExtras(store: Store, act: MainActivity) {
         Gap(h = Grid.l)
     }
     SetSection("Sensors")
-    SettingRow("Wave to wake", if (Sensors.has(ctx, android.hardware.Sensor.TYPE_PROXIMITY)) null else "No proximity sensor") {
+    SettingRow("Wave to wake", if (Sensors.has(ctx, android.hardware.Sensor.TYPE_PROXIMITY)) "Only while the screen is off" else "No proximity sensor") {
         VToggle(store.waveWake) { store.set("waveWake", it); Sensors.sync(ctx, store) }
     }
     SettingRow("Face down to sleep") { VToggle(store.faceDown) { store.set("faceDown", it); Sensors.sync(ctx, store) } }

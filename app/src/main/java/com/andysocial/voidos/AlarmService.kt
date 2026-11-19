@@ -58,6 +58,8 @@ class AlarmService : Service() {
         }
         stopSound()
         Alarms.ringing.value = Ringing(a, System.currentTimeMillis())
+        // wave to wake listens while it rings, so a wave can snooze it
+        runCatching { com.andysocial.voidos.ui.Sensors.refresh() }
         startForeground(NOTE_RING, ringingNote(a))
         getSystemService(NotificationManager::class.java)?.cancel(NOTE_SNOOZED)
         wake = wake ?: getSystemService(PowerManager::class.java)

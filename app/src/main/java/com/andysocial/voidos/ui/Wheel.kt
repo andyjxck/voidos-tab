@@ -396,6 +396,15 @@ internal const val WHEEL_CLOSE_DP = 90f
  * and only while it's mostly down rather than sideways (so pulling it out to carry it
  * to a half of the screen never closes anything).
  */
+/**
+ * Whether a slot may be pulled out of the wheel into the book (split screen). The touch that
+ * opened the wheel never can: sliding along the edge to swap screens or apps kept running on
+ * past the band and opening a split by accident. The finger has to lift once after the wheel
+ * opens; a new touch on a slot can then carry it out.
+ */
+internal fun wheelMayCarry(liftedSinceOpen: Boolean, overlay: Boolean, dropOn: Boolean): Boolean =
+    liftedSinceOpen && !overlay && dropOn
+
 internal fun wheelClosePull(dy: Float, dx: Float, full: Float): Float {
     if (dy <= 0f || full <= 0f) return 0f
     if (abs(dx) > dy) return 0f
@@ -433,6 +442,8 @@ fun EdgeWheels(
     var side by remember { mutableStateOf<Edge?>(null) }
     val anchor = remember { mutableFloatStateOf(0f) }
     var sticky by remember { mutableStateOf(false) }
+    // false from the moment a wheel opens until the finger that opened it has lifted (see wheelMayCarry)
+    var lifted by remember { mutableStateOf(false) }
     val appear = remember { Animatable(0f) }
     val mo = remember { WheelMotion() }
     val fx = remember { WheelFx() }
@@ -522,7 +533,7 @@ fun EdgeWheels(
             val list = itemsOf(e)
             val reach = px(Geo.rOut) * sin(Math.toRadians(62.0)).toFloat() + px(8f)
             anchor.floatValue = if (h > 2 * reach) y.coerceIn(reach, h - reach) else h / 2
-            side = e; sticky = false
+            side = e; sticky = false; lifted = false
             val cur = if (e == Edge.LEFT) list.indexOfFirst { it.key == currentTab }.takeIf { it >= 0 } else null
             mo.sel.intValue = cur ?: -1
             mo.bead.floatValue = slotAngle(cur ?: ((list.size - 1) / 2), e)
@@ -550,7 +561,7 @@ fun EdgeWheels(
             val c = centre(e)
             val d = hypot(p.x - c.x, p.y - c.y)
             if (carry == null) {
-                if (overlay || cbDrop == null || d < px(Geo.rOut + 40f)) return false
+                if (!wheelMayCarry(lifted, overlay, cbDrop != null) || d < px(Geo.rOut + 40f)) return false
                 val it = itemsOf(e).getOrNull(mo.sel.intValue) ?: return false
                 if (!cbCan(it.key, e == Edge.RIGHT)) return false
                 carry = it; carryApp = e == Edge.RIGHT
@@ -865,6 +876,7 @@ fun EdgeWheels(
                     // nothing open: over another app, give the screen straight back
                     val e = side ?: run { if (overlay) cbClosed(); return }
                     move(x, y, t)
+                    lifted = true
                     if (carry != null) { dropCarry(Offset(g.lx, g.ly)); return }
                     mo.dragging = false
                     mo.wake.intValue++
@@ -890,7 +902,8 @@ fun EdgeWheels(
             if (overlay) EdgeSwipe.overlayRequest.value = null else EdgeSwipe.request.value = null
             if (!enabled || side != null) return@LaunchedEffect
             openAt(if (r) Edge.LEFT else Edge.RIGHT, h / 2)
-            sticky = true
+            // opened by a tap: that finger is already up
+            sticky = true; lifted = true
             EdgeSwipe.log("wheel ${if (r) "left" else "right"} opened by tap")
         }
         // a pinned-open wheel takes its taps itself (the overlay above), so the edges stand down meanwhile
