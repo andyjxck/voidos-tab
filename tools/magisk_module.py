@@ -242,8 +242,8 @@ def build(out: Path):
 
 # ---------------------------------------------------------------- system app
 
-SYS_VERSION = "1.0"
-SYS_VERSION_CODE = 1
+SYS_VERSION = "1.1"
+SYS_VERSION_CODE = 2
 PACKAGE = "com.andysocial.voidos"
 APK_RELEASE = vm.ROOT / "app/build/outputs/apk/release/app-release.apk"
 APK_DEBUG = vm.ROOT / "app/build/outputs/apk/debug/app-debug.apk"
@@ -288,7 +288,81 @@ esac
 ui_print "- Reboot. If VoidOS is already installed with the same key it stays,"
 ui_print "  now as an updated system app. Remove this module in Magisk to undo."
 set_perm_recursive $MODPATH/system 0 0 0755 0644
+set_perm $MODPATH/service.sh 0 0 0755
+ui_print "- No navigation bar from the next boot (hold volume down while booting"
+ui_print "  for Magisk safe mode if you ever need Android's bar back)."
 """
+
+
+# 1.1: no navigation bar from the first boot, whatever VoidOS's settings say. Three ways, so one
+# is enough on any build: the emulator's "hardware keys" property, a static framework overlay
+# that says this tablet has no navigation bar (how tablets with real keys are built), and at
+# boot the immersive policy (only an edge swipe could ever bring a bar back, and there is none).
+SYS_PROP_FILE = "qemu.hw.mainkeys=1\n"
+
+SYS_SERVICE = """#!/system/bin/sh
+# VoidOS system app: runs late in every boot.
+until [ "$(getprop sys.boot_completed)" = "1" ]; do sleep 2; done
+sleep 4
+P=com.andysocial.voidos
+resetprop qemu.hw.mainkeys 1 2>/dev/null
+settings put global policy_control 'immersive.full=*:immersive.preconfirms=*'
+appops set $P SYSTEM_ALERT_WINDOW allow
+pm grant $P android.permission.WRITE_SECURE_SETTINGS 2>/dev/null
+# VoidOS's volume sliders, power menu and PIN pad (an accessibility service)
+S=$P/$P.VoidKeysService
+CUR=$(settings get secure enabled_accessibility_services)
+case "$CUR" in
+  *VoidKeysService*) ;;
+  null|"") settings put secure enabled_accessibility_services $S ;;
+  *) settings put secure enabled_accessibility_services "$CUR:$S" ;;
+esac
+settings put secure accessibility_enabled 1
+# no "Viewing full screen" or accessibility shortcut dialogs
+settings put secure accessibility_shortcut_dialog_shown 1
+settings put secure immersive_mode_confirmations confirmed
+"""
+
+OVERLAY_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.andysocial.voidos.nobar" android:versionCode="2" android:versionName="1.1">
+    <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="28" />
+    <overlay android:targetPackage="android" android:isStatic="true" android:priority="999" />
+    <application android:hasCode="false" />
+</manifest>
+"""
+
+OVERLAY_VALUES = """<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <bool name="config_showNavigationBar">false</bool>
+</resources>
+"""
+
+
+def _sdk():
+    lp = vm.ROOT / "local.properties"
+    for l in lp.read_text().splitlines():
+        if l.startswith("sdk.dir="):
+            return Path(l.split("=", 1)[1].strip())
+    sys.exit("sdk.dir missing from local.properties")
+
+
+def build_nobar_overlay() -> bytes:
+    """The framework overlay APK (config_showNavigationBar=false), signed with VoidOS's fixed key."""
+    import tempfile
+    sdk = _sdk()
+    bt = sorted(sdk.glob("build-tools/*"))[-1]
+    jar = sorted(sdk.glob("platforms/android-*/android.jar"))[-1]
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        (t / "res/values").mkdir(parents=True)
+        (t / "res/values/bools.xml").write_text(OVERLAY_VALUES)
+        (t / "AndroidManifest.xml").write_text(OVERLAY_MANIFEST)
+        subprocess.run([str(bt / "aapt2"), "compile", "--dir", str(t / "res"), "-o", str(t / "res.zip")], check=True)
+        subprocess.run([str(bt / "aapt2"), "link", "-I", str(jar), "--manifest", str(t / "AndroidManifest.xml"), "-o", str(t / "u.apk"), str(t / "res.zip")], check=True)
+        subprocess.run([str(bt / "zipalign"), "-f", "4", str(t / "u.apk"), str(t / "a.apk")], check=True)
+        subprocess.run([str(bt / "apksigner"), "sign", "--ks", str(vm.ROOT / "app/voidos-debug.keystore"), "--ks-pass", "pass:android",
+                        "--ks-key-alias", "androiddebugkey", "--key-pass", "pass:android", "--out", str(t / "s.apk"), str(t / "a.apk")], check=True)
+        return (t / "s.apk").read_bytes()
 
 
 def requested_permissions(apk: Path):
@@ -349,6 +423,9 @@ def build_system(out: Path, apk: Path = APK):
         z.writestr("system/etc/voidos_system.txt", SYS_VERSION + "\n")
         z.writestr(f"system/etc/permissions/privapp-permissions-{PACKAGE}.xml", xml)
         z.writestr("system/priv-app/VoidOS/VoidOS.apk", apk.read_bytes())
+        z.writestr("system.prop", SYS_PROP_FILE)
+        z.writestr("service.sh", SYS_SERVICE)
+        z.writestr("system/vendor/overlay/VoidOSNoBar/VoidOSNoBar.apk", build_nobar_overlay())
         # a system app's native code is not unpacked from its APK: ship it beside it
         for name, data in libs.items():
             _, abi, so = name.split("/", 2)

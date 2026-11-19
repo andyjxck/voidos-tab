@@ -55,6 +55,9 @@ class VoidApp : Application() {
         registerReceiver(object : android.content.BroadcastReceiver() {
             override fun onReceive(c: android.content.Context, i: android.content.Intent) {
                 if (!store.voidLock || !store.setupDone) return
+                // the tablet has an Android PIN and VoidOS's pad already covers Android's: don't ask twice
+                if (store.voidKeyguard && VoidKeysService.instance != null &&
+                    runCatching { getSystemService(android.app.KeyguardManager::class.java).isDeviceSecure }.getOrDefault(false)) return
                 com.andysocial.voidos.ui.LockState.locked.value = true
                 // bring the hub to the front so the lock screen is what wakes up
                 runCatching {

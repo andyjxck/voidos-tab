@@ -112,6 +112,12 @@ class Store(private val ctx: Context) {
     var autoNight by mutableStateOf(p.getBoolean("autoNight", false)); private set
     var alarmVibrate by mutableStateOf(p.getBoolean("alarmVibrate", true)); private set
     var waveWake by mutableStateOf(p.getBoolean("waveWake", false)); private set
+    /** VoidOS's volume sliders in place of Android's panel. */
+    var voidVolume by mutableStateOf(p.getBoolean("voidVolume", true)); private set
+    /** VoidOS's power menu in place of Android's. */
+    var voidPower by mutableStateOf(p.getBoolean("voidPower", true)); private set
+    /** VoidOS's PIN pad over Android's lock screen, when the tablet has an Android PIN. */
+    var voidKeyguard by mutableStateOf(p.getBoolean("voidKeyguard", true)); private set
     var faceDown by mutableStateOf(p.getBoolean("faceDown", false)); private set
     var pickUp by mutableStateOf(p.getBoolean("pickUp", false)); private set
     var nightWarmth by mutableStateOf(p.getFloat("nightWarmth", 0.5f)); private set
@@ -177,6 +183,9 @@ class Store(private val ctx: Context) {
             "autoNight" -> autoNight = v
             "alarmVibrate" -> alarmVibrate = v
             "waveWake" -> waveWake = v
+            "voidVolume" -> voidVolume = v
+            "voidPower" -> voidPower = v
+            "voidKeyguard" -> voidKeyguard = v
             "faceDownQuiet" -> faceDownQuiet = v
             "notifyLight" -> notifyLight = v
             "faceDown" -> faceDown = v

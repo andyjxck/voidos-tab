@@ -59,6 +59,10 @@ fun GlassPinPad(
     check: ((String) -> Boolean)? = null,
     keySize: Dp = 76.dp,
     modifier: Modifier = Modifier,
+    /** Any length from 4 to 16 digits, sent with the OK key (Android's own PIN, whose length VoidOS can't know). */
+    open: Boolean = false,
+    /** Dims the keys while something else checks the PIN. */
+    busy: Boolean = false,
     onPin: (String) -> Unit,
 ) {
     var entry by remember { mutableStateOf("") }
@@ -79,9 +83,14 @@ fun GlassPinPad(
     LaunchedEffect(error) { if (error != null) { entry = ""; shakes++ } }
 
     fun key(k: String) {
-        if (waiting) return
+        if (waiting || busy) return
         wrong = false
         if (k == "<") { entry = entry.dropLast(1); return }
+        if (open) {
+            if (k == "OK") { if (entry.length >= 4) { val e = entry; entry = ""; onPin(e) }; return }
+            if (entry.length < 16) entry += k
+            return
+        }
         if (entry.length >= length) return
         entry += k
         if (entry.length == length) {
@@ -101,10 +110,10 @@ fun GlassPinPad(
         }
         Spacer(Modifier.height(20.dp))
         Row(
-            Modifier.graphicsLayer { translationX = shake.value * density }.semantics { contentDescription = "${entry.length} of $length digits entered" },
+            Modifier.graphicsLayer { translationX = shake.value * density }.semantics { contentDescription = if (open) "${entry.length} digits entered" else "${entry.length} of $length digits entered" },
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            repeat(length) { i ->
+            repeat(if (open) maxOf(4, entry.length) else length) { i ->
                 val filled by animateFloatAsState(if (i < entry.length) 1f else 0f, Motion.quick(), label = "dot")
                 Box(
                     Modifier.size(14.dp).graphicsLayer { val s = 1f + 0.15f * filled; scaleX = s; scaleY = s }
@@ -123,9 +132,9 @@ fun GlassPinPad(
         VText(msg, size = Type.label, color = lerpCoral(), align = TextAlign.Center)
         Spacer(Modifier.height(14.dp))
         val gap = keySize * 0.3f
-        listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("", "0", "<")).forEach { row ->
+        listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf(if (open) "OK" else "", "0", "<")).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(gap), modifier = Modifier.padding(vertical = keySize * 0.1f)) {
-                row.forEach { k -> PinKey(k, keySize, dim = waiting) { key(k) } }
+                row.forEach { k -> PinKey(k, keySize, dim = waiting || busy) { key(k) } }
             }
         }
     }
@@ -145,10 +154,11 @@ private fun PinKey(k: String, size: Dp, dim: Boolean, onTap: () -> Unit) {
     var down by remember { mutableStateOf(false) }
     val lit by animateFloatAsState(if (down) 1f else 0f, tween(if (down) 40 else 260), label = "key")
     val back = k == "<"
+    val ok = k == "OK"
     val view = androidx.compose.ui.platform.LocalView.current
     Box(
         Modifier.size(size)
-            .semantics(mergeDescendants = true) { role = Role.Button; if (back) contentDescription = "Delete"; onClick { onTap(); true } }
+            .semantics(mergeDescendants = true) { role = Role.Button; if (back) contentDescription = "Delete"; if (ok) contentDescription = "Enter"; onClick { onTap(); true } }
             .graphicsLayer { alpha = if (dim) 0.35f else 1f }
             .then(
                 if (back) Modifier.clip(CircleShape)
@@ -160,6 +170,7 @@ private fun PinKey(k: String, size: Dp, dim: Boolean, onTap: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         if (back) Glyph(G.BACK, V.Text.copy(alpha = 0.8f), Modifier.size(size * 0.3f))
+        else if (ok) Glyph(G.CHECK, V.Teal, Modifier.size(size * 0.32f))
         else Column(horizontalAlignment = Alignment.CenterHorizontally) {
             VText(k, size = (size.value * 0.4f).sp, color = Color.White, font = SansLight)
             Letters[k]?.let { VText(it, size = (size.value * 0.12f).sp, color = V.Text.copy(alpha = 0.7f), spacing = 1.5.sp) }

@@ -150,7 +150,11 @@ object Stealth {
             if (cmds.isNotEmpty()) Su.run(cmds.joinToString("; "), timeoutS = 25)
             if (on) granted = true
             // never take the bar away unless VoidOS's own bottom-edge swipe can draw over other apps
-            runCatching { syncNoBar(on && android.provider.Settings.canDrawOverlays(c)) }
+            // (1.19: the overlay grant is re-run first if Android still says no, so a missed grant
+            // can't quietly leave the bar in place)
+            val canDraw = android.provider.Settings.canDrawOverlays(c) ||
+                (on && Su.ok("appops set ${c.packageName} SYSTEM_ALERT_WINDOW allow", timeoutS = 8) && android.provider.Settings.canDrawOverlays(c))
+            runCatching { syncNoBar(on && canDraw) }
             if (on) android.os.Handler(android.os.Looper.getMainLooper()).post {
                 runCatching { EdgeOverlay.sync(c, (c.applicationContext as VoidApp).store) }
             }

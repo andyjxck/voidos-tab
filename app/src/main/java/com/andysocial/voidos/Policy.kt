@@ -61,6 +61,9 @@ object Policy {
     fun applyAll(c: Context) {
         val store = (c.applicationContext as VoidApp).store
         Stealth.sync(c, store)
+        // VoidOS's volume sliders, power menu and PIN pad: the accessibility service, switched on through root
+        val sys = store.setupDone && (store.voidVolume || store.voidPower || store.voidKeyguard)
+        Thread { runCatching { VoidKeysService.sync(c.applicationContext, sys) } }.apply { isDaemon = true; start() }
         if (!isOwner(c)) return
         val d = dpm(c)
         val a = admin(c)
