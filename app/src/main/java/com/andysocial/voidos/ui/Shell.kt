@@ -221,7 +221,7 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
     Column(
         Modifier.fillMaxSize().stillWhileHeld()
             // under the switcher's solid backdrop, Home is hidden from TalkBack too
-            .then(if (Switcher.shown.value) Modifier.clearAndSetSemantics { } else Modifier)
+            .then(if (Switcher.shown.value || CcCover.shown.value) Modifier.clearAndSetSemantics { } else Modifier)
             .pointerInput(Unit) { detectTapGestures(onTap = { focus.clearFocus() }) },
     ) {
         StatusStrip(store, module, Modifier.padding(horizontal = side), onPull = { control = true })

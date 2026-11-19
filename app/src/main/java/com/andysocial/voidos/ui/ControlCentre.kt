@@ -136,6 +136,9 @@ object CcSource {
     }
 }
 
+/** Whether the Control Centre is open over Home (its backdrop is solid). */
+object CcCover { val shown = mutableStateOf(false) }
+
 private val BtBlue = Color(0xFF5A8CF0)
 
 /** Control-centre glass: glossy and magnifying, with no rim or outline. */
@@ -217,6 +220,8 @@ fun ControlCentre(
     onSettings: () -> Unit,
     startExpanded: CcPart? = null,
 ) {
+    // while it's open its solid backdrop covers Home, so Home is hidden from TalkBack too
+    DisposableEffect(open) { CcCover.shown.value = open; onDispose { CcCover.shown.value = false } }
     var expanded by remember(open, startExpanded) { mutableStateOf(if (open) startExpanded else null) }
     BackHandler(enabled = open) { if (expanded != null) expanded = null else onClose() }
     val closeOrBack = { if (expanded != null) expanded = null else onClose() }
@@ -584,7 +589,7 @@ private fun CcTall(g: G, value: Float, modifier: Modifier, fill: List<Color>, la
             val full = maxWidth
             CcTallLine(g, label, v, V.Text, V.Muted)
             Box(Modifier.fillMaxHeight().fillMaxWidth(shown).clipToBounds().background(Brush.horizontalGradient(fill.reversed()))) {
-                Box(Modifier.requiredWidth(full).fillMaxHeight().align(Alignment.CenterStart).offset(x = (full - full * shown) / 2)) {
+                Box(Modifier.requiredWidth(full).fillMaxHeight().align(Alignment.CenterStart).offset(x = (full - full * shown) / 2).clearAndSetSemantics { }) {
                     CcTallLine(g, label, v, V.Bg, V.Bg.copy(alpha = 0.7f))
                 }
             }
