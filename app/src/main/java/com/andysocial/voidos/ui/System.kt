@@ -494,5 +494,10 @@ private fun VoidPane(store: Store, act: MainActivity) {
         listOf("0" to "Never", "1" to "1 min", "5" to "5 min", "15" to "15 min"), store.ambientMinutes.toString(), Modifier.widthIn(max = 520.dp),
     ) { store.setAmbient(it.toInt()) }
     Gap(h = 16.dp)
+    SettingRow("Standby clock") {}
+    GlassSegments(
+        listOf("digital" to "Digital", "analog" to "Analogue"), store.ambientFace, Modifier.widthIn(max = 520.dp),
+    ) { store.chooseAmbientFace(it) }
+    Gap(h = 16.dp)
 
 }

@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
@@ -417,17 +420,54 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         tapDesc("Remove from Home")
         assertTrue("[$tag] note widget should be gone", store.widgets.none { it.kind == "note" })
         shot("08_notes")
-        // drawing: the pen tools appear in one capsule
+        // drawing: the pen tools sit in one capsule: undo/redo, tools, colour, size, brush, clear
         tapDesc("Draw"); expect("Eraser", "Clear")
-        listOf("Undo", "Solid", "Dotted", "Dashed", "Size 1", "Size 4", "Colour 1", "Colour 7").forEach {
-            assertTrue("[$tag] pen tool $it missing", rule.onAllNodesWithContentDescription(it, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        fun has(d: String) = rule.onAllNodesWithContentDescription(d, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        listOf("Undo", "Redo", "Pen", "Highlighter", "Eraser", "Colour", "Size", "Brush options", "Clear page").forEach {
+            assertTrue("[$tag] pen tool $it missing", has(it))
         }
         shot("08b_notes_draw")
+        // thickness: the size panel has a slider and thinner/thicker steps
+        tapDesc("Size"); settle(400)
+        listOf("Thinner", "Thicker", "Line preview").forEach { assertTrue("[$tag] size control $it missing", has(it)) }
+        shot("08d_notes_size")
+        // colour: wheel and swatches
+        tapDesc("Colour"); settle(400)
+        assertTrue("[$tag] colour wheel missing", has("Colour wheel"))
+        shot("08e_notes_colour")
+        // line style: solid, dotted and dashed in the brush menu
+        tapDesc("Brush options"); settle(400)
+        listOf("Solid", "Dotted", "Dashed").forEach { assertTrue("[$tag] line style $it missing", has(it)) }
+        shot("08f_notes_brush")
+        tapDesc("Brush options"); settle(300)
         tapDesc("Done drawing")
         if (tag.startsWith("port")) {
             // upright the note fills the screen and there's a way back to the list
             tap("Notes"); expect("Shopping"); shot("08c_notes_list")
         } else expect("Shopping")
+    }
+
+    /** Standby: digital or analogue face, and a glowing ring round the edge while charging. */
+    @Test fun standbyClock() {
+        store.chooseAmbientFace("digital")
+        var bat by mutableStateOf(com.andysocial.voidos.ui.Battery(64, false))
+        show { com.andysocial.voidos.ui.AmbientClock(store, bat) }
+        settle(300)
+        fun has(d: String) = rule.onAllNodesWithContentDescription(d, substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        assertTrue("[$tag] no ring off charge", !has("Charging ring"))
+        assertTrue("[$tag] digital shows no hands", !has("Analogue clock"))
+        shot("60_standby_digital")
+        bat = com.andysocial.voidos.ui.Battery(64, true)
+        settle(300)
+        assertTrue("[$tag] ring while charging", has("Charging ring"))
+        expect("Charging")
+        shot("61_standby_digital_charging")
+        rule.runOnUiThread { store.chooseAmbientFace("analog") }
+        settle(300)
+        assertTrue("[$tag] analogue face", has("Analogue clock"))
+        assertEquals("analog", store.ambientFace)
+        shot("62_standby_analogue_charging")
+        store.chooseAmbientFace("digital")
     }
 
     @Test fun notesSketch() {
@@ -726,8 +766,8 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
 
     /**
      * The book: Notes dropped on the right half opens there, live, and the watch face slides to
-     * the left half. A second screen on the face's half takes it too (two at most). Closing a
-     * half brings the face back; closing both leaves the full watch face.
+     * the left half. A second screen replaces the first, so Home always keeps the other half.
+     * Closing the half leaves the full watch face.
      */
     @Test fun bookSplitHome() {
         com.andysocial.voidos.ui.Book.reset()
@@ -751,16 +791,16 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         if (port) assertTrue("[$tag] face below notes", face2.top >= notes2.bottom - 1f)
         else assertTrue("[$tag] face right of notes: $face2 / $notes2", face2.left >= notes2.right - 1f)
         shot("41_book_notes_left")
-        // a second screen over the face: two halves, no face
+        // a second screen dropped on the face's half replaces Notes: still two pages, one of them Home
         rule.runOnUiThread { com.andysocial.voidos.ui.Book.drop(ctx, com.andysocial.voidos.ui.Pane.screen(Module.WEATHER), toFirst = false) }
         settle(900)
-        shot("42_book_two_screens")
-        assertTrue("[$tag] face covered", rule.onAllNodesWithTag("bookFace", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
-        // close Weather: the face comes back on the right; close Notes: full face
+        shot("42_book_second_replaces")
+        val st2 = com.andysocial.voidos.ui.Book.state.value
+        assertEquals("[$tag] Weather replaced Notes", com.andysocial.voidos.ui.BookState(second = com.andysocial.voidos.ui.Pane.screen(Module.WEATHER)), st2)
+        assertTrue("[$tag] face still shown", rule.onAllNodesWithTag("bookFace", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        assertTrue("[$tag] Notes gone", rule.onAllNodesWithContentDescription("Close Notes", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        // close Weather: the full watch face again
         rule.onNodeWithContentDescription("Close Weather", useUnmergedTree = true).performClick()
-        settle(900)
-        assertTrue(rule.onAllNodesWithTag("bookFace", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
-        rule.onNodeWithContentDescription("Close Notes", useUnmergedTree = true).performClick()
         settle(900)
         assertTrue("[$tag] closed book", !com.andysocial.voidos.ui.Book.state.value.isOpen)
         assertTrue(rule.onAllNodesWithTag("home", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
@@ -831,6 +871,33 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         assertTrue("[$tag] dropped on the second half: $st; log ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", if (port) st.isOpen else st.second != null && st.first == null)
         assertEquals(Module.FACE, com.andysocial.voidos.ui.ShellNow.module.value)
         shot("45_book_dropped")
+        com.andysocial.voidos.ui.Book.reset()
+    }
+
+    /** The other direction: pulled out of the tab wheel and let go on the left (portrait: top) half. */
+    @Test fun bookDragFromWheelToFirstHalf() {
+        com.andysocial.voidos.ui.Book.reset()
+        store.saveWidgets(emptyList())
+        show { Shell(store, act, Module.FACE) }
+        settle(300)
+        val midY = winH * 0.5f
+        val port = winH > winW
+        // let go on the first half: left of centre in landscape, the top half upright
+        val endX = if (port) winW * 0.6f else winW * 0.3f
+        val endY = if (port) winH * 0.2f else midY + 20f
+        down(4f, midY); drag(4f, midY, 70f * dens, midY, steps = 6)
+        settle(200)
+        drag(70f * dens, midY, winW * 0.55f, midY, steps = 8)
+        settle(200)
+        drag(winW * 0.55f, midY, endX, endY, steps = 6)
+        settle(300)
+        shot("44b_book_carrying_first")
+        up(endX, endY)
+        settle(1200)
+        val st = com.andysocial.voidos.ui.Book.state.value
+        assertTrue("[$tag] dropped on the first half: $st; log ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", st.first != null && st.second == null)
+        assertEquals("[$tag] Home on the other half", false, st.faceFirst)
+        shot("45b_book_dropped_first")
         com.andysocial.voidos.ui.Book.reset()
     }
 

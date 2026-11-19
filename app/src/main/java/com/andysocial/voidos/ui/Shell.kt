@@ -458,18 +458,34 @@ fun BatteryGlyph(b: Battery) {
 
 // -------------------------------------------------------------- ambient clock
 
-/** Dim desk clock. It drifts a little every minute so nothing burns in. */
+/**
+ * Dim desk clock (standby). It drifts a little every minute so nothing burns in. The face is
+ * digital or analogue (Settings > Standby clock), and while the tablet charges a soft ring
+ * glows round the edge of the screen, breathing slowly.
+ */
 @Composable
-fun AmbientClock(store: Store) {
+fun AmbientClock(store: Store, battery: Battery = rememberBattery()) {
     val now = rememberNow(1000)
     val minute = now / 60_000
     val dx = ((minute * 37) % 120 - 60).toInt()
     val dy = ((minute * 53) % 90 - 45).toInt()
     val fmt = if (store.use24h) "HH:mm" else "h:mm"
-    Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+    val portrait = LocalPortrait.current
+    Box(Modifier.fillMaxSize().background(Color.Black).semantics { contentDescription = "Standby clock" }, contentAlignment = Alignment.Center) {
+        if (battery.charging) ChargingRing(battery.pct, Modifier.fillMaxSize())
         Column(Modifier.offset((dx * 0.6f).dp, (dy * 0.8f).dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            VText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), size = if (LocalPortrait.current) 120.sp else 150.sp, color = V.Text.copy(alpha = 0.5f), font = SansThin)
+            if (store.ambientFace == "analog") {
+                AnalogueClock(now, Modifier.size(if (portrait) 300.dp else 280.dp))
+                Gap(h = Grid.l)
+            } else {
+                VText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), size = if (portrait) 120.sp else 150.sp, color = V.Text.copy(alpha = 0.5f), font = SansThin)
+            }
             VText(SimpleDateFormat("EEEE d MMMM", Locale.UK).format(Date(now)), size = Type.title, color = V.Muted.copy(alpha = 0.6f))
+            if (battery.charging) {
+                Gap(h = Grid.s)
+                VText(if (battery.pct >= 100) "Charged" else if (battery.pct >= 0) "Charging  \u00b7  ${battery.pct}%" else "Charging",
+                    size = Type.label, color = V.Green.copy(alpha = 0.7f), modifier = Modifier.semantics { contentDescription = "Charging" })
+            }
             // the notification light the tablet doesn't have: a slow teal glow while something new waits
             val waiting = com.andysocial.voidos.VoidListener.notices.value
             if (store.notifyLight && waiting.isNotEmpty()) {
@@ -484,6 +500,69 @@ fun AmbientClock(store: Store) {
                 VText(if (waiting.size == 1) waiting.first().appName else "${waiting.size} new", size = Type.label, color = V.Muted.copy(alpha = 0.6f))
             }
         }
+    }
+}
+
+/**
+ * The charging glow: a rounded ring just inside the screen's edge, green, with a soft halo
+ * that breathes in and out. It stays dim so it's fine on a bedside table at night.
+ */
+@Composable
+internal fun ChargingRing(pct: Int, modifier: Modifier) {
+    val breathe by androidx.compose.animation.core.rememberInfiniteTransition(label = "charge").animateFloat(
+        0.45f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(2600), androidx.compose.animation.core.RepeatMode.Reverse), label = "ring",
+    )
+    val full = pct >= 100
+    val c = if (full) V.Teal else V.Green
+    Canvas(modifier.semantics { contentDescription = "Charging ring" }) {
+        val inset = 10.dp.toPx()
+        val r = 34.dp.toPx()
+        val tl = Offset(inset, inset)
+        val sz = Size(size.width - inset * 2, size.height - inset * 2)
+        // the halo: wide, faint strokes under the line, fading outwards
+        listOf(28.dp to 0.05f, 18.dp to 0.08f, 10.dp to 0.13f).forEach { (w, a) ->
+            drawRoundRect(c.copy(alpha = a * breathe), tl, sz, CornerRadius(r), style = Stroke(w.toPx()))
+        }
+        // the ring itself
+        drawRoundRect(c.copy(alpha = 0.55f * breathe + 0.15f), tl, sz, CornerRadius(r), style = Stroke(2.5.dp.toPx()))
+    }
+}
+
+/** A dim analogue face: twelve marks, hour and minute hands, and a thin second hand. */
+@Composable
+internal fun AnalogueClock(now: Long, modifier: Modifier) {
+    val cal = remember { java.util.Calendar.getInstance() }
+    cal.timeInMillis = now
+    val h = cal.get(java.util.Calendar.HOUR) + cal.get(java.util.Calendar.MINUTE) / 60f
+    val m = cal.get(java.util.Calendar.MINUTE) + cal.get(java.util.Calendar.SECOND) / 60f
+    val sec = cal.get(java.util.Calendar.SECOND).toFloat()
+    val label = SimpleDateFormat("h:mm a", Locale.UK).format(Date(now))
+    Canvas(modifier.semantics { contentDescription = "Analogue clock, $label" }) {
+        val c = Offset(size.width / 2, size.height / 2)
+        val rad = minOf(size.width, size.height) / 2
+        val dim = V.Text.copy(alpha = 0.5f)
+        drawCircle(V.Text.copy(alpha = 0.12f), rad - 1.dp.toPx(), c, style = Stroke(1.5.dp.toPx()))
+        for (i in 0 until 60) {
+            val a = Math.toRadians(i * 6.0 - 90)
+            val major = i % 5 == 0
+            val outer = rad - 8.dp.toPx()
+            val inner = outer - (if (major) 16.dp else 6.dp).toPx()
+            drawLine(
+                if (major) dim else V.Text.copy(alpha = 0.18f),
+                Offset(c.x + (inner * kotlin.math.cos(a)).toFloat(), c.y + (inner * kotlin.math.sin(a)).toFloat()),
+                Offset(c.x + (outer * kotlin.math.cos(a)).toFloat(), c.y + (outer * kotlin.math.sin(a)).toFloat()),
+                (if (major) 3.dp else 1.5.dp).toPx(), StrokeCap.Round,
+            )
+        }
+        fun hand(turn: Float, len: Float, w: Float, col: Color, tail: Float = 0f) {
+            val a = Math.toRadians(turn * 360.0 - 90)
+            val dx = kotlin.math.cos(a).toFloat(); val dy = kotlin.math.sin(a).toFloat()
+            drawLine(col, Offset(c.x - dx * tail, c.y - dy * tail), Offset(c.x + dx * len, c.y + dy * len), w, StrokeCap.Round)
+        }
+        hand(h / 12f, rad * 0.5f, 7.dp.toPx(), dim)
+        hand(m / 60f, rad * 0.74f, 4.5.dp.toPx(), dim)
+        hand(sec / 60f, rad * 0.82f, 1.5.dp.toPx(), V.Teal.copy(alpha = 0.6f), tail = rad * 0.14f)
+        drawCircle(V.Teal.copy(alpha = 0.7f), 5.dp.toPx(), c)
     }
 }
 
@@ -502,8 +581,10 @@ private fun BookScreen(store: Store, act: MainActivity, m: Module) {
 }
 
 /**
- * A wheel slot dropped on a half of Home. While Android's split is up, VoidOS only has its own
- * half to give: a screen goes into VoidOS's half and an app replaces the app in the other.
+ * A wheel slot dropped on a half of Home. The book holds the one thing dropped and Home: a new
+ * drop replaces what was open. While Android's split is up, VoidOS only has its own half to
+ * give: an app replaces the app in the other half, and a screen goes into VoidOS's half,
+ * which ends the split, so the screen and Home are left.
  */
 private fun dropOnBook(ctx: android.content.Context, store: Store, act: MainActivity, scope: kotlinx.coroutines.CoroutineScope, key: String, isApp: Boolean, first: Boolean) {
     val before = Book.state.value

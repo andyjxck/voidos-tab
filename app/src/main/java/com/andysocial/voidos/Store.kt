@@ -63,6 +63,15 @@ internal fun strokesFromJson(a: JSONArray?): List<Stroke> = if (a == null) empty
 class Store(private val ctx: Context) {
     private val p = ctx.getSharedPreferences("voidos", Context.MODE_PRIVATE)
 
+    init {
+        // Guest mode and Kids Space are gone: drop what an older build saved for them
+        val kidsAllowed = p.getStringSet("allowed", emptySet())!!.filter { it in Policy.removedKidsApps }
+        if (p.contains("guest") || p.contains("guestApps") || kidsAllowed.isNotEmpty()) {
+            p.edit().remove("guest").remove("guestApps")
+                .putStringSet("allowed", p.getStringSet("allowed", emptySet())!!.toSet() - kidsAllowed.toSet()).apply()
+        }
+    }
+
     private fun b(key: String, def: Boolean) = mutableStateOf(p.getBoolean(key, def))
 
     var setupDone by mutableStateOf(p.getBoolean("setupDone", false)); private set
@@ -81,6 +90,8 @@ class Store(private val ctx: Context) {
         p.edit().putStringSet("wheelHidden", wheelHidden).apply()
     }
     var ambientMinutes by mutableStateOf(p.getInt("ambientMinutes", 5)); private set
+    /** The standby (ambient) clock's face: "digital" or "analog". */
+    var ambientFace by mutableStateOf(p.getString("ambientFace", "digital")!!); private set
     var allowed by mutableStateOf(p.getStringSet("allowed", emptySet())!!.toSet()); private set
     var city by mutableStateOf(p.getString("city", "Redditch")!!); private set
     var lat by mutableStateOf(p.getFloat("lat", 52.3065f)); private set
@@ -220,6 +231,7 @@ class Store(private val ctx: Context) {
     }
 
     fun setAmbient(min: Int) { ambientMinutes = min; p.edit().putInt("ambientMinutes", min).apply() }
+    fun chooseAmbientFace(face: String) { ambientFace = if (face == "analog") "analog" else "digital"; p.edit().putString("ambientFace", ambientFace).apply() }
 
     fun setAllowed(pkg: String, on: Boolean) {
         allowed = if (on) allowed + pkg else allowed - pkg

@@ -10,7 +10,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The book's rules: two halves at most, the watch face pushed to the other half, back again on close. */
+/** The book's rules: one page and Home, the watch face pushed to the other half, back again on close. */
 class BookTest {
     private val notes = Pane.screen(Module.NOTES)
     private val weather = Pane.screen(Module.WEATHER)
@@ -25,40 +25,45 @@ class BookTest {
         assertEquals(false, left.faceFirst) // Notes on the left, face on the right
     }
 
-    @Test fun secondDropOnFaceReplacesFaceTwoAtMost() {
+    @Test fun secondDropReplacesHomeAlwaysStays() {
         val s = BookState().drop(notes, toFirst = false).drop(weather, toFirst = true)
-        assertEquals(weather, s.first); assertEquals(notes, s.second)
-        assertFalse(s.faceShown)
-        // a third one only replaces the half it's dropped on
-        val t = s.drop(tools, toFirst = true)
-        assertEquals(tools, t.first); assertEquals(notes, t.second)
+        assertEquals(weather, s.first); assertNull(s.second)
+        assertTrue(s.faceShown); assertEquals(false, s.faceFirst)
+        // a third one only replaces what's open, never adds a page
+        val t = s.drop(tools, toFirst = false)
+        assertEquals(BookState(second = tools), t)
+        assertTrue(t.faceShown)
     }
 
     @Test fun closingBringsFaceBack() {
-        val s = BookState().drop(notes, false).drop(weather, true)
-        val one = s.close(isFirst = true)
-        assertEquals(true, one.faceFirst)
+        val one = BookState().drop(notes, false)
         val none = one.close(isFirst = false)
         assertFalse(none.isOpen); assertNull(none.faceFirst); assertTrue(none.faceShown)
     }
 
-    @Test fun draggingAcrossMovesOrSwaps() {
+    @Test fun draggingAcrossMoves() {
         val moved = BookState().drop(notes, false).drop(notes, true)
         assertEquals(notes, moved.first); assertNull(moved.second)
-        val swapped = BookState().drop(notes, false).drop(weather, true).drop(notes, true)
-        assertEquals(notes, swapped.first); assertEquals(weather, swapped.second)
+        val again = moved.drop(notes, true)
+        assertEquals(moved, again)
     }
 
     @Test fun onlyOneAppAtATime() {
         val s = BookState().drop(yt, false).drop(spotify, true)
         assertEquals(spotify, s.first); assertNull(s.second)
-        assertEquals(true, BookState().drop(notes, false).drop(yt, true).appFirst)
-        assertEquals(BookState(second = notes), BookState().drop(notes, false).drop(yt, true).withoutApp())
+        // an app dropped beside an open screen replaces it: the app and Home, nothing else
+        val withScreen = BookState().drop(notes, false).drop(yt, true)
+        assertEquals(BookState(first = yt), withScreen)
+        assertEquals(BookState(), withScreen.withoutApp())
     }
 
     @Test fun survivesSaving() {
-        val s = BookState().drop(notes, false).drop(yt, true)
+        val s = BookState().drop(yt, true)
         assertEquals(s, BookState.decode(s.encode()))
+        assertEquals(BookState(second = notes), BookState.decode(BookState().drop(notes, false).encode()))
+        // an older build's two-page book comes back as one page and Home
+        assertEquals(BookState(first = notes), BookState.decode("s:NOTES|s:WEATHER"))
+        assertEquals(BookState(second = yt), BookState.decode("s:NOTES|a:com.google.android.youtube"))
         assertEquals(BookState(), BookState.decode("junk"))
         assertEquals(BookState(), BookState.decode("s:FACE|s:NOPE"))
     }

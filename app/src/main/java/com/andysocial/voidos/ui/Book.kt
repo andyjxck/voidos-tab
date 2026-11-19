@@ -94,21 +94,13 @@ data class BookState(val first: Pane? = null, val second: Pane? = null) {
     }
 
     /**
-     * [p] dropped on a half. It takes that half, replacing the watch face or whatever was
-     * there. Dropping something already open on the other half moves it across (the two
-     * swap). There is only ever one app, so a second app replaces the first.
+     * [p] dropped on a half. The book only ever has two pages: the one thing dropped, and
+     * Home (the watch face) on the other half. So [p] takes the half it's dropped on and Home
+     * always gets the other one. Whatever was open before is replaced, never added beside it,
+     * and dropping the open thing on the other half moves it across.
      */
-    fun drop(p: Pane, toFirst: Boolean): BookState {
-        val here = if (toFirst) first else second
-        val there = if (toFirst) second else first
-        if (here == p) return this
-        val newThere = when {
-            there == p -> here
-            p.kind == PaneKind.APP && there?.kind == PaneKind.APP -> null
-            else -> there
-        }
-        return if (toFirst) BookState(p, newThere) else BookState(newThere, p)
-    }
+    fun drop(p: Pane, toFirst: Boolean): BookState =
+        if (toFirst) BookState(p, null) else BookState(null, p)
 
     /** One half closed: the watch face comes back into it. */
     fun close(isFirst: Boolean) = if (isFirst) copy(first = null) else copy(second = null)
@@ -120,7 +112,14 @@ data class BookState(val first: Pane? = null, val second: Pane? = null) {
     companion object {
         fun decode(s: String?): BookState {
             val parts = (s ?: "").split('|')
-            return BookState(Pane.decode(parts.getOrNull(0)), Pane.decode(parts.getOrNull(1)))
+            val a = Pane.decode(parts.getOrNull(0))
+            val b = Pane.decode(parts.getOrNull(1))
+            // a book saved by an older build could have both halves covered: keep one page
+            // (the app if there is one, else the left/top one) so Home is always the other
+            return when {
+                a != null && b != null -> if (b.kind == PaneKind.APP && a.kind != PaneKind.APP) BookState(null, b) else BookState(a, null)
+                else -> BookState(a, b)
+            }
         }
     }
 }

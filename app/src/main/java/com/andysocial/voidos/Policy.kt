@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.os.UserManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -109,6 +110,10 @@ object Policy {
             )
         }
 
+        // no Guest mode and no extra users: VoidOS dropped its own guest mode, and these stop
+        // Android's (the guest entry in the user switcher, Settings > Multiple users) too
+        noGuestRestrictions.forEach { r -> safe("restrict $r") { d.addUserRestriction(a, r) } }
+
         // location on, so Wi-Fi and Bluetooth scans return results on Android 10
         safe("location") { d.setSecureSetting(a, Settings.Secure.LOCATION_MODE, Settings.Secure.LOCATION_MODE_HIGH_ACCURACY.toString()) }
 
@@ -128,6 +133,15 @@ object Policy {
         runCatching { pm.getPackageInfo(p, PackageManager.MATCH_UNINSTALLED_PACKAGES); true }.getOrDefault(false)
 
     // ------------------------------------------------------------------ hiding
+
+    /** Android's own ways into a guest or another user, closed while VoidOS runs the tablet. */
+    internal val noGuestRestrictions = listOf(UserManager.DISALLOW_ADD_USER, UserManager.DISALLOW_USER_SWITCH)
+
+    /**
+     * Kids Space was taken out of VoidOS, so Google's Kids Space app (and Lenovo's kids mode,
+     * where a tablet has it) is kept hidden: it can't be opened or allowed back in Manage apps.
+     */
+    internal val removedKidsApps = setOf("com.google.android.apps.kids.home", "com.lenovo.kidsmode", "com.tblenovo.kidsmode")
 
     private val bloatPrefixes = listOf("com.lenovo.", "com.tblenovo.", "com.zui.")
     private val knownBloat = setOf(
@@ -168,6 +182,7 @@ object Policy {
         val want = buildSet {
             if (store.hideLenovo) addAll(bloatCandidates(c).filter { it !in store.allowed })
             if (store.blockUpdates) addAll(updaterCandidates(c))
+            addAll(removedKidsApps.filter { isInstalled(c.packageManager, it) })
         }
         val before = store.hiddenByUs()
         // un-hide what we no longer want hidden
@@ -206,6 +221,7 @@ object Policy {
         safe("statusbar") { d.setStatusBarDisabled(a, false) }
         safe("updates") { d.setSystemUpdatePolicy(a, null) }
         safe("stayon") { d.setGlobalSetting(a, Settings.Global.STAY_ON_WHILE_PLUGGED_IN, "0") }
+        noGuestRestrictions.forEach { r -> safe("unrestrict $r") { d.clearUserRestriction(a, r) } }
         store.set("kiosk", false)
         var ok = false
         safe("clear owner") {
