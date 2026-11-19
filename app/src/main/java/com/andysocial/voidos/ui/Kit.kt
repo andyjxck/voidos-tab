@@ -317,7 +317,7 @@ fun DrawScope.drawOct(c: Offset, r: Float, color: Color, fill: Boolean = false, 
 enum class G(@DrawableRes val res: Int) {
     FACE(R.drawable.vi_face), WEATHER(R.drawable.vi_weather), NOTES(R.drawable.vi_notes), MEDIA(R.drawable.vi_media),
     FOCUS(R.drawable.vi_focus), HOUSE(R.drawable.vi_house), APPS(R.drawable.vi_apps), SYSTEM(R.drawable.vi_system),
-    KITCHEN(R.drawable.vi_kitchen), TIMER(R.drawable.vi_timer), LIST(R.drawable.vi_list), CONVERT(R.drawable.vi_convert),
+    KITCHEN(R.drawable.vi_kitchen), TIMER(R.drawable.vi_timer), LIST(R.drawable.vi_list), CONVERT(R.drawable.vi_convert), CALC(R.drawable.vi_calc),
     WIFI(R.drawable.vi_wifi), BT(R.drawable.vi_bt), SUN(R.drawable.vi_sun), MOON(R.drawable.vi_moon), CLOUD(R.drawable.vi_cloud),
     RAIN(R.drawable.vi_rain), SNOW(R.drawable.vi_snow), STORM(R.drawable.vi_storm), FOG(R.drawable.vi_fog),
     PLAY(R.drawable.vi_play), PAUSE(R.drawable.vi_pause), NEXT(R.drawable.vi_next), PREV(R.drawable.vi_prev),

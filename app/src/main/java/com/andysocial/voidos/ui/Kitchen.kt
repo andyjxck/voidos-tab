@@ -80,7 +80,7 @@ enum class KTab(val label: String, val glyph: G) {
     CALENDAR("Calendar", G.CALENDAR), CONVERT("Convert", G.CONVERT), LIST("List", G.LIST), MEMO("Memos", G.MIC),
     LEVEL("Level", G.LEVEL), METER("Sound", G.METER), SCAN("QR scan", G.QR), MIRROR("Mirror", G.MIRROR),
     ZOOM("Magnifier", G.ZOOM), TORCH("Torch", G.TORCH),
-    FILES("Files", G.FOLDER), DOCSCAN("Doc scan", G.DOC),
+    FILES("Files", G.FOLDER), DOCSCAN("Doc scan", G.DOC), CALC("Calculator", G.CALC),
 }
 
 /** The four groups on the Tools screen, each with its tools in order. */
@@ -88,7 +88,7 @@ enum class KGroup(val label: String, val tabs: List<KTab>) {
     TIME("Time", listOf(KTab.TIMERS, KTab.STOPWATCH, KTab.ALARMS, KTab.WORLD)),
     ORGANISE("Organise", listOf(KTab.CALENDAR, KTab.LIST, KTab.MEMO, KTab.FILES)),
     CAMERA("Camera", listOf(KTab.SCAN, KTab.DOCSCAN, KTab.ZOOM, KTab.MIRROR)),
-    UTILITIES("Utilities", listOf(KTab.CONVERT, KTab.LEVEL, KTab.METER, KTab.TORCH));
+    UTILITIES("Utilities", listOf(KTab.CALC, KTab.CONVERT, KTab.LEVEL, KTab.METER, KTab.TORCH));
 
     /** The page this group lives on: Time and Organise on Tools, Camera and Utilities each on their own. */
     val page: Module get() = when (this) {
@@ -204,6 +204,7 @@ fun ToolsScreen(store: Store, page: Module = Module.TOOLS) {
                 KTab.TIMERS -> TimersPane()
                 KTab.ALARMS -> AlarmsPane()
                 KTab.CONVERT -> ConvertPane()
+                KTab.CALC -> CalculatorPane()
                 KTab.LIST -> ShoppingPane(store)
                 KTab.SCAN -> CameraPane(CamMode.SCAN)
                 KTab.MIRROR, KTab.TORCH -> Box(Modifier.fillMaxSize())
