@@ -111,7 +111,7 @@ private fun VolumeSlider(audio: AudioManager, stream: Int, label: String, g: G, 
     LaunchedEffect(bump, stream) { level = runCatching { audio.getStreamVolume(stream) }.getOrDefault(level) }
     val frac by animateFloatAsState(volumeFraction(level, min, max), Motion.quick(), label = "vol")
     val h = 200.dp
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(52.dp)) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(72.dp)) {
         VText("${Math.round(volumeFraction(level, min, max) * 100)}", size = Type.caption, color = V.Text, align = TextAlign.Center)
         Box(Modifier.height(8.dp))
         Box(
@@ -136,7 +136,7 @@ private fun VolumeSlider(audio: AudioManager, stream: Int, label: String, g: G, 
             Modifier.size(36.dp).clip(CircleShape).clickable { onGlyph() }.semantics { contentDescription = "All volumes" },
             contentAlignment = Alignment.Center,
         ) { Glyph(if (level <= min) G.VIBRATE.takeIf { stream == AudioManager.STREAM_RING } ?: g else g, V.Text, Modifier.size(20.dp)) }
-        VText(label, size = 10.sp, color = V.Muted, align = TextAlign.Center, maxLines = 1)
+        VText(label, size = 11.sp, color = V.Muted, align = TextAlign.Center, maxLines = 1)
     }
 }
 

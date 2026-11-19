@@ -1438,7 +1438,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         showCc()
         assertEvenGrid("16_control_centre_grid", tagBounds("cc_tile"))
         assertTrue("[$tag] Settings and Power left the grid", rule.onAllNodes(hasContentDescription("Settings") and hasTestTag("cc_tile"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
-        shot("61_cc_grid")
+        shot("61_cc_grid"); assertTrue("[$tag] 61_cc_grid: ${issuesOf("61_cc_grid")}", issuesOf("61_cc_grid").isEmpty())
         CcSource.reset()
 
         // power menu
@@ -1466,7 +1466,8 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
             rule.onAllNodes(hasContentDescription("All volumes", substring = true, ignoreCase = true), useUnmergedTree = true).onFirst()
                 .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick); settle(800)
         }
-        shot("63b_volume_all")
+        shot("63b_volume_all"); assertTrue("[$tag] 63b_volume_all: ${issuesOf("63b_volume_all")}", issuesOf("63b_volume_all").isEmpty())
+        expect("Media", "Ring", "Notifications", "Alarms")
 
         // the PIN pad over Android's lock screen
         store.setPin("2468")

@@ -309,6 +309,14 @@ resetprop qemu.hw.mainkeys 1 2>/dev/null
 settings put global policy_control 'immersive.full=*:immersive.preconfirms=*'
 appops set $P SYSTEM_ALERT_WINDOW allow
 pm grant $P android.permission.WRITE_SECURE_SETTINGS 2>/dev/null
+# 1.19: VoidOS's own permissions granted up front, so Android's "Allow VoidOS to..." prompts never show
+for perm in ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION CAMERA RECORD_AUDIO READ_CALENDAR READ_EXTERNAL_STORAGE WRITE_EXTERNAL_STORAGE; do
+  pm grant $P android.permission.$perm 2>/dev/null
+done
+appops set $P WRITE_SETTINGS allow 2>/dev/null
+appops set $P ACCESS_NOTIFICATIONS allow 2>/dev/null
+cmd notification allow_listener $P/$P.VoidListener 2>/dev/null
+cmd notification allow_dnd $P 2>/dev/null
 # VoidOS's volume sliders, power menu and PIN pad (an accessibility service)
 S=$P/$P.VoidKeysService
 CUR=$(settings get secure enabled_accessibility_services)

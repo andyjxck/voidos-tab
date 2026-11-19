@@ -64,6 +64,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.requiredWidth
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -575,14 +578,28 @@ private fun CcTall(g: G, value: Float, modifier: Modifier, fill: List<Color>, la
         contentAlignment = Alignment.CenterStart,
     ) {
         val shown by animateFloatAsState(v.coerceAtLeast(0.06f), Motion.press(), label = "level")
-        Box(Modifier.fillMaxHeight().fillMaxWidth(shown).background(Brush.horizontalGradient(fill.reversed())))
-        Row(Modifier.fillMaxSize().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-            Glyph(g, if (v > 0.12f) V.Bg else V.Text, Modifier.size(22.dp))
-            Spacer(Modifier.width(12.dp))
-            VText(label, size = Type.label, color = if (v > 0.35f) V.Bg else V.Text, maxLines = 1)
-            Spacer(Modifier.weight(1f))
-            VText("${Math.round(v * 100)}%", size = Type.label, color = if (v > 0.9f) V.Bg else V.Muted, maxLines = 1)
+        // light text over the glass, and the same text in dark clipped to the fill, so every letter
+        // reads whichever side of the fill's edge it sits on
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+            val full = maxWidth
+            CcTallLine(g, label, v, V.Text, V.Muted)
+            Box(Modifier.fillMaxHeight().fillMaxWidth(shown).clipToBounds().background(Brush.horizontalGradient(fill.reversed()))) {
+                Box(Modifier.requiredWidth(full).fillMaxHeight().align(Alignment.CenterStart).offset(x = (full - full * shown) / 2)) {
+                    CcTallLine(g, label, v, V.Bg, V.Bg.copy(alpha = 0.7f))
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun CcTallLine(g: G, label: String, v: Float, ink: Color, soft: Color) {
+    Row(Modifier.fillMaxSize().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+        Glyph(g, ink, Modifier.size(22.dp))
+        Spacer(Modifier.width(12.dp))
+        VText(label, size = Type.label, color = ink, maxLines = 1)
+        Spacer(Modifier.weight(1f))
+        VText("${Math.round(v * 100)}%", size = Type.label, color = soft, maxLines = 1)
     }
 }
 
