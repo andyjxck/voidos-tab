@@ -68,6 +68,9 @@ object Switcher {
      */
     val fromApp = mutableStateOf(false)
 
+    /** When each recent app was last at the front, from Android's usage records. */
+    val lastUsed = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
     /**
      * The apps used lately, newest first: what Android recorded coming to the front over the last
      * two days (VoidOS has usage access through root), then the apps opened from VoidOS.
@@ -84,6 +87,7 @@ object Switcher {
                 @Suppress("DEPRECATION")
                 if (e.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) last[e.packageName] = e.timeStamp
             }
+            lastUsed.clear(); lastUsed.putAll(last)
             last.entries.sortedByDescending { it.value }.map { it.key }
         }.getOrDefault(emptyList())
         return order(fromSystem, store.recentApps, AppsRepo.all(ctx).map { it.pkg }.toSet(), ctx.packageName)
@@ -99,6 +103,28 @@ object Switcher {
     fun close(pkg: String) { Su.run("am force-stop ${Su.q(pkg)}") }
 }
 
+/** Pure: how many columns of cards fit in this width, between 2 and 4. */
+fun switcherColumns(widthDp: Float, cardMinDp: Float = 230f, gapDp: Float = 20f, sideDp: Float = 48f): Int =
+    (((widthDp - 2 * sideDp + gapDp) / (cardMinDp + gapDp)).toInt()).coerceIn(2, 4)
+
+/** Pure: "Just now", "5 min ago", "2 h ago", "Yesterday", for when an app was last used. */
+fun lastUsedLabel(now: Long, at: Long?): String {
+    if (at == null || at <= 0L) return "Recently"
+    val m = (now - at) / 60_000L
+    return when {
+        m < 1 -> "Just now"
+        m < 60 -> "$m min ago"
+        m < 24 * 60 -> "${m / 60} h ago"
+        m < 48 * 60 -> "Yesterday"
+        else -> "${m / (24 * 60)} days ago"
+    }
+}
+
+/**
+ * The app switcher, redone in 1.19.0: it sits on VoidOS's own solid backdrop (nothing from Home
+ * shows through), with a header, a tidy grid of same-size glass cards (icon, name, when you last
+ * used it, a close button) and one bar at the bottom for Back, Home and Close all.
+ */
 @Composable
 fun AppSwitcher(store: Store) {
     var shown by Switcher.shown
@@ -114,59 +140,89 @@ fun AppSwitcher(store: Store) {
     }
     BackHandler(enabled = shown) { dismiss(ctx, back = false) }
     AnimatedVisibility(shown, enter = fadeIn(Motion.quick()), exit = fadeOut(Motion.quick())) {
-        Box(
-            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f))
+        androidx.compose.runtime.CompositionLocalProvider(LocalRoom provides Rooms.overlay) {
+        androidx.compose.foundation.layout.BoxWithConstraints(
+            Modifier.fillMaxSize()
                 .clickable(interactionSource = null, indication = null) { dismiss(ctx, back = false) }
                 .semantics { contentDescription = "App switcher" },
-            contentAlignment = Alignment.Center,
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (apps.isEmpty()) {
-                    VText("No recent apps", size = Type.body, color = V.Muted)
-                } else {
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 48.dp),
-                        horizontalArrangement = Arrangement.spacedBy(Grid.l),
-                    ) {
-                        items(apps, key = { it }) { pkg ->
-                            val e = all.firstOrNull { it.pkg == pkg }
-                            if (e != null) SwitcherCard(e, store,
-                                onOpen = { shown = false; if (!launchApp(ctx, store, pkg)) store.forgetRecent(pkg) },
-                                onClose = {
-                                    apps.remove(pkg); store.forgetRecent(pkg)
-                                    scope.launch(Dispatchers.IO) { Switcher.close(pkg) }
-                                },
-                            )
+            SystemScrim()
+            val cols = switcherColumns(maxWidth.value)
+            val now = System.currentTimeMillis()
+            Column(Modifier.fillMaxSize().padding(horizontal = 48.dp).padding(top = 40.dp, bottom = 28.dp)) {
+                androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.Bottom) {
+                    Column(Modifier.weight(1f)) {
+                        VText("Recent apps", size = 30.sp, font = SansLight, color = V.White)
+                        VText(
+                            when (apps.size) { 0 -> "Nothing open"; 1 -> "1 app"; else -> "${apps.size} apps" } +
+                                if (apps.isNotEmpty()) "  ·  tap to open, swipe up to close" else "",
+                            size = Type.label, color = V.Muted,
+                        )
+                    }
+                }
+                androidx.compose.foundation.layout.Spacer(Modifier.height(28.dp))
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                    if (apps.isEmpty()) {
+                        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                            Glyph(G.APPS, V.Muted, Modifier.size(44.dp))
+                            androidx.compose.foundation.layout.Spacer(Modifier.height(Grid.m))
+                            VText("No recent apps", size = Type.body, color = V.Muted)
+                        }
+                    } else {
+                        androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                            columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(cols),
+                            horizontalArrangement = Arrangement.spacedBy(20.dp),
+                            verticalArrangement = Arrangement.spacedBy(20.dp),
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            items(apps.size, key = { apps[it] }) { i ->
+                                val pkg = apps[i]
+                                val e = all.firstOrNull { it.pkg == pkg }
+                                if (e != null) SwitcherCard(e, store, lastUsedLabel(now, Switcher.lastUsed[pkg]),
+                                    onOpen = { shown = false; if (!launchApp(ctx, store, pkg)) store.forgetRecent(pkg) },
+                                    onClose = {
+                                        apps.remove(pkg); store.forgetRecent(pkg)
+                                        scope.launch(Dispatchers.IO) { Switcher.close(pkg) }
+                                    },
+                                )
+                            }
                         }
                     }
                 }
-                androidx.compose.foundation.layout.Spacer(Modifier.height(Grid.xl))
-                // one glass pill, segments inside it: Back · Home over an app, then Close all
-                val segs = buildList {
+                androidx.compose.foundation.layout.Spacer(Modifier.height(20.dp))
+                // one bar: Back and Home over an app on the left, Close all on the right
+                androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     if (Switcher.fromApp.value) {
-                        add("Back" to { dismiss(ctx, back = true) })
-                        add("Home" to { Switcher.fromApp.value = false; shown = false })
+                        SwitcherButton("Back", G.BACK) { dismiss(ctx, back = true) }
+                        androidx.compose.foundation.layout.Spacer(Modifier.width(12.dp))
+                        SwitcherButton("Home", G.HOUSE) { Switcher.fromApp.value = false; shown = false }
                     }
-                    if (apps.isNotEmpty()) add("Close all" to {
+                    androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                    if (apps.isNotEmpty()) SwitcherButton("Close all", G.CLOSE, accent = true) {
                         val gone = apps.toList(); apps.clear(); gone.forEach { store.forgetRecent(it) }
                         scope.launch(Dispatchers.IO) { gone.forEach { Switcher.close(it) } }
                         Switcher.fromApp.value = false; shown = false
-                    })
-                }
-                if (segs.isNotEmpty()) androidx.compose.foundation.layout.Row(
-                    Modifier.glass(Pill, 0.7f).padding(Grid.xs),
-                ) {
-                    segs.forEach { (label, act) ->
-                        Box(
-                            Modifier.clip(Pill).clickable(onClick = act)
-                                .padding(horizontal = Grid.l, vertical = Grid.s)
-                                .semantics { contentDescription = label },
-                            contentAlignment = Alignment.Center,
-                        ) { VText(label, size = Type.label, color = V.Text) }
                     }
                 }
             }
         }
+        }
+    }
+}
+
+@Composable
+private fun SwitcherButton(label: String, g: G, accent: Boolean = false, onTap: () -> Unit) {
+    androidx.compose.foundation.layout.Row(
+        Modifier.height(52.dp)
+            .liquidGlass(Pill, GlassLook(smoke = 0.55f, depth = 0.7f, shine = 1.1f, magnify = 1.1f))
+            .clip(Pill).clickable(onClick = onTap)
+            .padding(horizontal = 22.dp)
+            .semantics(mergeDescendants = true) { contentDescription = label },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Glyph(g, if (accent) V.Coral else V.Text, Modifier.size(18.dp))
+        androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp))
+        VText(label, size = Type.body, color = V.Text)
     }
 }
 
@@ -185,33 +241,44 @@ private fun dismiss(ctx: Context, back: Boolean) {
 }
 
 @Composable
-private fun SwitcherCard(e: AppEntry, store: Store, onOpen: () -> Unit, onClose: () -> Unit) {
+private fun SwitcherCard(e: AppEntry, store: Store, used: String, onOpen: () -> Unit, onClose: () -> Unit) {
     val scope = rememberCoroutineScope()
     val dy = remember { Animatable(0f) }
-    val shape = RoundedCornerShape(Radius.card)
+    val shape = RoundedCornerShape(26.dp)
     Box(
-        Modifier.width(200.dp).height(300.dp)
+        Modifier.fillMaxWidth().height(190.dp)
             .offset { IntOffset(0, dy.value.roundToInt()) }
-            .graphicsLayer { alpha = (1f + dy.value / 900f).coerceIn(0f, 1f) }
+            .graphicsLayer { alpha = (1f + dy.value / 700f).coerceIn(0f, 1f) }
             .pointerInput(e.pkg) {
                 detectVerticalDragGestures(
                     onDragEnd = {
                         scope.launch {
-                            if (dy.value < -160f) { dy.animateTo(-1200f, Motion.quick()); onClose() }
+                            if (dy.value < -140f) { dy.animateTo(-900f, Motion.quick()); onClose() }
                             else dy.animateTo(0f, Motion.spring())
                         }
                     },
-                ) { ch, d -> ch.consume(); scope.launch { dy.snapTo((dy.value + d).coerceAtMost(40f)) } }
+                ) { ch, d -> ch.consume(); scope.launch { dy.snapTo((dy.value + d).coerceAtMost(30f)) } }
             }
-            .pane(shape)
+            .liquidGlass(shape, GlassLook(smoke = 0.5f, depth = 0.8f, shine = 1f, magnify = 1.05f))
+            .clip(shape)
             .clickable(onClick = onOpen)
             .semantics { contentDescription = e.label },
-        contentAlignment = Alignment.Center,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            AppGlyph(e, store.iconStyle, 84.dp)
-            androidx.compose.foundation.layout.Spacer(Modifier.height(Grid.m))
-            VText(e.label, size = Type.body, color = V.White, maxLines = 1, modifier = Modifier.padding(horizontal = Grid.m))
+        Column(Modifier.fillMaxSize().padding(18.dp)) {
+            androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.Top) {
+                AppGlyph(e, store.iconStyle, 64.dp)
+                androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                Box(
+                    Modifier.size(36.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .clickable { scope.launch { dy.animateTo(-900f, Motion.quick()); onClose() } }
+                        .semantics { contentDescription = "Close ${e.label}" },
+                    contentAlignment = Alignment.Center,
+                ) { Glyph(G.CLOSE, V.Text.copy(alpha = 0.8f), Modifier.size(14.dp)) }
+            }
+            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+            VText(e.label, size = 19.sp, color = V.White, maxLines = 1)
+            VText(used, size = Type.label, color = V.Muted, maxLines = 1)
         }
     }
 }

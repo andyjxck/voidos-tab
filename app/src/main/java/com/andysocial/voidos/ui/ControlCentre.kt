@@ -217,7 +217,8 @@ fun ControlCentre(
     val closeOrBack = { if (expanded != null) expanded = null else onClose() }
 
     AnimatedVisibility(open, enter = fadeIn(), exit = fadeOut()) {
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.66f)).ccAurora().tap(closeOrBack))
+        // 1.19.0: VoidOS's own solid backdrop, so Home's clock and widgets never show through
+        Box(Modifier.fillMaxSize().tap(closeOrBack)) { SystemScrim() }
     }
     AnimatedVisibility(
         open,
@@ -308,45 +309,151 @@ private fun CcGrid(
     onClose: () -> Unit, onSettings: () -> Unit, expand: (CcPart) -> Unit,
 ) {
     val portrait = h > w
-    val gap = 14.dp
+    val ctx = LocalContext.current
+    val gap = 12.dp
+    val pad = 24.dp
+    val panelW = if (portrait) min(w - 32.dp, 620.dp) else min(w - 56.dp, 1040.dp)
+    val innerW = panelW - pad * 2
+    val pinned = store.rotation != "auto"
+    val dndOn = st.dnd != NotificationManager.INTERRUPTION_FILTER_ALL
+    val fm = store.focusModes.firstOrNull { it.name == store.focusOn }
+    val quick = rememberQuickItems(onClose) { st.note = it }
+    val tiles = buildList {
+        add(CcItem(G.WIFI, "Wi-Fi", st.wifi, V.Teal, hold = { expand(CcPart.WIFI) }) { st.switchWifi(!st.wifi) })
+        add(CcItem(G.BT, "Bluetooth", st.bt, BtBlue, hold = { expand(CcPart.BT) }) { st.switchBt(!st.bt) })
+        add(CcItem(if (dndOn && fm != null) focusGlyph(fm.glyph) else G.FOCUS_MODE, if (dndOn && fm != null) fm.name else "Focus", dndOn, V.Purple, hold = { expand(CcPart.DND) }) { expand(CcPart.DND) })
+        add(CcItem(G.ROTATE, "Rotation lock", pinned, V.Coral, hold = { expand(CcPart.ROTATE) }) {
+            store.setRotation(if (pinned) "auto" else if (portrait) "port" else "land"); act.applyRotation()
+        })
+        addAll(quick.take(3))
+        add(CcItem(G.LIGHT, "Stay awake", store.deskMode, V.Sun) { store.set("deskMode", !store.deskMode); act.applyPolicies() })
+        add(CcItem(G.BELL, "Notifications", com.andysocial.voidos.VoidListener.notices.value.isNotEmpty(), V.Teal) { expand(CcPart.NOTICES) })
+        addAll(quick.drop(3))
+        com.andysocial.voidos.Extras.assistantIntent(ctx)?.let { ai ->
+            add(CcItem(G.ASSISTANT, "Assistant", false, V.Purple) {
+                onClose()
+                ai.resolveActivity(ctx.packageManager)?.packageName?.let { p -> if (p !in store.allowed) store.setAllowed(p, true); act.applyPolicies() }
+                runCatching { ctx.startActivity(ai) }
+            })
+        }
+        add(CcItem(G.SYSTEM, "Settings", false, V.Text) { onClose(); onSettings() })
+        add(CcItem(G.POWER, "Power", false, V.Text) { expand(CcPart.POWER) })
+    }
+    val cols = ccColumns(portrait, tiles.size)
+    val rows = (tiles.size + cols - 1) / cols
+    val barH = if (portrait) 64.dp else 72.dp
+    val headH = 92.dp
+    // every tile one size: as wide as the columns allow, as tall as the screen allows, never clipped
+    val tileW = (innerW - gap * (cols - 1)) / cols
+    val roomH = h - 32.dp - pad * 2 - headH - gap * 2 - (if (portrait) barH * 2 + gap else barH) - gap * rows
+    val tileH = ccTileHeight(tileW, roomH, rows)
     Column(
-        Modifier.padding(top = 16.dp).width(if (portrait) min(w - 40.dp, 560.dp) else min(w - 56.dp, 880.dp)),
+        Modifier.padding(top = 16.dp).width(panelW)
+            .heightIn(max = h - 32.dp)
+            .liquidGlass(RoundedCornerShape(40.dp), GlassLook(smoke = 0.62f, depth = 1f, shine = 1.1f, magnify = 1.05f))
+            .tap { }
+            .verticalScroll(rememberScrollState())
+            .padding(pad)
+            .semantics { contentDescription = "Control Centre" },
     ) {
-        CcHeader(store)
-        Spacer(Modifier.height(18.dp))
-        val areaW = if (portrait) min(w - 40.dp, 560.dp) else min(w - 56.dp, 880.dp)
+        Box(Modifier.height(headH - 12.dp)) { CcHeader(store) }
+        Spacer(Modifier.height(12.dp + gap))
+        tiles.chunked(cols).forEachIndexed { i, row ->
+            if (i > 0) Spacer(Modifier.height(gap))
+            Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                row.forEach { CcTile(it, tileW, tileH) }
+            }
+        }
+        Spacer(Modifier.height(gap * 2))
         if (portrait) {
-            val side = min((areaW - gap) / 2, 230.dp)
-            val bubble = ccBubbleSize(side)
-            Row(Modifier.fillMaxWidth().height(side), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                ConnectModule(st, store, act, bubble, Modifier.weight(1f).fillMaxHeight(), expand)
-                MediaModule(Modifier.weight(1f).fillMaxHeight()) { expand(CcPart.MEDIA) }
-            }
+            MediaModule(Modifier.fillMaxWidth().height(barH)) { expand(CcPart.MEDIA) }
             Spacer(Modifier.height(gap))
-            Row(Modifier.fillMaxWidth().height(side), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                RoundButtons(store, act, onClose, onSettings, bubble, cols = 3, expand = expand, modifier = Modifier.weight(1f).fillMaxHeight())
-                BrightSlider(st, Modifier.width((side - gap) / 2).fillMaxHeight()) { expand(CcPart.BRIGHT) }
-                VolumeSlider(st, Modifier.width((side - gap) / 2).fillMaxHeight()) { expand(CcPart.VOLUME) }
+            Row(Modifier.fillMaxWidth().height(barH), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                BrightSlider(st, Modifier.weight(1f).fillMaxHeight()) { expand(CcPart.BRIGHT) }
+                VolumeSlider(st, Modifier.weight(1f).fillMaxHeight()) { expand(CcPart.VOLUME) }
             }
-            Spacer(Modifier.height(gap))
-            QuickToggles(onClose, bubble, Modifier.fillMaxWidth())
         } else {
-            val rowH = max(200.dp, min(h - 270.dp, 330.dp))
-            // the Wi-Fi square's height sets one bubble size for every switch in the control centre
-            val bubble = ccBubbleSize((rowH - gap) * (1.15f / 2f))
-            Row(Modifier.fillMaxWidth().height(rowH), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                Column(Modifier.weight(1.3f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(gap)) {
-                    ConnectModule(st, store, act, bubble, Modifier.fillMaxWidth().weight(1.15f), expand)
-                    MediaModule(Modifier.fillMaxWidth().weight(0.85f)) { expand(CcPart.MEDIA) }
-                }
-                BrightSlider(st, Modifier.width(96.dp).fillMaxHeight()) { expand(CcPart.BRIGHT) }
-                VolumeSlider(st, Modifier.width(96.dp).fillMaxHeight()) { expand(CcPart.VOLUME) }
-                RoundButtons(store, act, onClose, onSettings, bubble, cols = 2, expand = expand, modifier = Modifier.weight(1f).fillMaxHeight())
+            Row(Modifier.fillMaxWidth().height(barH), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                MediaModule(Modifier.weight(1.2f).fillMaxHeight()) { expand(CcPart.MEDIA) }
+                BrightSlider(st, Modifier.weight(1f).fillMaxHeight()) { expand(CcPart.BRIGHT) }
+                VolumeSlider(st, Modifier.weight(1f).fillMaxHeight()) { expand(CcPart.VOLUME) }
             }
-            Spacer(Modifier.height(gap))
-            QuickToggles(onClose, bubble, Modifier.fillMaxWidth())
         }
     }
+}
+
+/** Pure: columns of tiles. Upright: 4. Lying down: enough for two rows, at most 8. */
+internal fun ccColumns(portrait: Boolean, n: Int): Int =
+    if (portrait) 4 else ((n + 1) / 2).coerceIn(5, 8)
+
+/** Pure: one tile height for every tile, from the width and the room left on screen. */
+internal fun ccTileHeight(tileW: Dp, roomH: Dp, rows: Int): Dp =
+    min(tileW * 0.82f, roomH / rows.coerceAtLeast(1)).coerceIn(72.dp, 124.dp)
+
+/**
+ * A Control Centre tile: every switch is one of these, the same shape and size, on the same grid.
+ * Icon in a round well at the top, name underneath; lit with its own colour when on.
+ */
+@Composable
+private fun CcTile(it: CcItem, w: Dp, h: Dp) {
+    val lit by animateFloatAsState(if (it.on) 1f else 0f, Motion.pop(), label = "lit")
+    val shape = RoundedCornerShape(24.dp)
+    Column(
+        Modifier.size(w, h)
+            .semantics(mergeDescendants = true) { contentDescription = it.label; selected = it.on }
+            .clip(shape)
+            .background(lerp(Color.White.copy(alpha = 0.07f), it.accent.copy(alpha = 0.30f), lit))
+            .drawBehind { drawRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.08f), Color.Transparent), endY = size.height * 0.5f)) }
+            .tapOrHold(it.tap, it.hold ?: it.tap)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        val well = min(h * 0.46f, 48.dp)
+        Box(
+            Modifier.size(well).clip(CircleShape).background(lerp(Color.White.copy(alpha = 0.10f), it.accent, lit * 0.85f)),
+            contentAlignment = Alignment.Center,
+        ) { Glyph(it.g, lerp(V.Text, Color.White, lit), Modifier.size(well * 0.5f)) }
+        Spacer(Modifier.height(6.dp))
+        VText(it.label, size = if (w < 96.dp) 11.sp else 12.sp, color = lerp(V.Muted, V.White, 0.5f + 0.5f * lit), maxLines = 1, align = androidx.compose.ui.text.style.TextAlign.Center)
+    }
+}
+
+/**
+ * The quick switches: airplane mode, location, power saving, screenshot and screen recording.
+ * Messages go to the Control Centre's own note, not Android's toast.
+ */
+@Composable
+private fun rememberQuickItems(onClose: () -> Unit, note: (String) -> Unit): List<CcItem> {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var plane by remember { mutableStateOf(com.andysocial.voidos.Device.airplaneOn(ctx)) }
+    var loc by remember { mutableStateOf(com.andysocial.voidos.Device.locationOn(ctx)) }
+    var saver by remember { mutableStateOf(com.andysocial.voidos.Device.saverOn(ctx)) }
+    var rec by remember { mutableStateOf(com.andysocial.voidos.Device.recording != null) }
+    fun flip(get: () -> Boolean, set: (Boolean) -> Unit, act: (Boolean) -> Boolean, failed: String) {
+        val to = !get(); set(to)
+        scope.launch { if (!withContext(Dispatchers.IO) { act(to) }) { set(!to); note(failed) } }
+    }
+    return listOf(
+        CcItem(G.PLANE, "Airplane mode", plane, V.Sun) { flip({ plane }, { plane = it }, { com.andysocial.voidos.Device.airplane(it) }, "Airplane mode didn't switch.") },
+        CcItem(G.PIN, "Location", loc, V.Teal) {
+            flip({ loc }, { loc = it; VoidApp.instance.store.set("locationOff", !it) }, { com.andysocial.voidos.Device.location(it) }, "Location didn't switch.")
+        },
+        CcItem(G.LEAF, "Power saving", saver, V.Sun) { flip({ saver }, { saver = it }, { com.andysocial.voidos.Device.saver(it) }, "Power saving didn't switch.") },
+        CcItem(G.SCREENSHOT, "Screenshot", false, V.Teal) {
+            onClose()
+            scope.launch {
+                kotlinx.coroutines.delay(450)
+                val f = withContext(Dispatchers.IO) { com.andysocial.voidos.Device.screenshot() }
+                toast.value = (if (f != null) "Screenshot saved" else "Screenshot failed")
+            }
+        },
+        CcItem(G.RECORD, if (rec) "Stop recording" else "Record screen", rec, V.Coral) {
+            if (rec) scope.launch { withContext(Dispatchers.IO) { com.andysocial.voidos.Device.stopRecording() }; rec = false; toast.value = ("Recording saved to Movies") }
+            else { onClose(); scope.launch { kotlinx.coroutines.delay(450); rec = withContext(Dispatchers.IO) { com.andysocial.voidos.Device.startRecording() } } }
+        },
+    )
 }
 
 /** One size for every round switch: what fits two to a side in a glass square [panel] tall. */
@@ -408,33 +515,6 @@ private fun Modifier.tapOrHold(onTap: (() -> Unit)?, onHold: () -> Unit): Modifi
     detectTapGestures(onTap = { onTap?.invoke() }, onLongPress = { onHold() })
 }
 
-/** Wi-Fi, Bluetooth, Do Not Disturb and rotation lock: four round switches in one glass square. */
-@Composable
-private fun ConnectModule(st: CcState, store: Store, act: MainActivity, bubble: Dp, modifier: Modifier, expand: (CcPart) -> Unit) {
-    val pinned = store.rotation != "auto"
-    val portrait = LocalPortrait.current
-    BoxWithConstraints(
-        modifier.ccGlass(RoundedCornerShape(Radius.panel)).tapOrHold(null) { expand(CcPart.CONNECT) }.padding(CcPad),
-        contentAlignment = Alignment.Center,
-    ) {
-        val d = min(min(maxWidth, maxHeight) / 2 - 6.dp, bubble)
-        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                CcBubble(G.WIFI, "Wi-Fi", st.wifi, V.Teal, d, { st.switchWifi(!st.wifi) }) { expand(CcPart.WIFI) }
-                CcBubble(G.BT, "Bluetooth", st.bt, BtBlue, d, { st.switchBt(!st.bt) }) { expand(CcPart.BT) }
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                val dndOn = st.dnd != NotificationManager.INTERRUPTION_FILTER_ALL
-                // Focus: a tap opens the list of Focus modes; the one that's on shows its own icon
-                val fm = store.focusModes.firstOrNull { it.name == store.focusOn }
-                CcBubble(if (dndOn && fm != null) focusGlyph(fm.glyph) else G.FOCUS_MODE, if (dndOn && fm != null) fm.name else "Focus", dndOn, V.Purple, d, { expand(CcPart.DND) }) { expand(CcPart.DND) }
-                CcBubble(G.ROTATE, "Rotation lock", pinned, V.Coral, d, {
-                    store.setRotation(if (pinned) "auto" else if (portrait) "port" else "land"); act.applyRotation()
-                }) { expand(CcPart.ROTATE) }
-            }
-        }
-    }
-}
 
 /** A round glass switch. Stained with its own colour and glowing when on. */
 @Composable
@@ -451,29 +531,34 @@ private fun CcBubble(g: G, label: String, on: Boolean, accent: Color, d: Dp, onT
     ) { Glyph(g, lerp(V.Text, Color.White, lit), Modifier.size(d * 0.4f)) }
 }
 
-/** A tall glass slider: drag up and down; hold to open it up. The light fill is the level. */
+/** A wide glass slider: drag along it; hold to open it up. The light fill is the level. */
 @Composable
 private fun CcTall(g: G, value: Float, modifier: Modifier, fill: List<Color>, label: String, onHold: (() -> Unit)?, onChange: (Float) -> Unit) {
     val cb by rememberUpdatedState(onChange)
     val hold by rememberUpdatedState(onHold)
     val v = value.coerceIn(0f, 1f)
+    val shape = RoundedCornerShape(24.dp)
     Box(
         modifier.semantics { contentDescription = label }
-            .ccGlass(RoundedCornerShape(Radius.panel))
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.07f))
             .pointerInput(Unit) {
-                detectTapGestures(onTap = { o -> cb((1f - o.y / size.height).coerceIn(0f, 1f)) }, onLongPress = { hold?.invoke() })
+                detectTapGestures(onTap = { o -> cb((o.x / size.width).coerceIn(0f, 1f)) }, onLongPress = { hold?.invoke() })
             }
             .pointerInput(Unit) {
-                detectVerticalDragGestures { ch, _ -> ch.consume(); cb((1f - ch.position.y / size.height).coerceIn(0f, 1f)) }
+                detectHorizontalDragGestures { ch: androidx.compose.ui.input.pointer.PointerInputChange, _: Float -> ch.consume(); cb((ch.position.x / size.width).coerceIn(0f, 1f)) }
             },
+        contentAlignment = Alignment.CenterStart,
     ) {
-        val shown by animateFloatAsState(v.coerceAtLeast(0.07f), Motion.press(), label = "level")
-        Box(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(shown)
-                .background(Brush.verticalGradient(fill))
-                .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.34f), Color.White.copy(alpha = 0.06f), Color.Transparent), endY = 90f)),
-        )
-        Glyph(g, if (v > 0.16f) V.Bg else V.Text, Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp).size(26.dp))
+        val shown by animateFloatAsState(v.coerceAtLeast(0.06f), Motion.press(), label = "level")
+        Box(Modifier.fillMaxHeight().fillMaxWidth(shown).background(Brush.horizontalGradient(fill.reversed())))
+        Row(Modifier.fillMaxSize().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Glyph(g, if (v > 0.12f) V.Bg else V.Text, Modifier.size(22.dp))
+            Spacer(Modifier.width(12.dp))
+            VText(label, size = Type.label, color = if (v > 0.35f) V.Bg else V.Text, maxLines = 1)
+            Spacer(Modifier.weight(1f))
+            VText("${Math.round(v * 100)}%", size = Type.label, color = if (v > 0.9f) V.Bg else V.Muted, maxLines = 1)
+        }
     }
 }
 
@@ -494,25 +579,29 @@ private fun MediaModule(modifier: Modifier, onHold: () -> Unit) {
     val p by Now.playing
     val ctx = LocalContext.current
     Column(
-        modifier.ccGlass(RoundedCornerShape(Radius.panel)).tapOrHold({ p?.let { Now.open(ctx) } }, onHold).padding(16.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
+        modifier.clip(RoundedCornerShape(24.dp)).background(Color.White.copy(alpha = 0.07f))
+            .tapOrHold({ p?.let { Now.open(ctx) } }, onHold).padding(horizontal = 14.dp),
+        verticalArrangement = Arrangement.Center,
     ) {
         val cur = p
-        if (cur == null) {
-            Glyph(G.MEDIA, V.Muted, Modifier.size(24.dp))
-            VText("Not playing", size = Type.body, color = V.Muted)
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                cur.art?.let { Image(it.asImageBitmap(), null, Modifier.size(40.dp).clip(RoundedCornerShape(Radius.chip)), contentScale = ContentScale.Crop); Spacer(Modifier.width(10.dp)) }
-                Column(Modifier.weight(1f)) {
-                    VText(cur.title.ifBlank { cur.appName }, size = Type.body, font = SansMedium, color = V.Text, maxLines = 1)
-                    VText(cur.artist.ifBlank { cur.appName }, size = Type.label, color = V.Muted, maxLines = 1)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.10f)), contentAlignment = Alignment.Center) {
+                val art = cur?.art
+                if (art != null) Image(art.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                else Glyph(G.MEDIA, V.Muted, Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                if (cur == null) VText("Not playing", size = Type.label, color = V.Muted, maxLines = 1)
+                else {
+                    VText(cur.title.ifBlank { cur.appName }, size = Type.label, font = SansMedium, color = V.Text, maxLines = 1)
+                    VText(cur.artist.ifBlank { cur.appName }, size = 11.sp, color = V.Muted, maxLines = 1)
                 }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                IconTap(G.PREV, 22.dp) { Now.prev() }
-                IconTap(if (cur.playing) G.PAUSE else G.PLAY, 30.dp) { Now.playPause() }
-                IconTap(G.NEXT, 22.dp) { Now.next() }
+            if (cur != null) {
+                IconTap(G.PREV, 18.dp) { Now.prev() }
+                IconTap(if (cur.playing) G.PAUSE else G.PLAY, 22.dp) { Now.playPause() }
+                IconTap(G.NEXT, 18.dp) { Now.next() }
             }
         }
     }
@@ -523,25 +612,6 @@ private fun IconTap(g: G, size: Dp, color: Color = V.Text, onClick: () -> Unit) 
     Box(Modifier.size(size + 22.dp).clip(CircleShape).tap(onClick), contentAlignment = Alignment.Center) { Glyph(g, color, Modifier.size(size)) }
 }
 
-/** Stay awake, notifications, assistant, settings and power: round switches in one glass panel, like Wi-Fi's. */
-@Composable
-private fun RoundButtons(store: Store, act: MainActivity, onClose: () -> Unit, onSettings: () -> Unit, bubble: Dp, cols: Int, modifier: Modifier, expand: (CcPart) -> Unit = {}) {
-    val ctx = LocalContext.current
-    val items = buildList {
-        add(CcItem(G.LIGHT, "Stay awake", store.deskMode, V.Sun) { store.set("deskMode", !store.deskMode); act.applyPolicies() })
-        add(CcItem(G.BELL, "Notifications", com.andysocial.voidos.VoidListener.notices.value.isNotEmpty(), V.Teal) { expand(CcPart.NOTICES) })
-        com.andysocial.voidos.Extras.assistantIntent(ctx)?.let { ai ->
-            add(CcItem(G.ASSISTANT, "Assistant", false, V.Purple) {
-                onClose()
-                ai.resolveActivity(ctx.packageManager)?.packageName?.let { p -> if (p !in store.allowed) store.setAllowed(p, true); act.applyPolicies() }
-                runCatching { ctx.startActivity(ai) }
-            })
-        }
-        add(CcItem(G.SYSTEM, "Settings", false, V.Text) { onClose(); onSettings() })
-        add(CcItem(G.POWER, "Power", false, V.Text) { expand(CcPart.POWER) })
-    }
-    CcCluster(items, cols, bubble, modifier)
-}
 
 /** The control centre's own slow light, drifting behind the modules. */
 @Composable
@@ -1054,49 +1124,6 @@ private fun ColumnScope.MediaPanel() {
 
 private fun mmss(ms: Long): String { val s = (ms.coerceAtLeast(0) / 1000); return "%d:%02d".format(s / 60, s % 60) }
 
-/**
- * The row of small round switches under the main controls: airplane mode, location,
- * power saving, screenshot, screen recording, torch-bright white screen, and casting.
- * Each reads its state when the control centre opens and flips it through root.
- */
-@Composable
-private fun QuickToggles(onClose: () -> Unit, bubble: Dp, modifier: Modifier) {
-    val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var plane by remember { mutableStateOf(com.andysocial.voidos.Device.airplaneOn(ctx)) }
-    var loc by remember { mutableStateOf(com.andysocial.voidos.Device.locationOn(ctx)) }
-    var saver by remember { mutableStateOf(com.andysocial.voidos.Device.saverOn(ctx)) }
-    var rec by remember { mutableStateOf(com.andysocial.voidos.Device.recording != null) }
-    var note by remember { mutableStateOf<String?>(null) }
-    fun flip(get: () -> Boolean, set: (Boolean) -> Unit, act: (Boolean) -> Boolean, failed: String) {
-        val to = !get(); set(to)
-        scope.launch { if (!withContext(Dispatchers.IO) { act(to) }) { set(!to); note = failed } }
-    }
-    val items = listOf<Triple<G, String, Pair<Boolean, () -> Unit>>>(
-        Triple(G.PLANE, "Airplane mode", plane to { flip({ plane }, { plane = it }, { com.andysocial.voidos.Device.airplane(it) }, "Airplane mode didn't switch.") }),
-        Triple(G.PIN, "Location", loc to {
-            flip({ loc }, { loc = it; VoidApp.instance.store.set("locationOff", !it) }, { com.andysocial.voidos.Device.location(it) }, "Location didn't switch.")
-        }),
-        Triple(G.LEAF, "Power saving", saver to { flip({ saver }, { saver = it }, { com.andysocial.voidos.Device.saver(it) }, "Power saving didn't switch.") }),
-        Triple(G.SCREENSHOT, "Screenshot", false to {
-            onClose()
-            scope.launch {
-                kotlinx.coroutines.delay(450)
-                val f = withContext(Dispatchers.IO) { com.andysocial.voidos.Device.screenshot() }
-                android.widget.Toast.makeText(ctx, if (f != null) "Screenshot saved" else "Screenshot failed", android.widget.Toast.LENGTH_SHORT).show()
-            }
-        }),
-        Triple(G.RECORD, if (rec) "Stop recording" else "Record screen", rec to {
-            if (rec) scope.launch { withContext(Dispatchers.IO) { com.andysocial.voidos.Device.stopRecording() }; rec = false; android.widget.Toast.makeText(ctx, "Recording saved to Movies", android.widget.Toast.LENGTH_SHORT).show() }
-            else { onClose(); scope.launch { kotlinx.coroutines.delay(450); rec = withContext(Dispatchers.IO) { com.andysocial.voidos.Device.startRecording() } } }
-        }),
-    )
-    Column(modifier) {
-        // one glass strip, the same pane and bubble size as the Wi-Fi square: no loose buttons
-        CcCluster(items.map { (g, label, st) -> CcItem(g, label, st.first, V.Teal, tap = st.second) }, items.size, bubble, Modifier.fillMaxWidth())
-        note?.let { VText(it, size = Type.label, color = V.Coral, modifier = Modifier.padding(top = 8.dp)) }
-    }
-}
 
 
 /** The notification centre: what apps have posted, newest first. Tap one to open it, Clear to dismiss. */
