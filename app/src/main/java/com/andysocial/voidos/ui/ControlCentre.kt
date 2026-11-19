@@ -137,7 +137,11 @@ object CcSource {
 }
 
 /** Whether the Control Centre is open over Home (its backdrop is solid). */
-object CcCover { val shown = mutableStateOf(false) }
+object CcCover {
+    /** How many Control Centres are open (one on the tablet); counted so a closed one never uncovers an open one. */
+    val open = mutableIntStateOf(0)
+    val shown: Boolean get() = open.intValue > 0
+}
 
 private val BtBlue = Color(0xFF5A8CF0)
 
@@ -221,7 +225,7 @@ fun ControlCentre(
     startExpanded: CcPart? = null,
 ) {
     // while it's open its solid backdrop covers Home, so Home is hidden from TalkBack too
-    DisposableEffect(open) { CcCover.shown.value = open; onDispose { CcCover.shown.value = false } }
+    DisposableEffect(open) { if (open) CcCover.open.intValue++; onDispose { if (open) CcCover.open.intValue = (CcCover.open.intValue - 1).coerceAtLeast(0) } }
     var expanded by remember(open, startExpanded) { mutableStateOf(if (open) startExpanded else null) }
     BackHandler(enabled = open) { if (expanded != null) expanded = null else onClose() }
     val closeOrBack = { if (expanded != null) expanded = null else onClose() }
@@ -427,7 +431,8 @@ private fun CcTile(it: CcItem, w: Dp, h: Dp) {
             contentAlignment = Alignment.Center,
         ) { Glyph(it.g, lerp(V.Text, Color.White, lit), Modifier.size(well * 0.5f)) }
         Spacer(Modifier.height(6.dp))
-        VText(it.label, size = if (w < 96.dp) 11.sp else 12.sp, color = lerp(V.Muted, V.White, 0.5f + 0.5f * lit), maxLines = 1, align = androidx.compose.ui.text.style.TextAlign.Center)
+        // shrinks to fit rather than cutting a long name ("Record screen") at large text sizes
+        FitText(it.label, if (w < 96.dp) 11.sp else 12.sp, Modifier.fillMaxWidth(), color = lerp(V.Muted, V.White, 0.5f + 0.5f * lit), font = Sans, align = Alignment.Center, min = 7.sp)
     }
 }
 
@@ -587,10 +592,13 @@ private fun CcTall(g: G, value: Float, modifier: Modifier, fill: List<Color>, la
         // reads whichever side of the fill's edge it sits on
         androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
             val full = maxWidth
-            CcTallLine(g, label, v, V.Text, V.Muted)
+            // a narrow bar (the held Brightness / Volume panels) already has its name and level printed
+            // beside it, so it shows just its symbol instead of the name a second time, cut short
+            val words = full >= 200.dp
+            CcTallLine(g, label, v, V.Text, V.Muted, words)
             Box(Modifier.fillMaxHeight().fillMaxWidth(shown).clipToBounds().background(Brush.horizontalGradient(fill.reversed()))) {
                 Box(Modifier.requiredWidth(full).fillMaxHeight().align(Alignment.CenterStart).offset(x = (full - full * shown) / 2).clearAndSetSemantics { }) {
-                    CcTallLine(g, label, v, V.Bg, V.Bg.copy(alpha = 0.7f))
+                    CcTallLine(g, label, v, V.Bg, V.Bg.copy(alpha = 0.7f), words)
                 }
             }
         }
@@ -598,7 +606,11 @@ private fun CcTall(g: G, value: Float, modifier: Modifier, fill: List<Color>, la
 }
 
 @Composable
-private fun CcTallLine(g: G, label: String, v: Float, ink: Color, soft: Color) {
+private fun CcTallLine(g: G, label: String, v: Float, ink: Color, soft: Color, words: Boolean = true) {
+    if (!words) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Glyph(g, ink, Modifier.size(24.dp)) }
+        return
+    }
     Row(Modifier.fillMaxSize().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
         Glyph(g, ink, Modifier.size(22.dp))
         Spacer(Modifier.width(12.dp))

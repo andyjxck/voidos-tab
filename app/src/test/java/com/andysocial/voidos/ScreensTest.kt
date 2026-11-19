@@ -98,6 +98,8 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         store.resetClock()
         com.andysocial.voidos.ui.EscapeDoor.reset(); com.andysocial.voidos.ui.EscapeDoor.asked.value = false
         com.andysocial.voidos.ui.LockState.locked.value = false // the Shell tests start unlocked
+        com.andysocial.voidos.ui.CcCover.open.intValue = 0
+        com.andysocial.voidos.Now.playing.value = null // the widget test plays a song; every other test starts with nothing playing
         // the ambient clock counts real minutes since the last touch; a long class run must not drift into it
         com.andysocial.voidos.ui.Idle.touch(); com.andysocial.voidos.ui.Idle.ambient.value = false
         if (store.shopping.isEmpty()) listOf("Semi-skimmed milk", "Bananas", "Sourdough loaf", "Washing-up liquid", "Cheddar").forEach { store.addItem(it) }

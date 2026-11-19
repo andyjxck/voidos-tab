@@ -39,7 +39,7 @@ class Common:
                 self.assertIn(k, p)
             self.assertRegex(p["id"], r"^[a-zA-Z][a-zA-Z0-9._-]+$")
             self.assertIn("install_module", z.read("META-INF/com/google/android/update-binary").decode())
-            self.assertTrue(all(n.startswith(("META-INF/", "system/", "orient/")) or n in ("module.prop", "customize.sh", "orient.sh", "screenoff.sh") for n in names))
+            self.assertTrue(all(n.startswith(("META-INF/", "system/", "orient/")) or n in ("module.prop", "customize.sh", "orient.sh", "screenoff.sh", "system.prop", "service.sh") for n in names))
             self.assertIsNone(z.testzip())
 
 
