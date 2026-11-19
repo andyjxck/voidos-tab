@@ -23,6 +23,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -63,6 +64,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -336,15 +338,15 @@ private fun CcGrid(
                 runCatching { ctx.startActivity(ai) }
             })
         }
-        add(CcItem(G.SYSTEM, "Settings", false, V.Text) { onClose(); onSettings() })
-        add(CcItem(G.POWER, "Power", false, V.Text) { expand(CcPart.POWER) })
     }
     val cols = ccColumns(portrait, tiles.size)
     val rows = (tiles.size + cols - 1) / cols
     val barH = if (portrait) 64.dp else 72.dp
     val headH = 92.dp
     // every tile one size: as wide as the columns allow, as tall as the screen allows, never clipped
-    val tileW = (innerW - gap * (cols - 1)) / cols
+    // (whole pixels, so a full row never comes out a pixel wider than the panel and clips its last tile)
+    val dens = androidx.compose.ui.platform.LocalDensity.current.density
+    val tileW = (kotlin.math.floor(((innerW - gap * (cols - 1)) / cols).value * dens) / dens).dp
     val roomH = h - 32.dp - pad * 2 - headH - gap * 2 - (if (portrait) barH * 2 + gap else barH) - gap * rows
     val tileH = ccTileHeight(tileW, roomH, rows)
     Column(
@@ -356,7 +358,7 @@ private fun CcGrid(
             .padding(pad)
             .semantics { contentDescription = "Control Centre" },
     ) {
-        Box(Modifier.height(headH - 12.dp)) { CcHeader(store) }
+        Box(Modifier.height(headH - 12.dp)) { CcHeader(store, onSettings = { onClose(); onSettings() }, onPower = { expand(CcPart.POWER) }) }
         Spacer(Modifier.height(12.dp + gap))
         tiles.chunked(cols).forEachIndexed { i, row ->
             if (i > 0) Spacer(Modifier.height(gap))
@@ -400,9 +402,11 @@ private fun CcTile(it: CcItem, w: Dp, h: Dp) {
     val shape = RoundedCornerShape(24.dp)
     Column(
         Modifier.size(w, h)
+            .testTag("cc_tile")
             .semantics(mergeDescendants = true) { contentDescription = it.label; selected = it.on }
             .clip(shape)
             .background(lerp(Color.White.copy(alpha = 0.07f), it.accent.copy(alpha = 0.30f), lit))
+            .border(1.dp, lerp(Color.White.copy(alpha = 0.08f), it.accent.copy(alpha = 0.55f), lit), shape)
             .drawBehind { drawRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.08f), Color.Transparent), endY = size.height * 0.5f)) }
             .tapOrHold(it.tap, it.hold ?: it.tap)
             .padding(horizontal = 12.dp, vertical = 10.dp),
@@ -486,7 +490,7 @@ private fun CcCluster(items: List<CcItem>, cols: Int, bubble: Dp, modifier: Modi
 internal class CcItem(val g: G, val label: String, val on: Boolean, val accent: Color, val hold: (() -> Unit)? = null, val tap: () -> Unit)
 
 @Composable
-private fun CcHeader(store: Store) {
+private fun CcHeader(store: Store, onSettings: () -> Unit, onPower: () -> Unit) {
     var now by remember { mutableStateOf(LocalDateTime.now()) }
     LaunchedEffect(Unit) { while (isActive) { now = LocalDateTime.now(); delay(1000) } }
     val ticker = rememberTicker()
@@ -507,7 +511,26 @@ private fun CcHeader(store: Store) {
             Spacer(Modifier.width(8.dp))
             VText("${bat.pct}%" + if (bat.charging) " charging" else "", size = Type.label, color = V.Text)
         }
+        Spacer(Modifier.width(16.dp))
+        // Settings and Power sit with the clock, so the grid below is only switches
+        CcHeadButton(G.SYSTEM, "Settings", onSettings)
+        Spacer(Modifier.width(10.dp))
+        CcHeadButton(G.POWER, "Power", onPower)
     }
+}
+
+/** A round button in the Control Centre's header, the same glass as the tiles. */
+@Composable
+private fun CcHeadButton(g: G, label: String, onTap: () -> Unit) {
+    Box(
+        Modifier.size(48.dp)
+            .semantics(mergeDescendants = true) { contentDescription = label }
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.08f))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape)
+            .tap(onTap),
+        contentAlignment = Alignment.Center,
+    ) { Glyph(g, V.Text, Modifier.size(22.dp)) }
 }
 
 /** Tap and hold on one thing: the hold opens it up. */
@@ -542,6 +565,7 @@ private fun CcTall(g: G, value: Float, modifier: Modifier, fill: List<Color>, la
         modifier.semantics { contentDescription = label }
             .clip(shape)
             .background(Color.White.copy(alpha = 0.07f))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), shape)
             .pointerInput(Unit) {
                 detectTapGestures(onTap = { o -> cb((o.x / size.width).coerceIn(0f, 1f)) }, onLongPress = { hold?.invoke() })
             }
@@ -579,7 +603,7 @@ private fun MediaModule(modifier: Modifier, onHold: () -> Unit) {
     val p by Now.playing
     val ctx = LocalContext.current
     Column(
-        modifier.clip(RoundedCornerShape(24.dp)).background(Color.White.copy(alpha = 0.07f))
+        modifier.clip(RoundedCornerShape(24.dp)).background(Color.White.copy(alpha = 0.07f)).border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
             .tapOrHold({ p?.let { Now.open(ctx) } }, onHold).padding(horizontal = 14.dp),
         verticalArrangement = Arrangement.Center,
     ) {
@@ -1130,8 +1154,8 @@ private fun mmss(ms: Long): String { val s = (ms.coerceAtLeast(0) / 1000); retur
 @Composable
 private fun PowerPanel() {
     GlassActions(listOf(
-        GlassAction("Restart", G.RESTART) { Thread { com.andysocial.voidos.Device.reboot("restart") }.start() },
-        GlassAction("Power off", G.POWER, warn = true) { Thread { com.andysocial.voidos.Device.reboot("off") }.start() },
+        GlassAction("Restart", G.RESTART) { com.andysocial.voidos.VoidKeysService.restartOrOff(restart = true) },
+        GlassAction("Power off", G.POWER, warn = true) { com.andysocial.voidos.VoidKeysService.restartOrOff(restart = false) },
     ))
 }
 

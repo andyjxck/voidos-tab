@@ -55,6 +55,8 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.click
 import org.junit.Assert.assertTrue
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.platform.testTag
 import org.junit.Assert.assertFalse
 import androidx.compose.ui.unit.dp
 import org.junit.Before
@@ -199,7 +201,8 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
                 if (!scrolls(n) && (b.left < -1 || b.top < -1 || b.right > w + 1 || b.bottom > h + 1))
                     lines += "  OFFSCREEN \"$text\" at $b (screen ${w}x$h)"
             }
-            n.children.forEach { walk(it) }
+            // a subtree cleared from accessibility sits under an opaque cover (Home under the switcher): not on screen
+            n.children.forEach { if (!it.config.isClearingSemantics) walk(it) }
         }
         walk(root)
         // text drawn on top of other text
@@ -1380,6 +1383,157 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         show { Setup(store, act) }
         shot("43_setup")
         store.set("setupDone", true)
+    }
+
+    private fun tagBounds(t: String) = rule.onAllNodesWithTag(t, useUnmergedTree = true).fetchSemanticsNodes().map { it.boundsInRoot }
+
+    /** Same-size boxes on one even grid: equal sizes, and equal gaps between neighbours. */
+    private fun assertEvenGrid(name: String, boxes: List<androidx.compose.ui.geometry.Rect>) {
+        assertTrue("[$tag] $name: no boxes", boxes.isNotEmpty())
+        val w0 = boxes[0].width; val h0 = boxes[0].height
+        boxes.forEach { assertTrue("[$tag] $name: box $it isn't ${w0}x$h0", kotlin.math.abs(it.width - w0) < 1.5f && kotlin.math.abs(it.height - h0) < 1.5f) }
+        val rows = boxes.groupBy { kotlin.math.round(it.top) }.values.map { r -> r.sortedBy { it.left } }
+        val gaps = rows.flatMap { r -> r.zipWithNext { a, b -> b.left - a.right } }
+        if (gaps.isNotEmpty()) assertTrue("[$tag] $name: uneven gaps $gaps", gaps.max() - gaps.min() < 1.5f)
+        val lefts = rows.map { it.first().left }
+        assertTrue("[$tag] $name: rows don't line up $lefts", lefts.max() - lefts.min() < 1.5f)
+    }
+
+    /**
+     * VoidOS's own system screens, in place of Android's: the app switcher, the Control Centre's
+     * grid, the power menu, the volume sliders, the PIN pad and the calculator. Each is shot,
+     * audited for clipping and overlap, and the switcher and Control Centre must cover Home
+     * completely (nothing showing through) and keep every card or tile on one even grid.
+     */
+    @Test fun systemScreens() {
+        listOf("com.bbc.sounds", "com.netflix.mediaclient", "com.android.chrome", "com.google.android.youtube", "com.whatsapp", "com.spotify.music").forEach { store.setAllowed(it, true); store.noteRecent(it) }
+        com.andysocial.voidos.ui.AppsRepo.all(act, fresh = true)
+        val sw = com.andysocial.voidos.ui.Switcher
+        // the switcher over an app: Back and Home, the cards, Close all
+        sw.fromApp.value = true
+        show { Shell(store, act, Module.FACE) }
+        rule.runOnUiThread { sw.shown.value = true }
+        settle(1500)
+        // the list is read off the main thread
+        rule.waitUntil(10_000) { Thread.sleep(50); settle(100); rule.onAllNodesWithTag("switcher_card", useUnmergedTree = true).fetchSemanticsNodes().size == 6 }
+        expect("Recent apps", "6 apps", "Spotify", "Netflix", "BBC Sounds", "Back", "Home", "Close all")
+        shot("60_switcher"); assertTrue("[$tag] 60_switcher: ${issuesOf("60_switcher")}", issuesOf("60_switcher").isEmpty())
+        assertEvenGrid("60_switcher", tagBounds("switcher_card"))
+        assertTrue("[$tag] switcher should show all six", tagBounds("switcher_card").size == 6)
+        // closing one card leaves the rest on the grid
+        rule.onNodeWithContentDescription("Close Chrome").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick); settle(1200)
+        assertTrue("[$tag] Chrome closed", rule.onAllNodesWithTag("switcher_card").fetchSemanticsNodes().size == 5)
+        assertEvenGrid("60_switcher_after_close", tagBounds("switcher_card"))
+        rule.runOnUiThread { sw.shown.value = false; sw.fromApp.value = false }
+        settle(800)
+        // empty: over Home with nothing open
+        store.recentApps.toList().forEach { store.forgetRecent(it) }
+        rule.runOnUiThread { sw.shown.value = true }
+        settle(1200)
+        expect("No recent apps"); shot("60b_switcher_empty")
+        rule.runOnUiThread { sw.shown.value = false }
+        settle(600)
+
+        // the Control Centre: every tile one size on one grid, Settings and Power up by the clock
+        showCc()
+        assertEvenGrid("16_control_centre_grid", tagBounds("cc_tile"))
+        assertTrue("[$tag] Settings and Power left the grid", rule.onAllNodes(hasContentDescription("Settings") and hasTestTag("cc_tile"), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        shot("61_cc_grid")
+        CcSource.reset()
+
+        // power menu
+        show { Box(Modifier.fillMaxSize()) { Shell(store, act, Module.FACE); com.andysocial.voidos.ui.PowerMenu({}, {}, {}, {}) } }
+        settle(800)
+        expect("Lock", "Restart", "Power off"); shot("62_power_menu")
+        assertTrue("[$tag] 62_power_menu: ${issuesOf("62_power_menu")}", issuesOf("62_power_menu").isEmpty())
+        rule.onNodeWithContentDescription("Restart").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick); settle(400)
+        expect("Tap again to confirm"); shot("62b_power_confirm")
+
+        // VoidOS's restarting screen (over Android's shutdown dialog) and the low battery warning
+        show { com.andysocial.voidos.ui.PowerOffScreen(restart = true) }
+        expect("Restarting"); shot("62c_restarting")
+        show { Box(Modifier.fillMaxSize()) { Shell(store, act, Module.FACE); Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.TopCenter) { com.andysocial.voidos.ui.LowBatteryBanner(8) {} } } }
+        settle(500)
+        expect("Battery low · 8%"); shot("66_low_battery")
+
+        // volume sliders: the one the keys move, then all four
+        val audio = act.getSystemService(android.media.AudioManager::class.java)
+        show { Box(Modifier.fillMaxSize()) { Shell(store, act, Module.FACE); com.andysocial.voidos.ui.VolumeHud(audio) {} } }
+        settle(800)
+        shot("63_volume"); assertTrue("[$tag] 63_volume: ${issuesOf("63_volume")}", issuesOf("63_volume").isEmpty())
+        val more = rule.onAllNodes(hasContentDescription("All volumes", substring = true, ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes()
+        if (more.isNotEmpty()) {
+            rule.onAllNodes(hasContentDescription("All volumes", substring = true, ignoreCase = true), useUnmergedTree = true).onFirst()
+                .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick); settle(800)
+        }
+        shot("63b_volume_all")
+
+        // the PIN pad over Android's lock screen
+        store.setPin("2468")
+        show { Box(Modifier.fillMaxSize()) { com.andysocial.voidos.ui.KeyguardPad(store) {} } }
+        settle(800)
+        expect("VoidOS lock screen"); shot("64_pin_pad")
+        assertTrue("[$tag] 64_pin_pad: ${issuesOf("64_pin_pad")}", issuesOf("64_pin_pad").isEmpty())
+        com.andysocial.voidos.KeyguardState.wrong.intValue = 2
+        settle(500); shot("64b_pin_pad_wrong")
+        com.andysocial.voidos.KeyguardState.wrong.intValue = 0
+
+        // the calculator: first on Utilities, and in either half of the book
+        show { Shell(store, act, Module.UTILITIES) }
+        expect("Calculator")
+        listOf("1", "2", "+", "3", "×", "4", "=").forEach { k ->
+            rule.onAllNodes(hasText(k) and hasClickAction()).onFirst()
+                .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick); settle(150)
+        }
+        expect("24"); shot("65_calculator")
+        assertTrue("[$tag] 65_calculator: ${issuesOf("65_calculator")}", issuesOf("65_calculator").isEmpty())
+    }
+
+    /**
+     * Every Home widget at every stretch the pinch allows (thinnest to widest
+     * on each side, as far as the screen lets it go): the text must fit its
+     * box, nothing may sit outside the widget, and nothing may overlap.
+     */
+    @Test fun widgetsFitAtEverySize() {
+        org.junit.Assume.assumeTrue(tag == "port" || tag == "land")
+        val now = System.currentTimeMillis()
+        com.andysocial.voidos.ui.WeatherRepo.state.value = null
+        seedWeather()
+        store.saveNote(com.andysocial.voidos.Note(77L, "Pick up the long ladder from Dave and check the attic hatch above the gents before Friday", 2, now))
+        listOf("Milk", "Sourdough loaf", "Washing-up liquid", "Eggs", "Firelighters", "Lemons", "Coffee beans").forEach { store.addItem(it) }
+        store.addWorldClock("New York", "America/New_York"); store.addWorldClock("Tokyo", "Asia/Tokyo"); store.addWorldClock("Sydney", "Australia/Sydney")
+        com.andysocial.voidos.Now.playing.value = com.andysocial.voidos.Playing("com.spotify.music", "Spotify", "Mr. Brightside (Jacques Lu Cont Remix)", "The Killers", null, true, 60_000, 240_000, now, 1f)
+        val kinds = listOf("sky", "sound", "list", "battery", "calendar", "world", "stopwatch", "alarm", "forecast", "focus", "note")
+        val stretches = listOf(com.andysocial.voidos.WIDGET_MIN_SCALE, 1f, 1.7f, com.andysocial.voidos.WIDGET_MAX_SCALE)
+        val cfg = act.resources.configuration
+        val faceW = cfg.screenWidthDp * 0.95f; val faceH = cfg.screenHeightDp * 0.95f
+        val problems = mutableListOf<String>()
+        var renders = 0
+        for (k in kinds) for (sw in stretches) for (sh in stretches) {
+            val (bw, bh) = com.andysocial.voidos.ui.widgetSize(k)
+            val w = minOf(bw.value * sw, faceW); val h = minOf(bh.value * sh, faceH)
+            val wd = com.andysocial.voidos.FaceWidget(1L, k, 0f, 0f, ref = 77L, sw = sw, sh = sh)
+            show {
+                Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                    Box(Modifier.size(w.dp, h.dp).testTag("wbox")) { com.andysocial.voidos.ui.WidgetBody(store, wd, now, {}, lifted = false) }
+                }
+            }
+            renders++
+            val name = "widget_${k}_${"%.1f".format(sw)}x${"%.1f".format(sh)}"
+            val corner = (sw == stretches.first() || sw == stretches.last() || sw == 1f) && (sh == stretches.first() || sh == stretches.last() || sh == 1f)
+            if (tag == "port" && corner) shot(name) else audit(name)
+            problems += issuesOf(name)
+            // nothing drawn outside the widget
+            val box = boundsOf("wbox")
+            rule.onAllNodes(androidx.compose.ui.test.SemanticsMatcher("text") { it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.Text) }, useUnmergedTree = true)
+                .fetchSemanticsNodes().forEach { n ->
+                    val b = n.boundsInRoot
+                    if (b.width > 0 && (b.left < box.left - 1 || b.top < box.top - 1 || b.right > box.right + 1 || b.bottom > box.bottom + 1))
+                        problems += "$name text outside widget: \"${n.config[androidx.compose.ui.semantics.SemanticsProperties.Text].joinToString { it.text }}\" at $b, widget $box"
+                }
+        }
+        File(outDir, "widgets_$tag.txt").writeText("renders=$renders\n" + problems.joinToString("\n"))
+        assertTrue("[$tag] widget problems (${problems.size} in $renders sizes):\n" + problems.take(40).joinToString("\n"), problems.isEmpty())
     }
 }
 

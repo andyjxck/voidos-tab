@@ -28,6 +28,9 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.andysocial.voidos.ui.KeyguardPad
+import com.andysocial.voidos.ui.LowBatteryBanner
+import com.andysocial.voidos.ui.PowerOffScreen
+import com.andysocial.voidos.ui.lowBatteryStep
 import com.andysocial.voidos.ui.PowerMenu
 import com.andysocial.voidos.ui.VolumeHud
 
@@ -53,7 +56,7 @@ class VoidKeysService : AccessibilityService(), LifecycleOwner, SavedStateRegist
     override val lifecycle: Lifecycle get() = registry
     override val savedStateRegistry: SavedStateRegistry get() = saved.savedStateRegistry
 
-    private val main = Handler(Looper.getMainLooper())
+    internal val main = Handler(Looper.getMainLooper())
     private val wm by lazy { getSystemService(WINDOW_SERVICE) as WindowManager }
     private val audio by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
     private val kg by lazy { getSystemService(KEYGUARD_SERVICE) as KeyguardManager }
@@ -81,6 +84,7 @@ class VoidKeysService : AccessibilityService(), LifecycleOwner, SavedStateRegist
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_USER_PRESENT)
+            addAction(Intent.ACTION_BATTERY_CHANGED)
         }
         runCatching { registerReceiver(rx, f) }
         connected.value = true
@@ -89,7 +93,7 @@ class VoidKeysService : AccessibilityService(), LifecycleOwner, SavedStateRegist
 
     override fun onDestroy() {
         runCatching { unregisterReceiver(rx) }
-        removeVol(); removePower(); removeLock()
+        removeVol(); removePower(); removeLock(); removeBattery()
         instance = null
         connected.value = false
         registry.currentState = Lifecycle.State.DESTROYED
@@ -119,6 +123,7 @@ class VoidKeysService : AccessibilityService(), LifecycleOwner, SavedStateRegist
                 Intent.ACTION_SCREEN_OFF -> { removePower(); removeVol(); main.postDelayed({ syncLock() }, 150) }
                 Intent.ACTION_SCREEN_ON -> syncLock()
                 Intent.ACTION_USER_PRESENT -> removeLock()
+                Intent.ACTION_BATTERY_CHANGED -> onBattery(i)
             }
         }
     }
@@ -177,8 +182,8 @@ class VoidKeysService : AccessibilityService(), LifecycleOwner, SavedStateRegist
         val v = compose {
             PowerMenu(
                 onLock = { removePower(); lockNow() },
-                onRestart = { removePower(); Thread { Su.run("svc power reboot || reboot") }.start() },
-                onPowerOff = { removePower(); Thread { Su.run("svc power shutdown || reboot -p") }.start() },
+                onRestart = { removePower(); goingDown(restart = true) },
+                onPowerOff = { removePower(); goingDown(restart = false) },
                 onDismiss = { removePower() },
             )
         }
@@ -186,6 +191,43 @@ class VoidKeysService : AccessibilityService(), LifecycleOwner, SavedStateRegist
     }
 
     private fun removePower() { powerView?.let { runCatching { wm.removeView(it) } }; powerView = null }
+
+    /**
+     * VoidOS's restarting / powering off screen goes up first, above Android's grey shutdown
+     * dialog, then Android shuts down properly (svc power, so apps still save their work).
+     */
+    fun goingDown(restart: Boolean) {
+        val v = compose { PowerOffScreen(restart) }
+        runCatching { wm.addView(v, params(touch = true, full = true)) }
+        main.postDelayed({ Thread { Su.run(if (restart) "svc power reboot || reboot" else "svc power shutdown || reboot -p") }.start() }, 450)
+    }
+
+    // ---- low battery
+
+    private var lastPct = -1
+    private var batteryView: View? = null
+    private val hideBattery = Runnable { removeBattery() }
+
+    private fun onBattery(i: Intent) {
+        val level = i.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1)
+        val scale = i.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100).coerceAtLeast(1)
+        val pct = if (level < 0) -1 else level * 100 / scale
+        val st = i.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1)
+        val charging = st == android.os.BatteryManager.BATTERY_STATUS_CHARGING || st == android.os.BatteryManager.BATTERY_STATUS_FULL
+        if (charging) removeBattery()
+        val step = lowBatteryStep(lastPct, pct, charging)
+        lastPct = pct
+        if (step != null) showBattery(pct)
+    }
+
+    private fun showBattery(pct: Int) {
+        removeBattery()
+        val v = compose { LowBatteryBanner(pct) { removeBattery() } }
+        runCatching { wm.addView(v, params(touch = true, full = false, gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL)) }.onSuccess { batteryView = v }
+        main.postDelayed(hideBattery, 6000)
+    }
+
+    private fun removeBattery() { main.removeCallbacks(hideBattery); batteryView?.let { runCatching { wm.removeView(it) } }; batteryView = null }
 
     private fun lockNow() {
         if (android.os.Build.VERSION.SDK_INT >= 28 && performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)) return
@@ -243,6 +285,13 @@ class VoidKeysService : AccessibilityService(), LifecycleOwner, SavedStateRegist
         @Volatile var instance: VoidKeysService? = null
         val connected = mutableStateOf(false)
         const val VOL_HIDE_MS = 2200L
+
+        /** Restart or power off from anywhere in VoidOS, behind VoidOS's own screen when the service is on. */
+        fun restartOrOff(restart: Boolean) {
+            val svc = instance
+            if (svc != null) svc.main.post { svc.goingDown(restart) }
+            else Thread { Su.run(if (restart) "svc power reboot || reboot" else "svc power shutdown || reboot -p") }.start()
+        }
         const val COMPONENT = "com.andysocial.voidos/com.andysocial.voidos.VoidKeysService"
 
         /** Pure: the volume key's direction, or null for any other key. */

@@ -227,3 +227,57 @@ fun KeyguardPad(store: Store, onPin: (String) -> Unit) {
 
 @Suppress("unused")
 private val keep = MutableInteractionSource::class
+
+/**
+ * VoidOS's own "Restarting" / "Powering off" screen. It goes up a moment before VoidOS asks
+ * Android to restart, and it sits above Android's grey "Shutting down..." dialog (an
+ * accessibility overlay is drawn above every system dialog), so that dialog is never seen.
+ * Then the tablet's shutdown animation takes over.
+ */
+@Composable
+fun PowerOffScreen(restart: Boolean) {
+    Box(Modifier.fillMaxSize().background(V.Bg).semantics { contentDescription = if (restart) "Restarting" else "Powering off" }, contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            androidx.compose.foundation.Canvas(Modifier.size(260.dp, 90.dp)) {
+                drawVoidWord(androidx.compose.ui.geometry.Offset(size.width / 2, size.height / 2), size.width, alpha = 0.9f)
+            }
+            Gap(h = 28.dp)
+            VText(if (restart) "Restarting" else "Powering off", size = Type.title, color = V.Text)
+            Gap(h = 6.dp)
+            VText(if (restart) "Back in a minute" else "See you soon", size = Type.caption, color = V.Muted)
+        }
+    }
+}
+
+/** Pure: the battery levels VoidOS warns at, on the way down and not charging. */
+internal val LOW_BATTERY_STEPS = listOf(20, 10, 5)
+
+/** Pure: the step just crossed going from [was] to [now], if any (and only while not charging). */
+internal fun lowBatteryStep(was: Int, now: Int, charging: Boolean): Int? =
+    if (charging || was < 0 || now < 0) null else LOW_BATTERY_STEPS.filter { now <= it && was > it }.minOrNull()
+
+/**
+ * VoidOS's low battery warning. Android's is a notification, and the status bar is off under
+ * VoidOS, so without this there'd be no warning at all.
+ */
+@Composable
+fun LowBatteryBanner(pct: Int, onDismiss: () -> Unit) {
+    val warn = pct <= 10
+    Box(Modifier.padding(top = 20.dp)) {
+        Row(
+            Modifier.clip(RoundedCornerShape(28.dp))
+                .liquidGlass(RoundedCornerShape(28.dp), GlassLook(smoke = 0.92f, depth = 1.4f, stain = if (warn) V.Coral else V.Yellow, stainAlpha = 0.16f))
+                .clickable(remember { MutableInteractionSource() }, null) { onDismiss() }
+                .semantics(mergeDescendants = true) { contentDescription = "Battery low, $pct percent" }
+                .padding(horizontal = 22.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Glyph(G.BATTERY, if (warn) V.Coral else V.Yellow, Modifier.size(24.dp))
+            Gap(w = 12.dp)
+            Column {
+                VText("Battery low \u00b7 $pct%", size = Type.body, color = V.White, font = Sans)
+                VText(if (pct <= 5) "Plug in now, the tablet will switch off soon" else "Plug in soon", size = Type.caption, color = V.Muted)
+            }
+        }
+    }
+}

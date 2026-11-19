@@ -66,6 +66,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -219,6 +220,8 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
     LaunchedEffect(pager.currentPage) { focus.clearFocus() }
     Column(
         Modifier.fillMaxSize().stillWhileHeld()
+            // under the switcher's solid backdrop, Home is hidden from TalkBack too
+            .then(if (Switcher.shown.value) Modifier.clearAndSetSemantics { } else Modifier)
             .pointerInput(Unit) { detectTapGestures(onTap = { focus.clearFocus() }) },
     ) {
         StatusStrip(store, module, Modifier.padding(horizontal = side), onPull = { control = true })

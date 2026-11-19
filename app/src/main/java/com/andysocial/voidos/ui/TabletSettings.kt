@@ -226,8 +226,8 @@ fun TabletExtras(store: Store, act: MainActivity) {
     SetSection("Power")
     GlassActions(
         listOf(
-            GlassAction("Restart") { bg { Device.reboot("") } },
-            GlassAction("Power off", warn = true) { bg { Su.run("reboot -p") } },
+            GlassAction("Restart") { com.andysocial.voidos.VoidKeysService.restartOrOff(restart = true) },
+            GlassAction("Power off", warn = true) { com.andysocial.voidos.VoidKeysService.restartOrOff(restart = false) },
             GlassAction("Recovery", warn = true) { bg { Device.reboot("recovery") } },
         ),
         Modifier.widthIn(max = 520.dp), height = 44.dp,

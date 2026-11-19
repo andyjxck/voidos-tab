@@ -475,7 +475,7 @@ private fun VoidPane(store: Store, act: MainActivity) {
         VToggle(store.hideBars, enabled = true) { toggle("hideBars", it) }
     }
     if (Stealth.restartNeeded.value) SettingRow("Restart to remove the bottom bar") {
-        VButton("Restart", accent = V.Teal, filled = true) { Thread { Su.run("svc power reboot || reboot") }.start() }
+        VButton("Restart", accent = V.Teal, filled = true) { com.andysocial.voidos.VoidKeysService.restartOrOff(restart = true) }
     }
     SettingRow("No lock screen") {
         VToggle(store.noLockScreen, enabled = owner) { toggle("noLockScreen", it) }

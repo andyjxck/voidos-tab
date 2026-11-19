@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -107,6 +108,25 @@ object Switcher {
 fun switcherColumns(widthDp: Float, cardMinDp: Float = 230f, gapDp: Float = 20f, sideDp: Float = 48f): Int =
     (((widthDp - 2 * sideDp + gapDp) / (cardMinDp + gapDp)).toInt()).coerceIn(2, 4)
 
+/**
+ * Pure: the columns and card height for [n] cards in a [widthDp] x [heightDp] area. It starts
+ * at the columns [switcherColumns] gives and adds columns (down to 170dp wide cards) and
+ * shortens the cards (down to 136dp) until every card fits without scrolling. When even that
+ * can't fit them all, the cards stay full size and the grid scrolls.
+ */
+fun switcherLayout(widthDp: Float, heightDp: Float, n: Int, gapDp: Float = 20f): Pair<Int, Float> {
+    val base = switcherColumns(widthDp + 96f)
+    if (n <= 0) return base to 190f
+    for (cols in base..6) {
+        val cardW = (widthDp - gapDp * (cols - 1)) / cols
+        if (cols > base && cardW < 170f) break
+        val rows = (n + cols - 1) / cols
+        val h = ((heightDp - gapDp * (rows - 1)) / rows).coerceAtMost(190f)
+        if (h >= 136f) return cols to h
+    }
+    return base to 190f
+}
+
 /** Pure: "Just now", "5 min ago", "2 h ago", "Yesterday", for when an app was last used. */
 fun lastUsedLabel(now: Long, at: Long?): String {
     if (at == null || at <= 0L) return "Recently"
@@ -168,9 +188,10 @@ fun AppSwitcher(store: Store) {
                             androidx.compose.foundation.layout.Spacer(Modifier.height(Grid.m))
                             VText("No recent apps", size = Type.body, color = V.Muted)
                         }
-                    } else {
+                    } else androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+                        val (gridCols, cardH) = switcherLayout(maxWidth.value, maxHeight.value, apps.size)
                         androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
-                            columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(cols),
+                            columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(gridCols),
                             horizontalArrangement = Arrangement.spacedBy(20.dp),
                             verticalArrangement = Arrangement.spacedBy(20.dp),
                             modifier = Modifier.fillMaxSize(),
@@ -178,7 +199,7 @@ fun AppSwitcher(store: Store) {
                             items(apps.size, key = { apps[it] }) { i ->
                                 val pkg = apps[i]
                                 val e = all.firstOrNull { it.pkg == pkg }
-                                if (e != null) SwitcherCard(e, store, lastUsedLabel(now, Switcher.lastUsed[pkg]),
+                                if (e != null) SwitcherCard(e, store, lastUsedLabel(now, Switcher.lastUsed[pkg]), cardH.dp,
                                     onOpen = { shown = false; if (!launchApp(ctx, store, pkg)) store.forgetRecent(pkg) },
                                     onClose = {
                                         apps.remove(pkg); store.forgetRecent(pkg)
@@ -241,12 +262,13 @@ private fun dismiss(ctx: Context, back: Boolean) {
 }
 
 @Composable
-private fun SwitcherCard(e: AppEntry, store: Store, used: String, onOpen: () -> Unit, onClose: () -> Unit) {
+private fun SwitcherCard(e: AppEntry, store: Store, used: String, height: androidx.compose.ui.unit.Dp, onOpen: () -> Unit, onClose: () -> Unit) {
     val scope = rememberCoroutineScope()
     val dy = remember { Animatable(0f) }
     val shape = RoundedCornerShape(26.dp)
     Box(
-        Modifier.fillMaxWidth().height(190.dp)
+        Modifier.fillMaxWidth().height(height)
+            .testTag("switcher_card")
             .offset { IntOffset(0, dy.value.roundToInt()) }
             .graphicsLayer { alpha = (1f + dy.value / 700f).coerceIn(0f, 1f) }
             .pointerInput(e.pkg) {
@@ -266,7 +288,7 @@ private fun SwitcherCard(e: AppEntry, store: Store, used: String, onOpen: () -> 
     ) {
         Column(Modifier.fillMaxSize().padding(18.dp)) {
             androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.Top) {
-                AppGlyph(e, store.iconStyle, 64.dp)
+                AppGlyph(e, store.iconStyle, if (height < 160.dp) 48.dp else if (height < 175.dp) 56.dp else 64.dp)
                 androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
                 Box(
                     Modifier.size(36.dp).clip(androidx.compose.foundation.shape.CircleShape)
