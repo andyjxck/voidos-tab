@@ -205,14 +205,14 @@ internal fun octRadius(a: Float, t: Double): Float {
 /** The system's thin and regular sans as Android typefaces, for text centred by its ink rather than its line box. */
 @Composable
 fun rememberFace(name: String): Typeface {
-    // the canvas-drawn clocks use the same Inter as the rest of VoidOS
+    // the canvas-drawn clocks use the same Manrope as the rest of VoidOS
     val ctx = androidx.compose.ui.platform.LocalContext.current
     return remember(name) {
         val res = when (name) {
-            "sans-serif-thin" -> com.andysocial.voidos.R.font.inter_thin
-            "sans-serif-light" -> com.andysocial.voidos.R.font.inter_light
-            "sans-serif-medium" -> com.andysocial.voidos.R.font.inter_semibold
-            else -> com.andysocial.voidos.R.font.inter_regular
+            "sans-serif-thin" -> com.andysocial.voidos.R.font.manrope_thin
+            "sans-serif-light" -> com.andysocial.voidos.R.font.manrope_light
+            "sans-serif-medium" -> com.andysocial.voidos.R.font.manrope_semibold
+            else -> com.andysocial.voidos.R.font.manrope_regular
         }
         runCatching { androidx.core.content.res.ResourcesCompat.getFont(ctx, res) }.getOrNull() ?: Typeface.create(name, Typeface.NORMAL)
     }
@@ -549,7 +549,7 @@ private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module)
                     else Column {
                         WxIcon(w.code, w.isDay, Modifier.size(54.dp))
                         Gap(h = 4.dp)
-                        VText(t(w.temp), size = 34.sp, color = V.White, font = SansLight, maxLines = 1)
+                        VText(t(w.temp), size = Type.display, color = V.White, font = SansLight, maxLines = 1)
                     }
                 }
                 VText(

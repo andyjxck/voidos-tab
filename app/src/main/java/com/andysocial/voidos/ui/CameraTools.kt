@@ -6,7 +6,9 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.view.WindowManager
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.UseCase
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -51,7 +53,9 @@ import com.google.zxing.MultiFormatReader
 import com.google.zxing.PlanarYUVLuminanceSource
 import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.qrcode.QRCodeWriter
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import androidx.lifecycle.LifecycleOwner
 
 /*
  * Tools that stand in for hardware the tablet doesn't have: it has no flash and no rear
@@ -118,6 +122,48 @@ private fun GlassSlider(label: String, value: Float, onChange: (Float) -> Unit) 
 
 enum class CamMode { SCAN, MIRROR, ZOOM }
 
+/**
+ * The camera, held only while its screen is showing. CameraX binds to the activity's
+ * lifecycle, and VoidOS is the home screen, so its activity stays resumed nearly all
+ * the time: a camera that's bound and never let go stays open (and the privacy dot
+ * stays on) long after you've left the scanner, mirror or magnifier. This lets go of
+ * exactly the use cases it bound the moment the screen leaves, and refuses to bind if
+ * the camera only finished starting after the screen had already gone.
+ */
+class CamHold {
+    private var prov: ProcessCameraProvider? = null
+    private var uses: Array<UseCase> = emptyArray()
+    /** True once the screen that wanted the camera has gone. */
+    var gone = false
+        private set
+    /** True while this hold has the camera bound. */
+    val holding get() = uses.isNotEmpty()
+
+    fun bind(p: ProcessCameraProvider, owner: LifecycleOwner, sel: CameraSelector, vararg u: UseCase): Camera? {
+        if (gone) return null
+        release()
+        val cam = p.bindToLifecycle(owner, sel, *u)
+        prov = p; uses = arrayOf(*u)
+        return cam
+    }
+
+    fun release() {
+        val p = prov; val u = uses
+        uses = emptyArray()
+        if (p != null && u.isNotEmpty()) runCatching { p.unbind(*u) }
+    }
+
+    fun close() { gone = true; release() }
+}
+
+/** A [CamHold] that lets go of the camera, and stops [exec] if given, when this leaves the screen. */
+@Composable
+fun rememberCamHold(exec: ExecutorService? = null): CamHold {
+    val hold = remember { CamHold() }
+    DisposableEffect(hold) { onDispose { hold.close(); exec?.shutdownNow() } }
+    return hold
+}
+
 /** One camera screen for the QR scanner (rear camera), mirror (front, flipped) and magnifier (rear, zoomed). */
 @Composable
 fun CameraPane(mode: CamMode, edge: Boolean = false) {
@@ -135,6 +181,7 @@ fun CameraPane(mode: CamMode, edge: Boolean = false) {
         return
     }
     val exec = remember { Executors.newSingleThreadExecutor() }
+    val hold = rememberCamHold(exec)
     var cam by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
     Box(Modifier.fillMaxSize().then(if (edge) Modifier else Modifier.clip(Radius.Panel)).background(Color.Black)) {
         AndroidView(
@@ -165,7 +212,7 @@ fun CameraPane(mode: CamMode, edge: Boolean = false) {
                             }
                             uses += an
                         }
-                        runCatching { prov.unbindAll(); cam = prov.bindToLifecycle(owner, sel, *uses.toTypedArray()) }
+                        runCatching { cam = hold.bind(prov, owner, sel, *uses.toTypedArray()) }
                     }, ContextCompat.getMainExecutor(c))
                 }
             },

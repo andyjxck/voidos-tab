@@ -410,6 +410,8 @@ fun DocScanPane(store: Store) {
     }
     val s = shot
     if (s == null) {
+        // held only while the viewfinder shows: let go once the picture's taken or the screen closes
+        val hold = rememberCamHold()
         Box(Modifier.fillMaxSize().clip(Radius.Panel).background(Color.Black)) {
             AndroidView(factory = { c ->
                 PreviewView(c).apply {
@@ -420,7 +422,7 @@ fun DocScanPane(store: Store) {
                         val preview = Preview.Builder().build().also { it.setSurfaceProvider(surfaceProvider) }
                         val cap = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY).build()
                         val sel = if (prov.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA)) CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
-                        runCatching { prov.unbindAll(); prov.bindToLifecycle(owner, sel, preview, cap); capture = cap }
+                        runCatching { hold.bind(prov, owner, sel, preview, cap); capture = cap }
                     }, ContextCompat.getMainExecutor(c))
                 }
             }, modifier = Modifier.fillMaxSize())

@@ -85,7 +85,7 @@ internal const val DASHED = 2
  * note opens full screen with a way back. The first line of a note is its
  * title. The pen turns the page into a drawing surface with a floating tool
  * pill (undo, redo, pen, highlighter, eraser, colour wheel, any size, brush
- * menu with line styles, shapes, smoothing and paper, clear; NotesTools.kt). The Home button puts the note on the face as a widget.
+ * menu with line styles, shapes, smoothing and paper, clear; NotesTools.kt). A note goes on Home, and gets its colour, from Home's own "Add to face" menu.
  * Everything saves as you go.
  */
 @Composable
@@ -219,7 +219,8 @@ private fun NotePage(
     val density = LocalDensity.current
     val prefs = remember { InkPrefs(ctx) }
     var text by remember(id) { mutableStateOf(open.text) }
-    var colour by remember(id) { mutableIntStateOf(open.colour) }
+    // the colour is set from Home's "Add to face" menu, so always read the saved one
+    val colour = open.colour
     val ink = remember(id) { mutableStateListOf<Stroke>().also { it.addAll(open.ink) } }
     var inkVersion by remember(id) { mutableIntStateOf(0) }
     val history = remember(id) { InkHistory() }
@@ -239,7 +240,6 @@ private fun NotePage(
     var picking by remember { mutableStateOf(false) }
     var clearArmed by remember(id) { mutableStateOf(false) }
     var pageWidthDp by remember { mutableFloatStateOf(600f) }
-    val onHome = store.widgets.any { it.kind == "note" && it.ref == id }
 
     // autosave 600 ms after typing or drawing stops
     LaunchedEffect(text, colour, id, inkVersion) {
@@ -271,19 +271,7 @@ private fun NotePage(
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (onBack != null) BackLink("Notes", onBack)
             Spacer(Modifier.weight(1f))
-            // the note's colour: only used for its widget on Home, so it's one small dot that cycles
-            Box(
-                Modifier.size(42.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.07f))
-                    .semantics { contentDescription = "Widget colour" }
-                    .clickable { colour = (colour + 1) % V.Lap.size },
-                contentAlignment = Alignment.Center,
-            ) { Box(Modifier.size(14.dp).clip(CircleShape).background(V.Lap[colour % V.Lap.size])) }
-            Gap(w = 8.dp)
-            RoundIcon(G.FACE, if (onHome) "Remove from Home" else "Show on Home", active = onHome) {
-                if (onHome) store.widgets.filter { it.kind == "note" && it.ref == id }.forEach { store.removeWidget(it.id) }
-                else store.addWidget("note", id)
-            }
-            Gap(w = 8.dp)
+            // Home and its colour live in Home's own "Add to face" menu, so they're not repeated here
             RoundIcon(G.PEN, if (drawing) "Done drawing" else "Draw", active = drawing) { setDrawing(!drawing) }
             Gap(w = 8.dp)
             RoundIcon(G.TRASH, "Delete note", tint = V.Coral) {

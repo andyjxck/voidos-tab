@@ -82,8 +82,9 @@ fun DrawScope.paintAurora(w: Float, h: Float, m: Mood, t: Long, pagerPos: Float,
     if (w <= 0f || h <= 0f) return
     val k = (phase(t, 60_000L) * 2 * PI).toFloat()
     val r = max(w, h)
-    if (base) drawRect(Brush.verticalGradient(listOf(Color(0xFF0F0E17), V.Bg, Color(0xFF08080B)), startY = 0f, endY = h), size = Size(w, h))
-    val par = -(pagerPos % 7f) * w * 0.05f
+    // a touch of deep indigo at the top and near-black at the foot, so the room has depth
+    if (base) drawRect(Brush.verticalGradient(listOf(Color(0xFF12111D), V.Bg, Color(0xFF07070A)), startY = 0f, endY = h), size = Size(w, h))
+    val par = -(pagerPos % Ambience.moods.size.toFloat()) * w * 0.05f
     fun blob(c: Color, cx: Float, cy: Float, rad: Float, a: Float) {
         val ctr = Offset(cx, cy)
         drawCircle(
@@ -99,10 +100,21 @@ fun DrawScope.paintAurora(w: Float, h: Float, m: Mood, t: Long, pagerPos: Float,
     blob(m.a, w * (0.16f + 0.07f * sin(k)) + par, h * (0.04f + 0.06f * cos(k)), r * 0.70f, 0.34f)
     blob(m.b, w * (0.90f + 0.05f * cos(2 * k)) + par * 1.6f, h * (0.94f + 0.05f * sin(2 * k)), r * 0.66f, 0.30f)
     blob(m.c, w * (0.60f + 0.14f * sin(3 * k + 1f)) + par * 0.6f, h * (0.42f + 0.10f * cos(2 * k + 2f)), r * 0.44f, 0.14f)
-    if (base) drawRect(
-        Brush.radialGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.30f), center = Offset(w / 2, h / 2), radius = r * 0.85f),
-        size = Size(w, h),
-    )
+    if (base) {
+        // a faint sheen falling from the top left, as if a window were lighting the glass
+        drawRect(
+            Brush.linearGradient(
+                0f to Color.White.copy(alpha = 0.035f), 0.45f to Color.Transparent,
+                start = Offset(0f, 0f), end = Offset(w * 0.7f, h),
+            ),
+            size = Size(w, h),
+        )
+        // a softer, slightly deeper vignette that starts further out, so the middle stays clear
+        drawRect(
+            Brush.radialGradient(0.55f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.36f), center = Offset(w / 2, h * 0.46f), radius = r * 0.85f),
+            size = Size(w, h),
+        )
+    }
 }
 
 /** How a piece of glass is cut. */

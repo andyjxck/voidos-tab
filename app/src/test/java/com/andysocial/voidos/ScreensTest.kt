@@ -54,6 +54,8 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.click
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
+import androidx.compose.ui.unit.dp
 import org.junit.Before
 import androidx.compose.ui.geometry.Offset
 import org.junit.Rule
@@ -352,13 +354,20 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
             val left = rule.onAllNodesWithText(gone, substring = true, ignoreCase = true, useUnmergedTree = true).fetchSemanticsNodes()
             assertTrue("[$tag] \"$gone\" should be gone from Tools", left.isEmpty())
         }
-        // the tools sit in four groups picked from one glass bar
-        expect("Time", "Organise", "Camera", "Utilities", "Stopwatch", "World")
-        tap("Utilities"); tap("Convert"); expect("Kilograms", "Pounds"); shot("03_tools_convert")
-        tap("Temperature"); expect("Gas mark"); shot("04_tools_convert_temperature")
+        // Tools keeps Time and Organise on one glass bar; Camera and Utilities are pages of their own
+        expect("Time", "Organise", "Stopwatch", "World")
+        listOf("QR scan", "Magnifier", "Convert", "Level").forEach { gone ->
+            assertTrue("[$tag] \"$gone\" should have moved off Tools", rule.onAllNodesWithText(gone, useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        }
         tap("Organise"); tap("List"); expect("Sourdough loaf", "Cheddar"); shot("06_tools_list")
+    }
+
+    @Test fun utilitiesPage() {
+        show { Shell(store, act, Module.UTILITIES) }
+        expect("Convert", "Level", "Sound", "Torch")
+        tap("Convert"); expect("Kilograms", "Pounds"); shot("03_tools_convert")
+        tap("Temperature"); expect("Gas mark"); shot("04_tools_convert_temperature")
         // cast, sending files, FM radio and the ring light are gone
-        tap("Utilities")
         listOf("Cast", "Send files", "FM radio", "Ring light").forEach { gone ->
             val left = rule.onAllNodesWithText(gone, useUnmergedTree = true).fetchSemanticsNodes()
             assertTrue("[$tag] \"$gone\" should be gone from Tools", left.isEmpty())
@@ -368,8 +377,17 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     @Test fun newTools() {
         show { Shell(store, act, Module.TOOLS) }
         tap("Organise"); tap("Files"); expect("Tablet"); shot("06b_tools_files")
-        tap("Camera"); tap("Doc scan"); shot("06c_tools_docscan")
-        tap("Utilities"); tap("Torch"); settle(400)
+    }
+
+    @Test fun cameraPage() {
+        show { Shell(store, act, Module.CAMERA) }
+        expect("QR scan", "Doc scan", "Magnifier", "Mirror"); shot("06e_camera_page")
+        tap("Doc scan"); shot("06c_tools_docscan")
+    }
+
+    @Test fun torchFull() {
+        show { Shell(store, act, Module.UTILITIES) }
+        tap("Torch"); settle(400)
         // the torch takes the whole screen, with one button to close it
         assertTrue("[$tag] torch fills the screen", rule.onAllNodesWithTag("full_tool").fetchSemanticsNodes().isNotEmpty())
         shot("06d_tools_torch_full")
@@ -414,11 +432,10 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         settle(900) // autosave
         assertEquals("Shopping\nmilk, eggs, bread", store.notes.first().text)
         expect("4 words")
-        // on Home as a widget, and back off again
-        tapDesc("Show on Home")
-        assertTrue("[$tag] note should be a Home widget", store.widgets.any { it.kind == "note" && it.ref == store.notes.first().id })
-        tapDesc("Remove from Home")
-        assertTrue("[$tag] note widget should be gone", store.widgets.none { it.kind == "note" })
+        // Home and its colour aren't repeated in the note's header: they live in Home's "Add to face" menu
+        fun hasDesc(d: String) = rule.onAllNodesWithContentDescription(d, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        listOf("Show on Home", "Remove from Home", "Widget colour").forEach { assertTrue("[$tag] $it should be gone from the note header", !hasDesc(it)) }
+        assertTrue("[$tag] Draw still in the header", hasDesc("Draw"))
         shot("08_notes")
         // drawing: the pen tools sit in one capsule: undo/redo, tools, colour, size, brush, clear
         tapDesc("Draw"); expect("Eraser", "Clear")
@@ -791,16 +808,41 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         if (port) assertTrue("[$tag] face below notes", face2.top >= notes2.bottom - 1f)
         else assertTrue("[$tag] face right of notes: $face2 / $notes2", face2.left >= notes2.right - 1f)
         shot("41_book_notes_left")
-        // a second screen dropped on the face's half replaces Notes: still two pages, one of them Home
+        // Weather dropped on the face's half: Notes stays on the left, both open, and the time
+        // and date move up into the island
         rule.runOnUiThread { com.andysocial.voidos.ui.Book.drop(ctx, com.andysocial.voidos.ui.Pane.screen(Module.WEATHER), toFirst = false) }
         settle(900)
-        shot("42_book_second_replaces")
-        val st2 = com.andysocial.voidos.ui.Book.state.value
-        assertEquals("[$tag] Weather replaced Notes", com.andysocial.voidos.ui.BookState(second = com.andysocial.voidos.ui.Pane.screen(Module.WEATHER)), st2)
-        assertTrue("[$tag] face still shown", rule.onAllNodesWithTag("bookFace", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
-        assertTrue("[$tag] Notes gone", rule.onAllNodesWithContentDescription("Close Notes", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
-        // close Weather: the full watch face again
+        shot("42_book_two_open")
+        val B = com.andysocial.voidos.ui.BookState(com.andysocial.voidos.ui.Pane.screen(Module.NOTES), com.andysocial.voidos.ui.Pane.screen(Module.WEATHER))
+        assertEquals("[$tag] Notes and Weather both open", B, com.andysocial.voidos.ui.Book.state.value)
+        assertTrue("[$tag] Notes still open", rule.onAllNodesWithContentDescription("Close Notes", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        assertTrue("[$tag] Weather open", rule.onAllNodesWithContentDescription("Close Weather", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        assertTrue("[$tag] face covered", rule.onAllNodesWithTag("bookFace", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        val isl = b("timeIsland"); val n3 = b("bookFirst"); val w3 = b("bookSecond")
+        // the island sits in the band above the panes' content (52 dp), clear of both
+        val band = with(rule.density) { 52.dp.toPx() }
+        assertTrue("[$tag] island in the top band: $isl", isl.height > 0f && isl.bottom <= minOf(n3.top, w3.top) + band + 1f)
+        // swipe away and back within five seconds: still split
+        val now = System.currentTimeMillis()
+        rule.runOnUiThread {
+            com.andysocial.voidos.ui.Book.onHome(ctx, false, now)
+            assertFalse(com.andysocial.voidos.ui.Book.onHome(ctx, true, now + 4_000))
+        }
+        assertEquals("[$tag] back within 5s keeps the split", B, com.andysocial.voidos.ui.Book.state.value)
+        // sitting on the split for a long time never closes it
+        rule.runOnUiThread { assertFalse(com.andysocial.voidos.ui.Book.onHome(ctx, true, now + 60_000)) }
+        assertEquals(B, com.andysocial.voidos.ui.Book.state.value)
+        // close Weather: the watch face comes back into its half, Notes stays
         rule.onNodeWithContentDescription("Close Weather", useUnmergedTree = true).performClick()
+        settle(900)
+        assertEquals("[$tag] Notes left with the face", com.andysocial.voidos.ui.BookState(first = com.andysocial.voidos.ui.Pane.screen(Module.NOTES)), com.andysocial.voidos.ui.Book.state.value)
+        assertTrue("[$tag] face back", rule.onAllNodesWithTag("bookFace", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        assertTrue("[$tag] island gone", rule.onAllNodesWithTag("timeIsland", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        // away for five seconds or more: back to the plain watch face
+        rule.runOnUiThread {
+            com.andysocial.voidos.ui.Book.onHome(ctx, false, now)
+            assertTrue(com.andysocial.voidos.ui.Book.onHome(ctx, true, now + 5_000))
+        }
         settle(900)
         assertTrue("[$tag] closed book", !com.andysocial.voidos.ui.Book.state.value.isOpen)
         assertTrue(rule.onAllNodesWithTag("home", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
@@ -935,9 +977,9 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         drag(x0, midY, x0 - winW * 0.6f, midY, steps = 12)
         up(x0 - winW * 0.6f, midY)
         settle(1200)
-        // no wheel came up; the pager moved on from Tools to the next screen
+        // no wheel came up; the pager moved on from Tools to the next screen, now Camera
         rule.onAllNodesWithText("Apps you open from VoidOS", substring = true).assertCountEquals(0)
-        assertEquals(Module.WEATHER, com.andysocial.voidos.ui.ShellNow.module.value)
+        assertEquals(Module.CAMERA, com.andysocial.voidos.ui.ShellNow.module.value)
     }
 
     /** Nothing opens from the edges while the lock screen is up. */

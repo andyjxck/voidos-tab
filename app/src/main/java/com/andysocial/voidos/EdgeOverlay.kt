@@ -1,5 +1,6 @@
 package com.andysocial.voidos
 
+import kotlinx.coroutines.launch
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
@@ -524,6 +525,7 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         val pages = Module.entries.filter { it.name !in st.wheelHidden }
         val apps = remember { st.recentApps.filter { blockReason(ctx, st, it) == null }.take(7) }
         val all = remember { AppsRepo.all(ctx) }
+        val overlayScope = androidx.compose.runtime.rememberCoroutineScope()
         CompositionLocalProvider(LocalRoom provides Rooms.overlay) {
             EdgeWheels(
                 tabs = pages.map { m -> WheelItem(m.name, m.label) { mod, c -> Glyph(m.glyph, c, mod) } },
@@ -535,6 +537,9 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
                 },
                 onApp = { pkg -> if (!launchApp(ctx, st, pkg)) st.forgetRecent(pkg) },
                 onAllApps = { backToVoid(Module.APPS.name) },
+                // hold an app's slot, swipe down: the app is closed completely
+                onCloseApp = { pkg -> overlayScope.launch { AppKill.close(ctx, st, pkg) } },
+                canClose = { pkg -> AppKill.closable(ctx, pkg) },
                 overlay = true,
                 onClosed = onClosed,
             )

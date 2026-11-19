@@ -29,7 +29,10 @@ object TapSound {
         pool = p
     }
 
-    fun play() { if (ready) pool?.play(id, 0.6f, 0.6f, 1, 0, 1f) }
+    /** How loud a tap plays, of the touch-sound volume: about a third of what it was (0.6), a quiet tick. */
+    const val VOLUME = 0.22f
+
+    fun play() { if (ready) pool?.play(id, VOLUME, VOLUME, 1, 0, 1f) }
 
     /** Watches the touches going into the activity; a short touch that hardly moved is a tap. */
     fun onTouch(ev: MotionEvent, on: Boolean, slop: Float) {

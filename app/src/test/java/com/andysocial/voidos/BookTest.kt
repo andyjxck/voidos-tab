@@ -10,7 +10,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The book's rules: one page and Home, the watch face pushed to the other half, back again on close. */
+/** The book's rules: up to two pages open side by side, the watch face filling any free half, back again on close. */
 class BookTest {
     private val notes = Pane.screen(Module.NOTES)
     private val weather = Pane.screen(Module.WEATHER)
@@ -25,14 +25,25 @@ class BookTest {
         assertEquals(false, left.faceFirst) // Notes on the left, face on the right
     }
 
-    @Test fun secondDropReplacesHomeAlwaysStays() {
-        val s = BookState().drop(notes, toFirst = false).drop(weather, toFirst = true)
-        assertEquals(weather, s.first); assertNull(s.second)
-        assertTrue(s.faceShown); assertEquals(false, s.faceFirst)
-        // a third one only replaces what's open, never adds a page
+    @Test fun twoPagesStayOpenSideBySide() {
+        // Weather open on the right, Notes dropped on the left: both stay, the face steps aside
+        val s = BookState().drop(weather, toFirst = false).drop(notes, toFirst = true)
+        assertEquals(BookState(notes, weather), s)
+        assertTrue(s.full); assertFalse(s.faceShown)
+        // and the other way round
+        assertEquals(BookState(weather, notes), BookState().drop(notes, false).drop(weather, true))
+        // a third one takes the half it's dropped on: still two, never three
         val t = s.drop(tools, toFirst = false)
-        assertEquals(BookState(second = tools), t)
-        assertTrue(t.faceShown)
+        assertEquals(BookState(notes, tools), t)
+        // closing one brings the watch face back into that half, the other stays
+        val c = s.close(isFirst = true)
+        assertEquals(BookState(second = weather), c)
+        assertTrue(c.faceShown); assertFalse(c.full)
+    }
+
+    @Test fun droppingTheOtherHalfSwaps() {
+        val s = BookState(notes, weather).drop(notes, toFirst = false)
+        assertEquals(BookState(weather, notes), s)
     }
 
     @Test fun closingBringsFaceBack() {
@@ -48,24 +59,36 @@ class BookTest {
         assertEquals(moved, again)
     }
 
-    @Test fun onlyOneAppAtATime() {
-        val s = BookState().drop(yt, false).drop(spotify, true)
-        assertEquals(spotify, s.first); assertNull(s.second)
-        // an app dropped beside an open screen replaces it: the app and Home, nothing else
+    @Test fun oneAppBesideOneScreen() {
+        // an app and a screen share the book, both open
         val withScreen = BookState().drop(notes, false).drop(yt, true)
-        assertEquals(BookState(first = yt), withScreen)
-        assertEquals(BookState(), withScreen.withoutApp())
+        assertEquals(BookState(yt, notes), withScreen)
+        assertTrue(withScreen.full)
+        assertEquals(BookState(second = notes), withScreen.withoutApp())
+        // Android has one split: a second app replaces the first, and the face takes the other half
+        val s = BookState().drop(yt, false).drop(spotify, true)
+        assertEquals(BookState(first = spotify), s)
+        assertEquals(BookState(spotify, notes), BookState(yt, notes).drop(spotify, true))
     }
 
     @Test fun survivesSaving() {
         val s = BookState().drop(yt, true)
         assertEquals(s, BookState.decode(s.encode()))
-        assertEquals(BookState(second = notes), BookState.decode(BookState().drop(notes, false).encode()))
-        // an older build's two-page book comes back as one page and Home
-        assertEquals(BookState(first = notes), BookState.decode("s:NOTES|s:WEATHER"))
-        assertEquals(BookState(second = yt), BookState.decode("s:NOTES|a:com.google.android.youtube"))
+        val two = BookState(notes, weather)
+        assertEquals(two, BookState.decode(two.encode()))
+        val mixed = BookState(notes, yt)
+        assertEquals(mixed, BookState.decode(mixed.encode()))
+        // two apps can't share one split: the first is kept
+        assertEquals(BookState(first = yt), BookState.decode("a:com.google.android.youtube|a:com.spotify.music"))
         assertEquals(BookState(), BookState.decode("junk"))
         assertEquals(BookState(), BookState.decode("s:FACE|s:NOPE"))
+    }
+
+    @Test fun awayFiveSecondsStartsFresh() {
+        assertFalse(BookState.awayLongEnough(null, 10_000))
+        assertFalse(BookState.awayLongEnough(1_000, 5_999))
+        assertTrue(BookState.awayLongEnough(1_000, 6_000))
+        assertTrue(BookState.awayLongEnough(1_000, 60_000))
     }
 
     @Test fun splitPutsAppOnItsSide() {

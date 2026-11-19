@@ -48,17 +48,20 @@ fun calm(c: Color): Color = when (c) {
 
 private fun sys(name: String) = FontFamily(Typeface(android.graphics.Typeface.create(name, android.graphics.Typeface.NORMAL)))
 
-// Inter (Rasmus Andersson, SIL Open Font License), built into the app so every screen uses it.
-private fun inter(res: Int) = FontFamily(androidx.compose.ui.text.font.Font(res))
+// Manrope (The Manrope Project Authors, SIL Open Font License, docs/licenses/Manrope-OFL.txt),
+// built into the app in four weights so every screen, the clocks and the wheel use the one
+// typeface. Its rounded, open shapes sit better on the liquid glass than a plain grotesque,
+// and its figures are tabular, so times and numbers don't jitter as they change.
+private fun face(res: Int) = FontFamily(androidx.compose.ui.text.font.Font(res))
 
-/** Body text. */
-val Sans: FontFamily = inter(com.andysocial.voidos.R.font.inter_regular)
+/** Body text (Manrope Regular). */
+val Sans: FontFamily = face(com.andysocial.voidos.R.font.manrope_regular)
 
-/** Medium weight: titles, buttons, labels. */
-val SansMedium: FontFamily = inter(com.andysocial.voidos.R.font.inter_semibold)
+/** Titles, buttons, labels (Manrope SemiBold). */
+val SansMedium: FontFamily = face(com.andysocial.voidos.R.font.manrope_semibold)
 
-/** Light weight: numbers and large readouts. */
-val SansLight: FontFamily = inter(com.andysocial.voidos.R.font.inter_light)
+/** Numbers and large readouts (Manrope Light). */
+val SansLight: FontFamily = face(com.andysocial.voidos.R.font.manrope_light)
 
-/** Thin weight: the big clock. */
-val SansThin: FontFamily = inter(com.andysocial.voidos.R.font.inter_thin)
+/** The big clock (Manrope ExtraLight). */
+val SansThin: FontFamily = face(com.andysocial.voidos.R.font.manrope_thin)

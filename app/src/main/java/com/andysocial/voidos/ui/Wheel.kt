@@ -386,6 +386,22 @@ private class WheelMotion {
  * painted before you need them, the page behind sits in one cached layer while the
  * wheel is open, and a frame only turns a shader and moves two small pictures.
  */
+/** How long an app slot is held still before a swipe down can close the app. */
+internal const val WHEEL_HOLD_MS = 420L
+/** How far down (dp) a held slot is pulled to close its app. */
+internal const val WHEEL_CLOSE_DP = 90f
+
+/**
+ * How far a held slot has been pulled towards closing, 0..1: only downward pull counts,
+ * and only while it's mostly down rather than sideways (so pulling it out to carry it
+ * to a half of the screen never closes anything).
+ */
+internal fun wheelClosePull(dy: Float, dx: Float, full: Float): Float {
+    if (dy <= 0f || full <= 0f) return 0f
+    if (abs(dx) > dy) return 0f
+    return (dy / full).coerceIn(0f, 1f)
+}
+
 @Composable
 fun EdgeWheels(
     tabs: List<WheelItem>,
@@ -407,6 +423,12 @@ fun EdgeWheels(
     onDrop: ((key: String, app: Boolean, first: Boolean) -> Unit)? = null,
     /** Whether a slot may be dragged out at all. */
     canDrop: (key: String, app: Boolean) -> Boolean = { _, _ -> true },
+    /**
+     * Hold an app's slot, then swipe down: the app is closed completely (AppKill). Null
+     * switches it off. Only on the app wheel, and only for slots [canClose] allows.
+     */
+    onCloseApp: ((key: String) -> Unit)? = null,
+    canClose: (key: String) -> Boolean = { true },
 ) {
     var side by remember { mutableStateOf<Edge?>(null) }
     val anchor = remember { mutableFloatStateOf(0f) }
@@ -428,6 +450,11 @@ fun EdgeWheels(
     val appsNow by rememberUpdatedState(apps)
     val cbDrop by rememberUpdatedState(onDrop)
     val cbCan by rememberUpdatedState(canDrop)
+    val cbClose by rememberUpdatedState(onCloseApp)
+    val cbCanClose by rememberUpdatedState(canClose)
+    // an app slot held still long enough to close it with a swipe down, and how far down it's pulled (0..1)
+    var closing by remember { mutableStateOf<String?>(null) }
+    val closePull = remember { mutableFloatStateOf(0f) }
     // a slot being carried out of the wheel to a half of the screen, and where the finger is
     var carry by remember { mutableStateOf<WheelItem?>(null) }
     var carryApp by remember { mutableStateOf(false) }
@@ -667,6 +694,14 @@ fun EdgeWheels(
                                 val mag = (0.78f + 0.40f * near * near) / 0.78f
                                 scaleX = mag; scaleY = mag
                                 alpha = 0.75f + 0.25f * near
+                                // held to close: it follows the pull down and fades as it goes
+                                if (closing == it.key) {
+                                    val pull = closePull.floatValue
+                                    translationY = pull * px(WHEEL_CLOSE_DP) * 0.6f
+                                    alpha *= 1f - 0.55f * pull
+                                    val shrink = 1f - 0.25f * pull
+                                    scaleX = mag * shrink; scaleY = mag * shrink
+                                }
                             }
                             .semantics { contentDescription = it.label },
                         contentAlignment = Alignment.Center,
@@ -674,6 +709,22 @@ fun EdgeWheels(
                 }
                 // the chosen slot's name, floating just outside the band in its own drop of glass
                 WheelLabel(mo, items) { a -> at(open, a, px(Geo.rOut + 22f)) to (open == Edge.LEFT) }
+                // holding an app's slot: a hint under it, coral once the pull is far enough to close
+                val holding = closing
+                val hi = if (holding != null) items.indexOfFirst { it.key == holding } else -1
+                if (hi >= 0) {
+                    val hp = at(open, slotAngle(hi, open), px(Geo.rItem))
+                    val ready = closePull.floatValue >= 1f
+                    Box(
+                        Modifier.offset { IntOffset((hp.x - px(150f)).roundToInt(), (hp.y + px(34f)).roundToInt()) }
+                            .size(width = 130.dp, height = 34.dp)
+                            .liquidGlass(androidx.compose.foundation.shape.RoundedCornerShape(17.dp), GlassLook(smoke = 0.8f, depth = 1f, shine = 1.1f), still = true)
+                            .semantics { contentDescription = if (ready) "Let go to close" else "Swipe down to close" },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        VText(if (ready) "Let go to close" else "Swipe down to close", size = Type.label, color = if (ready) V.Coral else V.Text, maxLines = 1)
+                    }
+                }
                 // the hub: a glass orb with the VoidOS mark on the tab wheel, the app grid on the other
                 val hubC = hubAt(open)
                 Box(
@@ -698,19 +749,43 @@ fun EdgeWheels(
                             val c0 = centre(open)
                             val onRing = hypot(down.position.x - c0.x, down.position.y - c0.y) in px(Geo.rIn - 10f)..px(Geo.rOut + 10f)
                             val from = if (onRing && !onHub) indexAt(open, down.position) else -1
+                            // an app slot held still for a moment can be swiped down to close the app
+                            val holdKey = if (from >= 0 && open == Edge.RIGHT && cbClose != null)
+                                items.getOrNull(from)?.key?.takeIf { cbCanClose(it) } else null
+                            var armed = false
                             var up = down
                             while (true) {
-                                val ch = awaitPointerEvent().changes.first()
+                                val ev = if (holdKey != null && !armed && carry == null)
+                                    withTimeoutOrNull(WHEEL_HOLD_MS - (up.uptimeMillis - down.uptimeMillis).coerceAtLeast(0L)) { awaitPointerEvent() }
+                                else awaitPointerEvent()
+                                if (ev == null) {
+                                    // held still long enough: armed
+                                    armed = true; closing = holdKey; closePull.floatValue = 0f; mo.sel.intValue = from
+                                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                    EdgeSwipe.log("holding ${items.getOrNull(from)?.label}: swipe down to close")
+                                    continue
+                                }
+                                val ch = ev.changes.first()
                                 ch.consume()
                                 up = ch
-                                // a slot pressed and pulled out past the wheel is carried to a half of the screen
-                                if (from >= 0) {
+                                val moved = hypot(ch.position.x - down.position.x, ch.position.y - down.position.y)
+                                if (armed) {
+                                    closePull.floatValue = wheelClosePull(ch.position.y - down.position.y, ch.position.x - down.position.x, px(WHEEL_CLOSE_DP))
+                                } else if (from >= 0) {
+                                    // moved before the hold: it's a carry or a tap, as before
                                     if (carry == null) mo.sel.intValue = from
-                                    carryCheck(open, ch.position)
+                                    if (holdKey == null || moved > px(14f) || ch.uptimeMillis - down.uptimeMillis >= WHEEL_HOLD_MS) carryCheck(open, ch.position)
                                 }
                                 if (!ch.pressed) break
                             }
                             val p = up.position
+                            if (armed) {
+                                val key = closing
+                                val go = closePull.floatValue >= 1f
+                                closing = null; closePull.floatValue = 0f
+                                if (go && key != null) { closeWheel(); cbClose?.invoke(key) }
+                                return@awaitEachGesture
+                            }
                             if (carry != null) { dropCarry(p); return@awaitEachGesture }
                             when {
                                 onHub -> { closeWheel(); if (open == Edge.RIGHT) cbAll() }
@@ -893,7 +968,7 @@ fun EdgeDebugOverlay() {
             down?.let { (x, y) -> drawCircle(V.Yellow, 14f, Offset(x, y) - origin) }
         }
         VText(
-            "EDGE DEBUG  $last", size = 13.sp, color = V.White,
+            "EDGE DEBUG  $last", size = Type.label, color = V.White,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 40.dp).background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 10.dp, vertical = 6.dp),
         )
     }

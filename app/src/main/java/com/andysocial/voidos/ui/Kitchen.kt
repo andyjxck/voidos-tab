@@ -89,8 +89,17 @@ enum class KGroup(val label: String, val tabs: List<KTab>) {
     CAMERA("Camera", listOf(KTab.SCAN, KTab.DOCSCAN, KTab.ZOOM, KTab.MIRROR)),
     UTILITIES("Utilities", listOf(KTab.CONVERT, KTab.LEVEL, KTab.METER, KTab.TORCH));
 
+    /** The page this group lives on: Time and Organise on Tools, Camera and Utilities each on their own. */
+    val page: Module get() = when (this) {
+        TIME, ORGANISE -> Module.TOOLS
+        CAMERA -> Module.CAMERA
+        UTILITIES -> Module.UTILITIES
+    }
+
     companion object {
         fun of(t: KTab): KGroup = entries.firstOrNull { t in it.tabs } ?: UTILITIES
+        /** The groups shown on one page. */
+        fun on(page: Module): List<KGroup> = entries.filter { it.page == page }
     }
 }
 
@@ -139,40 +148,49 @@ val pendingTool = mutableStateOf<KTab?>(null)
 
 fun openTool(t: KTab) {
     pendingTool.value = t
-    Idle.openModule.value = Module.TOOLS.name
+    val page = KGroup.of(t).page
+    Idle.openModule.value = page.name
     // from over another app: bring VoidOS to the front as well
     val app = VoidApp.instance
     runCatching {
         app.startActivity(
             android.content.Intent(app, com.andysocial.voidos.MainActivity::class.java)
-                .putExtra(com.andysocial.voidos.MainActivity.EXTRA_MODULE, Module.TOOLS.name)
+                .putExtra(com.andysocial.voidos.MainActivity.EXTRA_MODULE, page.name)
                 .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
         )
     }
 }
 
-/** Tools: timers first, then the unit converter and the list. (This was the Kitchen screen.) */
+/**
+ * A tools page. Tools has Time and Organise, picked with one glass bar; Camera and
+ * Utilities are pages of their own, so they only need the quiet row of tool names.
+ */
 @Composable
-fun ToolsScreen(store: Store) {
-    var tab by rememberSaveable { mutableStateOf(KTab.TIMERS) }
+fun ToolsScreen(store: Store, page: Module = Module.TOOLS) {
+    val groups = remember(page) { KGroup.on(page).ifEmpty { KGroup.on(Module.TOOLS) } }
+    val mine = remember(groups) { groups.flatMap { it.tabs }.toSet() }
+    var tab by rememberSaveable(page) { mutableStateOf(groups.first().tabs.first()) }
     val wantTool by pendingTool
-    LaunchedEffect(wantTool) { wantTool?.let { tab = it; pendingTool.value = null } }
+    // a tool asked for from elsewhere opens on the page it lives on, wherever else Tools is showing
+    LaunchedEffect(wantTool) { wantTool?.takeIf { it in mine }?.let { tab = it; pendingTool.value = null } }
     // the last tool used in each group, so switching group comes back to where you were
     val lastIn = remember { mutableStateMapOf<KGroup, KTab>() }
     val group = KGroup.of(tab)
     LaunchedEffect(tab) { lastIn[group] = tab }
     // the mirror and the torch take the whole screen; closing them comes back to the tool before
-    var before by rememberSaveable { mutableStateOf(KTab.TIMERS) }
+    var before by rememberSaveable(page) { mutableStateOf(groups.first().tabs.first()) }
     val full by fullTool
     LaunchedEffect(tab) { if (tab in FULL_TOOLS) fullTool.value = tab else before = tab }
     LaunchedEffect(full) { if (full == null && tab in FULL_TOOLS) tab = before }
     Column(Modifier.fillMaxSize()) {
-        // twenty tools in four groups: one glass bar picks the group, a quiet row of names picks the tool
-        GlassSegments(
-            KGroup.entries.map { it.name to it.label }, group.name,
-            Modifier.align(Alignment.CenterHorizontally).widthIn(max = 560.dp), height = 46.dp,
-        ) { k -> val g = KGroup.valueOf(k); tab = lastIn[g] ?: g.tabs.first() }
-        Gap(h = 10.dp)
+        if (groups.size > 1) {
+            // more than one group on the page: one glass bar picks the group, a quiet row of names picks the tool
+            GlassSegments(
+                groups.map { it.name to it.label }, group.name,
+                Modifier.align(Alignment.CenterHorizontally).widthIn(max = (groups.size * 140).dp), height = 46.dp,
+            ) { k -> val g = KGroup.valueOf(k); tab = lastIn[g] ?: g.tabs.first() }
+            Gap(h = 10.dp)
+        }
         Row(
             Modifier.align(Alignment.CenterHorizontally).horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(4.dp),

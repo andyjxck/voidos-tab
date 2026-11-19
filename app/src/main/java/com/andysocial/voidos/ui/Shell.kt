@@ -109,6 +109,8 @@ object ShellNow {
 enum class Module(val label: String, val glyph: G, val accent: Color) {
     FACE("Home", G.FACE, V.Teal),
     TOOLS("Tools", G.TIMER, V.Teal),
+    CAMERA("Camera", G.CAMERA, V.Teal),
+    UTILITIES("Utilities", G.LEVEL, V.Teal),
     WEATHER("Weather", G.WEATHER, V.Teal),
     NOTES("Notes", G.NOTES, V.Teal),
     MEDIA("Music", G.MEDIA, V.Teal),
@@ -182,6 +184,12 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
 
     LaunchedEffect(home) { if (home > 0) { go(Module.FACE, animate = false); escape = false; control = false } }
 
+    // the book closes back to the watch face only if you've been away from Home for five seconds
+    LaunchedEffect(module) {
+        val hadApp = Book.state.value.app != null
+        if (Book.onHome(ctx, module == Module.FACE, System.currentTimeMillis()) && hadApp) Book.closeApp(ctx, store)
+    }
+
     // ambient clock after N idle minutes
     LaunchedEffect(store.ambientMinutes) {
         while (isActive) {
@@ -229,7 +237,9 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
                     when (mod) {
                         // Home is the watch face, split like a book when a screen or an app is dropped on it
                         Module.FACE -> BookHome(store, face = { FaceScreen(store, onOpen = { go(it) }) }) { m -> BookScreen(store, act, m) }
-                        Module.TOOLS -> ToolsScreen(store)
+                        Module.TOOLS -> ToolsScreen(store, Module.TOOLS)
+                        Module.CAMERA -> ToolsScreen(store, Module.CAMERA)
+                        Module.UTILITIES -> ToolsScreen(store, Module.UTILITIES)
                         Module.WEATHER -> WeatherScreen(store)
                         Module.NOTES -> NotesScreen(store)
                         Module.SYSTEM -> SystemScreen(store, act)
@@ -269,6 +279,14 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
         // pull a slot out past the wheel and drop it on a half of the screen: it opens there, beside the watch face
         onDrop = { key, isApp, first -> dropOnBook(ctx, store, act, scope, key, isApp, first); go(Module.FACE, animate = false) },
         canDrop = { key, isApp -> isApp || runCatching { bookable(Module.valueOf(key)) }.getOrDefault(false) },
+        // hold an app's slot, swipe down: the app is closed completely, and leaves the book if it's in it
+        onCloseApp = { pkg ->
+            scope.launch {
+                if (Book.state.value.app?.key == pkg) Book.closeApp(ctx, store)
+                com.andysocial.voidos.AppKill.close(ctx, store, pkg)
+            }
+        },
+        canClose = { pkg -> com.andysocial.voidos.AppKill.closable(ctx, pkg) },
         // anything over the screens (lock, ringing timer, control centre, the way out, the ambient clock) keeps the edges
         enabled = edgeOff(escape, control, ambient, LockState.locked.value && store.voidLock).isEmpty() && fullTool.value == null,
     )
@@ -571,7 +589,9 @@ internal fun AnalogueClock(now: Long, modifier: Modifier) {
 private fun BookScreen(store: Store, act: MainActivity, m: Module) {
     when (m) {
         Module.FACE -> Unit
-        Module.TOOLS -> ToolsScreen(store)
+        Module.TOOLS -> ToolsScreen(store, Module.TOOLS)
+        Module.CAMERA -> ToolsScreen(store, Module.CAMERA)
+        Module.UTILITIES -> ToolsScreen(store, Module.UTILITIES)
         Module.WEATHER -> WeatherScreen(store)
         Module.NOTES -> NotesScreen(store)
         Module.SYSTEM -> SystemScreen(store, act)

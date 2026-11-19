@@ -78,10 +78,12 @@ object Ambience {
     /** Whether the moving parts should take their next step: motion on, and no wheel open. */
     val moving: Boolean get() = motion.value && !held.value
 
-    /** One mood per screen, in the pager's order: Home, Tools, Weather, Notes, Music, Apps, Settings. */
+    /** One mood per screen, in the pager's order: Home, Tools, Camera, Utilities, Weather, Notes, Music, Apps, Settings. */
     val moods = listOf(
         Mood(V.Teal, V.Purple, V.Coral),
         Mood(V.Coral, V.Purple, V.Orange),
+        Mood(V.Orange, V.Coral, V.Yellow),
+        Mood(V.Green, V.Teal, Color(0xFF5AA9F0)),
         Mood(Color(0xFF5AA9F0), V.Teal, V.Purple),
         Mood(V.Yellow, V.Coral, V.Purple),
         Mood(V.Purple, V.Coral, V.Teal),

@@ -1,6 +1,7 @@
 [land] 44b_book_carrying_first: ok
-[land] 45b_book_dropped_first: 1 issue(s)
-  TEXT CUT  "+10" box=0 x 24 text=0 x 24 lines=1 (wider than its box, ellipsized)
+[land] 45b_book_dropped_first: ok
+[land] 06e_camera_page: ok
+[land] 06c_tools_docscan: ok
 [land] 17e_wheel_from_dots: ok
 [land] 17g_wheel_held: ok
 [land] 17g_wheel_held: ok
@@ -9,15 +10,19 @@
 [land] 05b_alarm_edit: ok
 [land] 05c_alarm_sounds: ok
 [land] 05d_alarm_new: ok
-[land] 05e_alarm_ringing: 8 issue(s)
-  OVERLAP   "Stopwatch" / "Gym"
-  OVERLAP   "00" / "01:03"
-  OVERLAP   "sec" / "01:03"
-  OVERLAP   "+" / "01:03"
-  OVERLAP   "Laundry" / "01:03"
-  OVERLAP   "8:59" / "01:03"
-  OVERLAP   "+1 min" / "01:03"
-  OVERLAP   "+5 min" / "01:03"
+[land] 05e_alarm_ringing: 12 issue(s)
+  OVERLAP   "Timers" / "01:55"
+  OVERLAP   "Stopwatch" / "01:55"
+  OVERLAP   "Alarms" / "01:55"
+  OVERLAP   "World" / "01:55"
+  OVERLAP   "00" / "01:55"
+  OVERLAP   "sec" / "01:55"
+  OVERLAP   "+" / "01:55"
+  OVERLAP   "Laundry" / "01:55"
+  OVERLAP   "8:55" / "01:55"
+  OVERLAP   "+1 min" / "01:55"
+  OVERLAP   "+5 min" / "01:55"
+  OVERLAP   "6:00" / "9 minutes"
 [land] 44_escape_pin: ok
 [land] 20_system_wifi: ok
 [land] 21_system_bluetooth: ok
@@ -35,63 +40,66 @@
 [land] 60_standby_digital: ok
 [land] 61_standby_digital_charging: ok
 [land] 62_standby_analogue_charging: ok
-[land] 45_hidden_way_out: 8 issue(s)
-  OVERLAP   "Device" / "ABC"
-  OVERLAP   "Home" / "DEF"
+[land] 45_hidden_way_out: 4 issue(s)
   OVERLAP   "Storage" / "5"
   OVERLAP   "0 GB free of 0 GB" / "6"
-  OVERLAP   "Memory" / "JKL"
-  OVERLAP   "0 GB" / "MNO"
   OVERLAP   "Battery" / "8"
   OVERLAP   "—" / "9"
 [land] 40_book_notes_right: ok
 [land] 41_book_notes_left: ok
-[land] 42_book_second_replaces: 31 issue(s)
-  TEXT CUT  "NEXT 12 HOURS" box=140 x 0 text=140 x 0 lines=1 (taller than its box)
+[land] 42_book_two_open: 31 issue(s)
+  TEXT CUT  "NEXT 12 HOURS" box=134 x 0 text=134 x 0 lines=1 (taller than its box)
   TEXT CUT  "7°" box=19 x 0 text=19 x 0 lines=1 (taller than its box)
-  TEXT CUT  "01" box=20 x 0 text=20 x 0 lines=1 (taller than its box)
+  TEXT CUT  "01" box=18 x 0 text=18 x 0 lines=1 (taller than its box)
   TEXT CUT  "7°" box=19 x 0 text=19 x 0 lines=1 (taller than its box)
-  TEXT CUT  "02" box=20 x 0 text=20 x 0 lines=1 (taller than its box)
+  TEXT CUT  "02" box=18 x 0 text=18 x 0 lines=1 (taller than its box)
   TEXT CUT  "7°" box=19 x 0 text=19 x 0 lines=1 (taller than its box)
-  TEXT CUT  "03" box=20 x 0 text=20 x 0 lines=1 (taller than its box)
+  TEXT CUT  "03" box=18 x 0 text=18 x 0 lines=1 (taller than its box)
   TEXT CUT  "7°" box=19 x 0 text=19 x 0 lines=1 (taller than its box)
-  TEXT CUT  "04" box=20 x 0 text=20 x 0 lines=1 (taller than its box)
+  TEXT CUT  "04" box=18 x 0 text=18 x 0 lines=1 (taller than its box)
   TEXT CUT  "6°" box=19 x 0 text=19 x 0 lines=1 (taller than its box)
-  TEXT CUT  "05" box=20 x 0 text=20 x 0 lines=1 (taller than its box)
+  TEXT CUT  "05" box=18 x 0 text=18 x 0 lines=1 (taller than its box)
   TEXT CUT  "6°" box=19 x 0 text=19 x 0 lines=1 (taller than its box)
-  TEXT CUT  "06" box=20 x 0 text=20 x 0 lines=1 (taller than its box)
+  TEXT CUT  "06" box=18 x 0 text=18 x 0 lines=1 (taller than its box)
   TEXT CUT  "5°" box=19 x 0 text=19 x 0 lines=1 (taller than its box)
-  TEXT CUT  "07" box=20 x 0 text=20 x 0 lines=1 (taller than its box)
+  TEXT CUT  "07" box=18 x 0 text=18 x 0 lines=1 (taller than its box)
   TEXT CUT  "6°" box=19 x 0 text=19 x 0 lines=1 (taller than its box)
-  TEXT CUT  "08" box=20 x 0 text=20 x 0 lines=1 (taller than its box)
+  TEXT CUT  "08" box=18 x 0 text=18 x 0 lines=1 (taller than its box)
   TEXT CUT  "7°" box=19 x 0 text=19 x 0 lines=1 (taller than its box)
-  TEXT CUT  "09" box=20 x 0 text=20 x 0 lines=1 (taller than its box)
+  TEXT CUT  "09" box=18 x 0 text=18 x 0 lines=1 (taller than its box)
   TEXT CUT  "8°" box=19 x 0 text=19 x 0 lines=1 (taller than its box)
-  TEXT CUT  "10" box=20 x 0 text=20 x 0 lines=1 (taller than its box)
+  TEXT CUT  "10" box=18 x 0 text=18 x 0 lines=1 (taller than its box)
   TEXT CUT  "8°" box=19 x 0 text=19 x 0 lines=1 (taller than its box)
-  TEXT CUT  "11" box=20 x 0 text=20 x 0 lines=1 (taller than its box)
+  TEXT CUT  "11" box=18 x 0 text=18 x 0 lines=1 (taller than its box)
   TEXT CUT  "8°" box=19 x 0 text=19 x 0 lines=1 (taller than its box)
-  TEXT CUT  "12" box=20 x 0 text=20 x 0 lines=1 (taller than its box)
-  TEXT CUT  "98%" box=35 x 11 text=35 x 11 lines=1 (taller than its box)
-  TEXT CUT  "10%" box=35 x 11 text=35 x 11 lines=1 (taller than its box)
-  TEXT CUT  "0%" box=25 x 11 text=25 x 11 lines=1 (taller than its box)
-  TEXT CUT  "39%" box=35 x 11 text=35 x 11 lines=1 (taller than its box)
-  TEXT CUT  "31%" box=35 x 11 text=35 x 11 lines=1 (taller than its box)
-  TEXT CUT  "40%" box=35 x 11 text=35 x 11 lines=1 (taller than its box)
+  TEXT CUT  "12" box=18 x 0 text=18 x 0 lines=1 (taller than its box)
+  TEXT CUT  "98%" box=32 x 0 text=32 x 0 lines=1 (taller than its box)
+  TEXT CUT  "10%" box=32 x 0 text=32 x 0 lines=1 (taller than its box)
+  TEXT CUT  "0%" box=23 x 0 text=23 x 0 lines=1 (taller than its box)
+  TEXT CUT  "39%" box=32 x 0 text=32 x 0 lines=1 (taller than its box)
+  TEXT CUT  "31%" box=32 x 0 text=32 x 0 lines=1 (taller than its box)
+  TEXT CUT  "40%" box=32 x 0 text=32 x 0 lines=1 (taller than its box)
 [land] 43_book_closed: ok
+[land] 03_tools_convert: ok
+[land] 04_tools_convert_temperature: ok
 [land] 01b_face_widgets: 1 issue(s)
-  TEXT CUT  "7°" box=48 x 43 text=48 x 43 lines=1 (taller than its box)
+  TEXT CUT  "7°" box=48 x 37 text=48 x 37 lines=1 (taller than its box)
 [land] 17c_flick_from_bezel: 1 issue(s)
-  OVERLAP   "sec" / "Music"
-[land] 17d_flick_leaves_wheel_open: ok
-[land] 07_sky: 7 issue(s)
-  TEXT CUT  "OPEN-METEO" box=120 x 0 text=120 x 0 lines=1 (taller than its box)
-  TEXT CUT  "98%" box=35 x 11 text=35 x 11 lines=1 (taller than its box)
-  TEXT CUT  "10%" box=35 x 11 text=35 x 11 lines=1 (taller than its box)
-  TEXT CUT  "0%" box=25 x 11 text=25 x 11 lines=1 (taller than its box)
-  TEXT CUT  "39%" box=35 x 11 text=35 x 11 lines=1 (taller than its box)
-  TEXT CUT  "31%" box=35 x 11 text=35 x 11 lines=1 (taller than its box)
-  TEXT CUT  "40%" box=35 x 11 text=35 x 11 lines=1 (taller than its box)
+  OVERLAP   "−" / "Notes"
+[land] 17d_flick_leaves_wheel_open: 1 issue(s)
+  OVERLAP   "sec" / "Notes"
+[land] 07_sky: 11 issue(s)
+  TEXT CUT  "SUNRISE" box=75 x 19 text=75 x 19 lines=1 (taller than its box)
+  TEXT CUT  "07:35" box=63 x 0 text=63 x 0 lines=1 (taller than its box)
+  TEXT CUT  "SUNSET" box=69 x 19 text=69 x 19 lines=1 (taller than its box)
+  TEXT CUT  "16:10" box=63 x 0 text=63 x 0 lines=1 (taller than its box)
+  TEXT CUT  "OPEN-METEO" box=111 x 0 text=111 x 0 lines=1 (taller than its box)
+  TEXT CUT  "98%" box=32 x 0 text=32 x 0 lines=1 (taller than its box)
+  TEXT CUT  "10%" box=32 x 0 text=32 x 0 lines=1 (taller than its box)
+  TEXT CUT  "0%" box=23 x 0 text=23 x 0 lines=1 (taller than its box)
+  TEXT CUT  "39%" box=32 x 0 text=32 x 0 lines=1 (taller than its box)
+  TEXT CUT  "31%" box=32 x 0 text=32 x 0 lines=1 (taller than its box)
+  TEXT CUT  "40%" box=32 x 0 text=32 x 0 lines=1 (taller than its box)
 [land] 12_apps: ok
 [land] 13_apps_manage: ok
 [land] 14_apps_icons_letters: ok
@@ -101,8 +109,7 @@
 [land] 01_face: ok
 [land] 40_lock: ok
 [land] 44_book_carrying: ok
-[land] 45_book_dropped: 1 issue(s)
-  TEXT CUT  "+10" box=0 x 24 text=0 x 24 lines=1 (wider than its box, ellipsized)
+[land] 45_book_dropped: ok
 [land] 50_about: ok
 [land] 08_notes_empty: ok
 [land] 08_notes: ok
@@ -113,52 +120,45 @@
 [land] 43_setup: ok
 [land] 09_media: ok
 [land] 09b_media_files: 1 issue(s)
-  TEXT CUT  "+10" box=9 x 48 text=9 x 48 lines=2 (ellipsized)
+  TEXT CUT  "+10" box=9 x 54 text=9 x 54 lines=2 (ellipsized)
 [land] 02_tools_timers: ok
-[land] 03_tools_convert: ok
-[land] 04_tools_convert_temperature: ok
 [land] 06_tools_list: ok
 [land] 17_tab_wheel: ok
-[land] 17a_wheel_pages: 2 issue(s)
-  OVERLAP   "20:03" / "Settings"
-  OVERLAP   "10:03" / "Settings"
-[land] 17b_tab_wheel_up: ok
+[land] 17b_tab_wheel_up: 1 issue(s)
+  OVERLAP   "Wi-Fi" / "Home"
 [land] 18_app_wheel: ok
 [land] 46_face_lasso: 1 issue(s)
-  TEXT CUT  "7°" box=48 x 43 text=48 x 43 lines=1 (taller than its box)
+  TEXT CUT  "7°" box=48 x 37 text=48 x 37 lines=1 (taller than its box)
 [land] 47_face_picked: 1 issue(s)
-  TEXT CUT  "7°" box=48 x 43 text=48 x 43 lines=1 (taller than its box)
+  TEXT CUT  "7°" box=48 x 37 text=48 x 37 lines=1 (taller than its box)
 [land] 48_face_group_moved: 1 issue(s)
-  TEXT CUT  "7°" box=48 x 43 text=48 x 43 lines=1 (taller than its box)
+  TEXT CUT  "7°" box=48 x 37 text=48 x 37 lines=1 (taller than its box)
 [land] 17f_edge_debug: ok
 [land] 41_lock_pin: ok
 [land] 16_control_centre: ok
 [land] 16b_cc_wifi: ok
 [land] 16c_cc_wifi_password: 1 issue(s)
-  OVERLAP   "20:03" / "Costa Free WiFi"
+  OVERLAP   "20:55" / "Costa Free WiFi"
 [land] 12b_apps_hidden: ok
 [land] 41b_lock_pin_wait: ok
 [land] 01c_face_stretched: ok
 [land] 01d_face_clock_moved: ok
 [land] 16d_cc_connect: 1 issue(s)
   OVERLAP   "New York" / "Rotation lock"
-[land] 16e_cc_bt: 1 issue(s)
-  OVERLAP   "20:03" / "Looking for other devices…"
+[land] 16e_cc_bt: ok
 [land] 16f_cc_dnd: ok
 [land] 16g_cc_rotate: ok
 [land] 16h_cc_bright: ok
-[land] 16i_cc_volume: ok
+[land] 16i_cc_volume: 1 issue(s)
+  OVERLAP   "10:56" / "Alarms"
 [land] 16j_cc_media: ok
 [land] 06b_tools_files: ok
-[land] 06c_tools_docscan: ok
-[land] 06d_tools_torch_full: ok
 [land] 51_pin_change: ok
+[land] 06d_tools_torch_full: ok
 [port] 44b_book_carrying_first: ok
-[port] 45b_book_dropped_first: 4 issue(s)
-  TEXT CUT  "--:--" box=315 x 0 text=315 x 0 lines=1 (taller than its box)
-  TEXT CUT  "--:--" box=44 x 0 text=44 x 0 lines=1 (taller than its box)
-  TEXT CUT  "-10" box=36 x 0 text=36 x 0 lines=1 (taller than its box)
-  TEXT CUT  "+10" box=36 x 0 text=36 x 0 lines=1 (taller than its box)
+[port] 45b_book_dropped_first: ok
+[port] 06e_camera_page: ok
+[port] 06c_tools_docscan: ok
 [port] 17e_wheel_from_dots: ok
 [port] 17g_wheel_held: ok
 [port] 17g_wheel_held: ok
@@ -167,9 +167,11 @@
 [port] 05b_alarm_edit: ok
 [port] 05c_alarm_sounds: ok
 [port] 05d_alarm_new: ok
-[port] 05e_alarm_ringing: 2 issue(s)
-  OVERLAP   "8:59" / "01:05"
-  OVERLAP   "21:59" / "01:05"
+[port] 05e_alarm_ringing: 4 issue(s)
+  OVERLAP   "Laundry" / "01:57"
+  OVERLAP   "8:59" / "01:57"
+  OVERLAP   "Call Maya" / "01:57"
+  OVERLAP   "21:59" / "01:57"
 [port] 44_escape_pin: ok
 [port] 20_system_wifi: ok
 [port] 21_system_bluetooth: ok
@@ -187,63 +189,65 @@
 [port] 60_standby_digital: ok
 [port] 61_standby_digital_charging: ok
 [port] 62_standby_analogue_charging: ok
-[port] 45_hidden_way_out: 4 issue(s)
+[port] 45_hidden_way_out: 3 issue(s)
+  OVERLAP   "Memory" / "1"
   OVERLAP   "0 GB" / "2"
   OVERLAP   "0 GB" / "3"
-  OVERLAP   "—" / "ABC"
-  OVERLAP   "—" / "DEF"
 [port] 40_book_notes_right: ok
 [port] 41_book_notes_left: ok
-[port] 42_book_second_replaces: 37 issue(s)
-  TEXT CUT  "Drizzle" box=72 x 2 text=72 x 2 lines=1 (taller than its box)
-  TEXT CUT  "FEELS" box=53 x 0 text=53 x 0 lines=1 (taller than its box)
+[port] 42_book_two_open: 38 issue(s)
+  TEXT CUT  "7°" box=136 x 154 text=136 x 154 lines=1 (taller than its box)
+  TEXT CUT  "Overcast" box=93 x 0 text=93 x 0 lines=1 (taller than its box)
+  TEXT CUT  "FEELS" box=52 x 0 text=52 x 0 lines=1 (taller than its box)
   TEXT CUT  "5°" box=24 x 0 text=24 x 0 lines=1 (taller than its box)
-  TEXT CUT  "WIND" box=47 x 0 text=47 x 0 lines=1 (taller than its box)
-  TEXT CUT  "9 km/h" box=72 x 0 text=72 x 0 lines=1 (taller than its box)
-  TEXT CUT  "HUMIDITY" box=88 x 0 text=88 x 0 lines=1 (taller than its box)
-  TEXT CUT  "97%" box=50 x 0 text=50 x 0 lines=1 (taller than its box)
+  TEXT CUT  "WIND" box=45 x 0 text=45 x 0 lines=1 (taller than its box)
+  TEXT CUT  "8 km/h" box=70 x 0 text=70 x 0 lines=1 (taller than its box)
+  TEXT CUT  "HUMIDITY" box=83 x 0 text=83 x 0 lines=1 (taller than its box)
+  TEXT CUT  "96%" box=48 x 0 text=48 x 0 lines=1 (taller than its box)
   TEXT CUT  "SUNRISE" box=75 x 0 text=75 x 0 lines=1 (taller than its box)
-  TEXT CUT  "07:35" box=62 x 0 text=62 x 0 lines=1 (taller than its box)
-  TEXT CUT  "SUNSET" box=70 x 0 text=70 x 0 lines=1 (taller than its box)
-  TEXT CUT  "16:10" box=62 x 0 text=62 x 0 lines=1 (taller than its box)
-  TEXT CUT  "OPEN-METEO" box=120 x 0 text=120 x 0 lines=1 (taller than its box)
-  TEXT CUT  "7°" box=0 x 42 text=0 x 42 lines=2 (ellipsized)
-  TEXT CUT  "09" box=0 x 38 text=0 x 38 lines=2 (ellipsized)
-  TEXT CUT  "8°" box=0 x 42 text=0 x 42 lines=2 (ellipsized)
-  TEXT CUT  "10" box=0 x 38 text=0 x 38 lines=2 (ellipsized)
-  TEXT CUT  "8°" box=0 x 42 text=0 x 42 lines=2 (ellipsized)
-  TEXT CUT  "11" box=0 x 38 text=0 x 38 lines=2 (ellipsized)
-  TEXT CUT  "8°" box=0 x 42 text=0 x 42 lines=2 (ellipsized)
-  TEXT CUT  "12" box=0 x 38 text=0 x 38 lines=2 (ellipsized)
-  TEXT CUT  "98%" box=35 x 11 text=35 x 11 lines=1 (taller than its box)
-  TEXT CUT  "10%" box=35 x 11 text=35 x 11 lines=1 (taller than its box)
-  TEXT CUT  "6°" box=21 x 32 text=21 x 32 lines=1 (wider than its box, ellipsized)
-  TEXT CUT  "-2°" box=21 x 16 text=21 x 16 lines=1 (wider than its box, taller than its box, ellipsized)
-  TEXT CUT  "0%" box=21 x 0 text=21 x 0 lines=1 (wider than its box, taller than its box, ellipsized)
-  TEXT CUT  "Sun" box=0 x 57 text=0 x 57 lines=3 (ellipsized)
-  TEXT CUT  "7°" box=0 x 29 text=0 x 29 lines=1 (wider than its box, taller than its box, ellipsized)
+  TEXT CUT  "07:35" box=63 x 0 text=63 x 0 lines=1 (taller than its box)
+  TEXT CUT  "SUNSET" box=69 x 0 text=69 x 0 lines=1 (taller than its box)
+  TEXT CUT  "16:10" box=63 x 0 text=63 x 0 lines=1 (taller than its box)
+  TEXT CUT  "OPEN-METEO" box=111 x 0 text=111 x 0 lines=1 (taller than its box)
+  TEXT CUT  "7°" box=7 x 46 text=7 x 46 lines=2 (ellipsized)
+  TEXT CUT  "09" box=7 x 44 text=7 x 44 lines=2 (ellipsized)
+  TEXT CUT  "8°" box=0 x 46 text=0 x 46 lines=2 (ellipsized)
+  TEXT CUT  "10" box=0 x 44 text=0 x 44 lines=2 (ellipsized)
+  TEXT CUT  "8°" box=0 x 46 text=0 x 46 lines=2 (ellipsized)
+  TEXT CUT  "11" box=0 x 44 text=0 x 44 lines=2 (ellipsized)
+  TEXT CUT  "8°" box=0 x 46 text=0 x 46 lines=2 (ellipsized)
+  TEXT CUT  "12" box=0 x 44 text=0 x 44 lines=2 (ellipsized)
+  TEXT CUT  "98%" box=32 x 0 text=32 x 0 lines=1 (taller than its box)
+  TEXT CUT  "10%" box=32 x 0 text=32 x 0 lines=1 (taller than its box)
+  TEXT CUT  "6°" box=21 x 36 text=21 x 36 lines=1 (wider than its box, ellipsized)
+  TEXT CUT  "-2°" box=21 x 3 text=21 x 3 lines=1 (wider than its box, taller than its box, ellipsized)
+  TEXT CUT  "0%" box=21 x 0 text=21 x 0 lines=1 (taller than its box, ellipsized)
+  TEXT CUT  "Sun" box=0 x 66 text=0 x 66 lines=3 (ellipsized)
+  TEXT CUT  "7°" box=0 x 17 text=0 x 17 lines=1 (wider than its box, taller than its box, ellipsized)
   TEXT CUT  "4°" box=0 x 0 text=0 x 0 lines=1 (wider than its box, taller than its box, ellipsized)
   TEXT CUT  "39%" box=0 x 0 text=0 x 0 lines=1 (wider than its box, taller than its box, ellipsized)
-  TEXT CUT  "Mon" box=0 x 57 text=0 x 57 lines=3 (ellipsized)
-  TEXT CUT  "8°" box=0 x 29 text=0 x 29 lines=1 (wider than its box, taller than its box, ellipsized)
+  TEXT CUT  "Mon" box=0 x 66 text=0 x 66 lines=3 (ellipsized)
+  TEXT CUT  "8°" box=0 x 17 text=0 x 17 lines=1 (wider than its box, taller than its box, ellipsized)
   TEXT CUT  "2°" box=0 x 0 text=0 x 0 lines=1 (wider than its box, taller than its box, ellipsized)
   TEXT CUT  "31%" box=0 x 0 text=0 x 0 lines=1 (wider than its box, taller than its box, ellipsized)
-  TEXT CUT  "Tue" box=0 x 57 text=0 x 57 lines=3 (ellipsized)
-  TEXT CUT  "10°" box=0 x 29 text=0 x 29 lines=1 (wider than its box, taller than its box, ellipsized)
+  TEXT CUT  "Tue" box=0 x 66 text=0 x 66 lines=3 (ellipsized)
+  TEXT CUT  "10°" box=0 x 17 text=0 x 17 lines=1 (wider than its box, taller than its box, ellipsized)
   TEXT CUT  "7°" box=0 x 0 text=0 x 0 lines=1 (wider than its box, taller than its box, ellipsized)
   TEXT CUT  "40%" box=0 x 0 text=0 x 0 lines=1 (wider than its box, taller than its box, ellipsized)
 [port] 43_book_closed: ok
+[port] 03_tools_convert: ok
+[port] 04_tools_convert_temperature: ok
 [port] 01b_face_widgets: 1 issue(s)
-  TEXT CUT  "7°" box=48 x 43 text=48 x 43 lines=1 (taller than its box)
+  TEXT CUT  "7°" box=48 x 37 text=48 x 37 lines=1 (taller than its box)
 [port] 17c_flick_from_bezel: ok
 [port] 17d_flick_leaves_wheel_open: ok
 [port] 07_sky: 6 issue(s)
-  TEXT CUT  "98%" box=35 x 11 text=35 x 11 lines=1 (taller than its box)
-  TEXT CUT  "10%" box=35 x 11 text=35 x 11 lines=1 (taller than its box)
-  TEXT CUT  "0%" box=25 x 11 text=25 x 11 lines=1 (taller than its box)
-  TEXT CUT  "39%" box=35 x 11 text=35 x 11 lines=1 (taller than its box)
-  TEXT CUT  "31%" box=35 x 11 text=35 x 11 lines=1 (taller than its box)
-  TEXT CUT  "40%" box=35 x 11 text=35 x 11 lines=1 (taller than its box)
+  TEXT CUT  "98%" box=32 x 0 text=32 x 0 lines=1 (taller than its box)
+  TEXT CUT  "10%" box=32 x 0 text=32 x 0 lines=1 (taller than its box)
+  TEXT CUT  "0%" box=23 x 0 text=23 x 0 lines=1 (taller than its box)
+  TEXT CUT  "39%" box=32 x 0 text=32 x 0 lines=1 (taller than its box)
+  TEXT CUT  "31%" box=32 x 0 text=32 x 0 lines=1 (taller than its box)
+  TEXT CUT  "40%" box=32 x 0 text=32 x 0 lines=1 (taller than its box)
 [port] 12_apps: ok
 [port] 13_apps_manage: ok
 [port] 14_apps_icons_letters: ok
@@ -253,11 +257,7 @@
 [port] 01_face: ok
 [port] 40_lock: ok
 [port] 44_book_carrying: ok
-[port] 45_book_dropped: 4 issue(s)
-  TEXT CUT  "--:--" box=315 x 0 text=315 x 0 lines=1 (taller than its box)
-  TEXT CUT  "--:--" box=44 x 0 text=44 x 0 lines=1 (taller than its box)
-  TEXT CUT  "-10" box=36 x 0 text=36 x 0 lines=1 (taller than its box)
-  TEXT CUT  "+10" box=36 x 0 text=36 x 0 lines=1 (taller than its box)
+[port] 45_book_dropped: ok
 [port] 50_about: ok
 [port] 08_notes_empty: ok
 [port] 08_notes: ok
@@ -271,23 +271,17 @@
 [port] 09b_media_files: 1 issue(s)
   OVERLAP   "Not playing" / "No music files yet"
 [port] 02_tools_timers: ok
-[port] 03_tools_convert: ok
-[port] 04_tools_convert_temperature: ok
 [port] 06_tools_list: ok
 [port] 17_tab_wheel: ok
-[port] 17a_wheel_pages: 4 issue(s)
-  OVERLAP   "Laundry" / "Settings"
-  OVERLAP   "9:00" / "Settings"
-  OVERLAP   "Call Maya" / "Settings"
-  OVERLAP   "22:00" / "Settings"
-[port] 17b_tab_wheel_up: ok
+[port] 17b_tab_wheel_up: 1 issue(s)
+  OVERLAP   "Display & sound" / "Home"
 [port] 18_app_wheel: ok
 [port] 46_face_lasso: 1 issue(s)
-  TEXT CUT  "7°" box=48 x 43 text=48 x 43 lines=1 (taller than its box)
+  TEXT CUT  "7°" box=48 x 37 text=48 x 37 lines=1 (taller than its box)
 [port] 47_face_picked: 1 issue(s)
-  TEXT CUT  "7°" box=48 x 43 text=48 x 43 lines=1 (taller than its box)
+  TEXT CUT  "7°" box=48 x 37 text=48 x 37 lines=1 (taller than its box)
 [port] 48_face_group_moved: 1 issue(s)
-  TEXT CUT  "7°" box=48 x 43 text=48 x 43 lines=1 (taller than its box)
+  TEXT CUT  "7°" box=48 x 37 text=48 x 37 lines=1 (taller than its box)
 [port] 17f_edge_debug: ok
 [port] 41_lock_pin: ok
 [port] 16_control_centre: ok
@@ -304,10 +298,8 @@
 [port] 16f_cc_dnd: ok
 [port] 16g_cc_rotate: ok
 [port] 16h_cc_bright: ok
-[port] 16i_cc_volume: 1 issue(s)
-  OVERLAP   "21:59" / "Notifications"
+[port] 16i_cc_volume: ok
 [port] 16j_cc_media: ok
 [port] 06b_tools_files: ok
-[port] 06c_tools_docscan: ok
-[port] 06d_tools_torch_full: ok
 [port] 51_pin_change: ok
+[port] 06d_tools_torch_full: ok

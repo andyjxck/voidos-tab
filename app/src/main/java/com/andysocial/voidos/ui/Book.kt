@@ -9,6 +9,15 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -39,8 +48,11 @@ import kotlin.math.roundToInt
  * Drag a screen (Notes, Weather, Tools...) out of the tab wheel, or an app out of the app
  * wheel, and drop it on one half of the screen. It opens in that half and the watch face
  * slides over to the other half. Drop a second one on the watch face's half and it takes
- * that half too: two at most, never more. Close a half and the watch face comes back into
- * it; close the last one and Home is the full watch face again.
+ * that half too, and both stay open and usable: two at most, never more. With both halves
+ * filled the time and date sit in a small island at the top. Close a half and the watch
+ * face comes back into it; close the last one and Home is the full watch face again.
+ * Swipe away from Home for five seconds or more and it's the full watch face when you
+ * come back; back sooner and the book is just as you left it.
  *
  * Landscape splits left and right, portrait top and bottom: "first" is left or top.
  *
@@ -93,14 +105,26 @@ data class BookState(val first: Pane? = null, val second: Pane? = null) {
         else -> null
     }
 
+    /** Both halves filled: the watch face is covered, so the time and date move up into the island. */
+    val full get() = first != null && second != null
+
     /**
-     * [p] dropped on a half. The book only ever has two pages: the one thing dropped, and
-     * Home (the watch face) on the other half. So [p] takes the half it's dropped on and Home
-     * always gets the other one. Whatever was open before is replaced, never added beside it,
-     * and dropping the open thing on the other half moves it across.
+     * [p] dropped on a half. It takes that half, and whatever is open on the other half
+     * stays open beside it: two at most, both live. Dropping something that's already open
+     * on the other half moves it across (the two swap). Android has only one split, so a
+     * second app dropped beside an app replaces it, and the watch face takes that half.
      */
-    fun drop(p: Pane, toFirst: Boolean): BookState =
-        if (toFirst) BookState(p, null) else BookState(null, p)
+    fun drop(p: Pane, toFirst: Boolean): BookState {
+        val here = if (toFirst) first else second
+        val there = if (toFirst) second else first
+        if (here == p) return this
+        val newThere = when {
+            there == p -> here
+            p.kind == PaneKind.APP && there?.kind == PaneKind.APP -> null
+            else -> there
+        }
+        return if (toFirst) BookState(p, newThere) else BookState(newThere, p)
+    }
 
     /** One half closed: the watch face comes back into it. */
     fun close(isFirst: Boolean) = if (isFirst) copy(first = null) else copy(second = null)
@@ -114,13 +138,15 @@ data class BookState(val first: Pane? = null, val second: Pane? = null) {
             val parts = (s ?: "").split('|')
             val a = Pane.decode(parts.getOrNull(0))
             val b = Pane.decode(parts.getOrNull(1))
-            // a book saved by an older build could have both halves covered: keep one page
-            // (the app if there is one, else the left/top one) so Home is always the other
-            return when {
-                a != null && b != null -> if (b.kind == PaneKind.APP && a.kind != PaneKind.APP) BookState(null, b) else BookState(a, null)
-                else -> BookState(a, b)
-            }
+            // two apps can't share Android's one split: keep the first
+            return if (a?.kind == PaneKind.APP && b?.kind == PaneKind.APP) BookState(a, null) else BookState(a, b)
         }
+
+        /** How long you have to be away from Home before the book closes back to the watch face. */
+        const val AWAY_MS = 5_000L
+
+        /** Coming back to Home at [now] after leaving it at [leftAt]: true when you were away long enough to start fresh. */
+        fun awayLongEnough(leftAt: Long?, now: Long) = leftAt != null && now - leftAt >= AWAY_MS
     }
 }
 
@@ -145,7 +171,26 @@ object Book {
         runCatching { prefs(ctx).edit().putString("book", s.encode()).apply() }
     }
 
+    /** When you last swiped away from Home, null while you're on it. */
+    var leftAt: Long? = null
+        private set
+
+    /**
+     * The page changed. Leaving Home starts the clock; coming back within five seconds keeps
+     * the book as it was, and coming back after longer closes it to the plain watch face.
+     * Only time spent away counts: sitting on the split never closes it. True when it closed.
+     */
+    fun onHome(ctx: Context, onHome: Boolean, now: Long): Boolean {
+        if (!onHome) { if (leftAt == null) leftAt = now; return false }
+        val reset = BookState.awayLongEnough(leftAt, now) && state.value.isOpen
+        leftAt = null
+        if (reset) { set(ctx, BookState()); lastFirst = null }
+        return reset
+    }
+
     fun drop(ctx: Context, p: Pane, toFirst: Boolean) {
+        // a fresh drop is what you want now, however long you were away
+        leftAt = null
         lastFirst = toFirst
         set(ctx, state.value.drop(p, toFirst))
     }
@@ -170,7 +215,7 @@ object Book {
     }
 
     /** Testing: start from a closed book. */
-    fun reset() { state.value = BookState(); lastFirst = null }
+    fun reset() { state.value = BookState(); lastFirst = null; leftAt = null }
 
     /**
      * The Android split for an app half: the app's window on [appFirst]'s side (left or top),
@@ -241,6 +286,7 @@ fun BookHome(store: Store, face: @Composable () -> Unit, screen: @Composable (Mo
         val mine = if (s.appFirst == true) s.second else s.first
         Box(Modifier.fillMaxSize().testTag("book")) {
             PaneBody(mine, face, screen)
+            if (mine != null) TimeIsland(store, Modifier.align(Alignment.TopCenter))
             CloseDrop(
                 Modifier.align(if (s.appFirst == true) Alignment.TopStart else Alignment.TopEnd),
                 "Close ${appLabel(ctx, app.key)}",
@@ -304,6 +350,41 @@ fun BookHome(store: Store, face: @Composable () -> Unit, screen: @Composable (Mo
                 ) { if (p != null) Book.close(ctx, isFirst) }
             }
         }
+        // both halves filled: the watch face is covered, so the time and date ride in a small
+        // island in the band above the panes, clear of both of them
+        val island by animateFloatAsState(if (s.full) 1f else 0f, Motion.spring(), label = "island")
+        if (island > 0.01f) TimeIsland(
+            store,
+            Modifier.align(Alignment.TopCenter).graphicsLayer {
+                alpha = island; scaleX = 0.7f + 0.3f * island; scaleY = 0.7f + 0.3f * island
+                translationY = (1f - island) * -24f
+            },
+        )
+    }
+}
+
+/**
+ * The time and date in a small pill at the top, like a phone's island, shown while both
+ * halves of the book are filled and the watch face has nowhere to go. It sits in the
+ * 52 dp band above the panes, between their close buttons, so it never covers either.
+ */
+@Composable
+internal fun TimeIsland(store: Store, modifier: Modifier = Modifier) {
+    val now = rememberNow(1000)
+    val time = SimpleDateFormat(if (store.use24h) "HH:mm" else "h:mm", Locale.UK).format(Date(now))
+    val date = SimpleDateFormat("EEE d MMM", Locale.UK).format(Date(now))
+    Row(
+        modifier.padding(top = 6.dp).height(38.dp)
+            .clip(Pill).background(Color.Black.copy(alpha = 0.82f))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), Pill)
+            .padding(horizontal = 18.dp)
+            .semantics(mergeDescendants = true) { contentDescription = "$time, $date" }
+            .testTag("timeIsland"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        VText(time, size = Type.body, color = V.Text, font = Sans, maxLines = 1)
+        Box(Modifier.padding(horizontal = 10.dp).size(4.dp).clip(CircleShape).background(V.Teal.copy(alpha = 0.8f)))
+        VText(date, size = Type.label, color = V.Muted, font = Sans, maxLines = 1)
     }
 }
 
