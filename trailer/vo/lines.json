@@ -1,11 +1,38 @@
 [
-  ["l1", "This is VoidOS."],
-  ["l2", "Your tablet, rebuilt from the lock screen up."],
-  ["l3", "A home screen that's yours. Move it. Stretch it. Turn it."],
-  ["l4", "Every control, one pull away."],
-  ["l5", "Timers and a stopwatch, right where you need them."],
-  ["l6", "Sketch an idea the second you have it."],
-  ["l7", "Weather, anywhere."],
-  ["l8", "Everything you use, in one place."],
-  ["l9", "VoidOS. Make it yours."]
+ [
+  "l1",
+  "This is VoidOS."
+ ],
+ [
+  "l2",
+  "Your tablet, rebuilt from the lock screen up."
+ ],
+ [
+  "l3",
+  "A home screen that's yours. Move it. Stretch it. Turn it."
+ ],
+ [
+  "l4",
+  "Every control, one pull away."
+ ],
+ [
+  "l5",
+  "Timers and a stopwatch, right where you need them."
+ ],
+ [
+  "l6",
+  "Sketch an idea the second you have it."
+ ],
+ [
+  "l7",
+  "Weather, anywhere."
+ ],
+ [
+  "l8",
+  "All of it, built to feel like one thing."
+ ],
+ [
+  "l9",
+  "VoidOS. Make it yours."
+ ]
 ]
