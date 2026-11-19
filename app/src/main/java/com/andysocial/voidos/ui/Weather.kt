@@ -51,6 +51,20 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.abs
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -421,6 +435,18 @@ fun WeatherScreen(store: Store) {
     val density = LocalDensity.current
     var rootTop by remember { mutableStateOf(0f) }
     val hop = with(density) { 56.dp.toPx() }
+    // a swipe up that counted moves on to the next place; one that didn't springs back
+    fun finishSwipe(go: Boolean) {
+        scope.launch {
+            val next = PlaceSwipe.next(PlaceSwipe.order(store.places), PlaceSwipe.current(store.autoPlace, store.city, store.places))
+            if (go && next != null) {
+                drag.animateTo(-hop, tween(110))
+                select(next)
+                drag.snapTo(hop)
+                drag.animateTo(0f, spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow))
+            } else drag.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium))
+        }
+    }
     val swipe = Modifier
         .onGloballyPositioned { rootTop = it.positionInRoot().y }
         .placeSwipe(
@@ -428,17 +454,7 @@ fun WeatherScreen(store: Store) {
             rootTop = { rootTop },
             rootHeight = { view.rootView.height.toFloat() },
             onDrag = { dy -> scope.launch { drag.snapTo((dy * 0.35f).coerceIn(-hop, 0f)) } },
-            onEnd = { go ->
-                scope.launch {
-                    val next = PlaceSwipe.next(PlaceSwipe.order(store.places), PlaceSwipe.current(store.autoPlace, store.city, store.places))
-                    if (go && next != null) {
-                        drag.animateTo(-hop, tween(110))
-                        select(next)
-                        drag.snapTo(hop)
-                        drag.animateTo(0f, spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow))
-                    } else drag.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium))
-                }
-            },
+            onEnd = { go -> finishSwipe(go) },
         )
         .graphicsLayer {
             translationY = drag.value
@@ -446,8 +462,9 @@ fun WeatherScreen(store: Store) {
         }
 
     val portrait = LocalPortrait.current
-    val now: @Composable (Modifier) -> Unit = { mod ->
-        VPanel(mod, accent = wx?.let { wxColour(it.code, it.isDay) }) {
+    // compact: half the screen in the book (or beside an app), where neither layout below fits
+    val now: @Composable (Modifier, Boolean) -> Unit = { mod, compact ->
+        VPanel(mod, accent = wx?.let { wxColour(it.code, it.isDay) }, padding = if (compact) 16.dp else 20.dp) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (store.autoPlace) { Glyph(G.GLOBE, V.Muted, Modifier.size(16.dp)); Gap(w = 8.dp) }
                 VText(store.city, size = Type.headline, color = V.Text, modifier = Modifier.weight(1f), maxLines = 1)
@@ -489,6 +506,8 @@ fun WeatherScreen(store: Store) {
             if (w == null) {
                 Gap(h = if (portrait) 16.dp else 40.dp)
                 VText(if (err != null) "NO WI-FI, NO SAVED FORECAST YET" else "LOADING SKY", size = Type.body, color = V.Muted)
+            } else if (compact) {
+                if (!editing) CompactNow(w)
             } else if (portrait && !editing) {
                 // portrait: glyph and temperature on the left, the numbers on the right
                 Gap(h = 8.dp)
@@ -510,11 +529,17 @@ fun WeatherScreen(store: Store) {
                 Gap(h = 8.dp)
                 Label("Open-Meteo", color = V.Tick)
             } else if (!portrait) {
-                Gap(h = 24.dp)
-                WxIcon(w.code, w.isDay, Modifier.size(150.dp))
-                Gap(h = 8.dp)
-                VText(t(w.temp), size = 96.sp, color = V.White, font = SansLight)
-                VText(wxWords(w.code), size = Type.headline, color = wxColour(w.code, w.isDay))
+                // glyph beside the temperature, so the place bar, the hero and both rows of numbers
+                // fit the 524 dp panel (stacked, sunrise, sunset and the credit fell off the bottom)
+                Gap(h = 16.dp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    WxIcon(w.code, w.isDay, Modifier.size(112.dp))
+                    Gap(w = 16.dp)
+                    Column {
+                        VText(t(w.temp), size = 84.sp, color = V.White, font = SansLight, maxLines = 1)
+                        VText(wxWords(w.code), size = Type.headline, color = wxColour(w.code, w.isDay), maxLines = 2)
+                    }
+                }
                 Gap(h = 20.dp)
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                     Stat("Feels", t(w.feels)); Stat("Wind", "${w.wind.roundToInt()} km/h"); Stat("Humidity", "${w.humidity}%")
@@ -534,7 +559,8 @@ fun WeatherScreen(store: Store) {
         }
     }
     val days: @Composable () -> Unit = {
-        VPanel(Modifier.fillMaxWidth().height(200.dp)) {
+        // as tall as its rows: a fixed 200 dp cut the rain chances off the bottom
+        VPanel(Modifier.fillMaxWidth().heightIn(min = 200.dp)) {
             Label("Six days")
             Gap(h = 12.dp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -553,18 +579,191 @@ fun WeatherScreen(store: Store) {
         }
     }
 
-    if (portrait) {
-        Column(Modifier.fillMaxSize().then(swipe), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            now(Modifier.fillMaxWidth())
-            graph(Modifier.fillMaxWidth().weight(1f))
-            days()
-        }
-    } else {
-        Row(Modifier.fillMaxSize().then(swipe), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            now(Modifier.width(380.dp).fillMaxHeight())
-            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        if (compactWeather(maxWidth, maxHeight)) {
+            // Half a screen: one column that scrolls when it has to. Nothing is squeezed to fit:
+            // the hours wrap into rows, the days stack as a list. When it scrolls, pushing on
+            // past the bottom still swipes to the next place.
+            val scroll = rememberScrollState()
+            val pull = remember { mutableFloatStateOf(0f) }
+            // a swipe that scrolled the page on its way down doesn't also change place when it
+            // hits the bottom: you lift, then swipe again from the bottom to move on
+            val scrolledThisSwipe = remember { mutableStateOf(false) }
+            val distance = with(density) { 72.dp.toPx() }
+            val fling = with(density) { 900.dp.toPx() }
+            val overPull = remember(canSwipe) {
+                object : NestedScrollConnection {
+                    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                        // finger going back down while pulling: undo the pull before the page scrolls
+                        if (pull.floatValue <= 0f && available.y < 0f && scroll.value < scroll.maxValue) scrolledThisSwipe.value = true
+                        if (pull.floatValue <= 0f || available.y <= 0f) return Offset.Zero
+                        val used = minOf(available.y, pull.floatValue)
+                        pull.floatValue -= used
+                        scope.launch { drag.snapTo((-pull.floatValue * 0.35f).coerceIn(-hop, 0f)) }
+                        return Offset(0f, used)
+                    }
+                    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                        if (!canSwipe || scrolledThisSwipe.value || source != NestedScrollSource.UserInput || available.y >= 0f) return Offset.Zero
+                        pull.floatValue += -available.y
+                        scope.launch { drag.snapTo((-pull.floatValue * 0.35f).coerceIn(-hop, 0f)) }
+                        return Offset(0f, available.y)
+                    }
+                    override suspend fun onPreFling(available: Velocity): Velocity {
+                        scrolledThisSwipe.value = false
+                        if (pull.floatValue <= 0f) return Velocity.Zero
+                        val go = PlaceSwipe.commits(-pull.floatValue, available.y, distance, fling)
+                        pull.floatValue = 0f
+                        finishSwipe(go)
+                        return available
+                    }
+                }
+            }
+            Column(
+                Modifier.fillMaxSize().then(swipe).nestedScroll(overPull)
+                    .verticalScroll(scroll, enabled = scroll.maxValue > 0)
+                    .testTag("weatherCompact"),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                now(Modifier.fillMaxWidth(), true)
+                wx?.let { w ->
+                    CompactHours(w)
+                    CompactDays(w.days)
+                }
+            }
+        } else if (portrait) {
+            Column(Modifier.fillMaxSize().then(swipe), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                now(Modifier.fillMaxWidth(), false)
                 graph(Modifier.fillMaxWidth().weight(1f))
                 days()
+            }
+        } else {
+            Row(Modifier.fillMaxSize().then(swipe), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                now(Modifier.width(380.dp).fillMaxHeight(), false)
+                Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    graph(Modifier.fillMaxWidth().weight(1f))
+                    days()
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Full screen is about 880 x 524 dp lying down and 556 x 884 standing up; half the book is
+ * about 434 x 472 or 556 x 384. Only a box that's small both ways gets the compact layout,
+ * so full-screen Weather keeps the layout it always had.
+ */
+fun compactWeather(w: Dp, h: Dp) = w < 700.dp && h < 700.dp
+
+/** Whether an hour ("07", "18") falls between sunrise and sunset ("07:35", "16:10"). */
+fun dayAt(label: String, sunrise: String, sunset: String): Boolean {
+    val h = label.take(2).toIntOrNull() ?: return true
+    val up = sunrise.take(2).toIntOrNull() ?: return true
+    val down = sunset.take(2).toIntOrNull() ?: return true
+    return h in up..down
+}
+
+/** The hero for half a screen: glyph and temperature side by side, then the five numbers in a grid. */
+@Composable
+private fun CompactNow(w: Wx) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val wide = maxWidth >= 480.dp
+        Column {
+            Gap(h = 10.dp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                WxIcon(w.code, w.isDay, Modifier.size(if (wide) 76.dp else 64.dp))
+                Gap(w = 14.dp)
+                Column(Modifier.weight(1f)) {
+                    VText(t(w.temp), size = if (wide) 56.sp else 52.sp, color = V.White, font = SansLight, maxLines = 1)
+                    VText(wxWords(w.code), size = Type.body, color = wxColour(w.code, w.isDay), maxLines = 2)
+                }
+            }
+            Gap(h = 12.dp)
+            val stats = listOf(
+                "Feels" to t(w.feels), "Wind" to "${w.wind.roundToInt()} km/h", "Humidity" to "${w.humidity}%",
+                "Sunrise" to w.sunrise, "Sunset" to w.sunset,
+            )
+            val cols = if (wide) 5 else 3
+            stats.chunked(cols).forEachIndexed { i, row ->
+                if (i > 0) Gap(h = 10.dp)
+                Row(Modifier.fillMaxWidth()) {
+                    row.forEach { (l, v) ->
+                        Column(Modifier.weight(1f)) { Label(l); Gap(h = 2.dp); VText(v, size = Type.headline, color = V.Text) }
+                    }
+                    repeat(cols - row.size) { Box(Modifier.weight(1f)) }
+                }
+            }
+            Gap(h = 10.dp)
+            Label("Open-Meteo", color = V.Tick)
+        }
+    }
+}
+
+/** The next 12 hours for half a screen: rows of six (or all twelve when there's room), never squeezed. */
+@Composable
+private fun CompactHours(w: Wx) {
+    if (w.hours.isEmpty()) return
+    VPanel(Modifier.fillMaxWidth().testTag("weatherHours"), padding = 16.dp) {
+        Label("Next 12 hours")
+        Gap(h = 10.dp)
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val cols = when {
+                maxWidth >= 56.dp * 12 -> 12
+                maxWidth >= 56.dp * 6 -> 6
+                else -> 4
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                w.hours.chunked(cols).forEach { row ->
+                    Row(Modifier.fillMaxWidth()) {
+                        row.forEach { h ->
+                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                                VText(h.label, size = Type.caption, color = V.Muted)
+                                Gap(h = 4.dp)
+                                WxIcon(h.code, dayAt(h.label, w.sunrise, w.sunset), Modifier.size(28.dp))
+                                Gap(h = 4.dp)
+                                VText(t(h.temp), size = Type.headline, color = V.Text)
+                                VText("${h.rain}%", size = Type.caption, color = V.Teal)
+                            }
+                        }
+                        repeat(cols - row.size) { Box(Modifier.weight(1f)) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Six days for half a screen: one row each, low and high either side of a bar across the week's range. */
+@Composable
+private fun CompactDays(days: List<Day>) {
+    if (days.isEmpty()) return
+    val lo = days.minOf { it.min }
+    val hi = days.maxOf { it.max }
+    VPanel(Modifier.fillMaxWidth().testTag("weatherDays"), padding = 16.dp) {
+        Label("Six days")
+        Gap(h = 6.dp)
+        days.forEach { d ->
+            Row(Modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
+                VText(d.label, Modifier.widthIn(min = 56.dp), size = Type.body, color = V.Text)
+                Gap(w = 6.dp)
+                WxIcon(d.code, true, Modifier.size(30.dp))
+                Gap(w = 8.dp)
+                VText("${d.rain}%", Modifier.widthIn(min = 44.dp), size = Type.label, color = V.Teal)
+                VText(t(d.min), Modifier.widthIn(min = 40.dp), size = Type.body, color = V.Muted, font = SansLight, align = TextAlign.End)
+                Gap(w = 10.dp)
+                Canvas(Modifier.weight(1f).height(6.dp)) {
+                    val span = (hi - lo).takeIf { it > 0 } ?: 1.0
+                    val a = ((d.min - lo) / span).toFloat() * size.width
+                    val b = ((d.max - lo) / span).toFloat() * size.width
+                    val y = size.height / 2
+                    drawLine(V.Muted.copy(alpha = 0.22f), Offset(0f, y), Offset(size.width, y), size.height, StrokeCap.Round)
+                    drawLine(
+                        Brush.horizontalGradient(listOf(V.Teal, wxColour(d.code)), startX = a, endX = maxOf(b, a + 1f)),
+                        Offset(a, y), Offset(maxOf(b, a + 1f), y), size.height, StrokeCap.Round,
+                    )
+                }
+                Gap(w = 10.dp)
+                VText(t(d.max), Modifier.widthIn(min = 40.dp), size = Type.body, color = V.White)
             }
         }
     }

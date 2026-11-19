@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.testTag
 import android.content.ContentUris
 import android.content.Context
 import android.media.AudioAttributes
@@ -300,8 +301,14 @@ private fun NowPlayingCard(src: Source?, hasFiles: Boolean, modifier: Modifier, 
             .background(Brush.radialGradient(listOf(tint.copy(alpha = 0.34f), Color.Transparent), center = Offset(0f, 0f), radius = 1400f))
             .padding(if (LocalPortrait.current) 24.dp else 28.dp),
     ) {
-        val wide = maxWidth > maxHeight * 1.15f
-        val artSide = if (wide) minOf(maxHeight, maxWidth * 0.42f) else minOf(maxWidth * 0.82f, maxHeight * 0.48f)
+        // The buttons need about 300 dp across and the details about 330 dp down. When the card
+        // is too small for that next to (or under) the artwork, as in half the book, the artwork
+        // goes and the details scroll instead of being squashed.
+        val wideArt = minOf(maxHeight, maxWidth * 0.42f)
+        val wide = maxWidth > maxHeight * 1.15f && maxWidth - wideArt - 36.dp >= 300.dp
+        val tall = minOf(maxWidth * 0.82f, maxHeight * 0.48f)
+        val noArt = !wide && maxHeight - tall - 28.dp < 340.dp && maxHeight < 620.dp
+        val artSide = if (wide) wideArt else tall
         val art: @Composable () -> Unit = {
             Box(
                 Modifier.size(artSide).clip(RoundedCornerShape(Radius.card)).background(Color.White.copy(alpha = 0.06f)),
@@ -350,6 +357,11 @@ private fun NowPlayingCard(src: Source?, hasFiles: Boolean, modifier: Modifier, 
         }
         if (wide) Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
             art(); Gap(w = 36.dp); details(Modifier.weight(1f))
+        } else if (noArt) Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("mediaCompact"),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+        ) {
+            details(Modifier.fillMaxWidth().widthIn(max = 560.dp))
         } else Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             art(); Gap(h = 28.dp); details(Modifier.fillMaxWidth().widthIn(max = 560.dp))
         }

@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -264,6 +265,10 @@ fun TimersPane() {
     val total = (mins * 60L + secs) * 1000
     val start = { if (total > 0) { KTimers.add(ctx, label.trim().ifEmpty { "Timer" }, total); label = "" } }
 
+    // Half the book lying sideways is too narrow for the 300 dp side card plus the timers:
+    // it gets the upright layout, the quick lengths on top and the timers under them.
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    CompositionLocalProvider(LocalPortrait provides (LocalPortrait.current || maxWidth < 640.dp)) {
     Split(Modifier.fillMaxSize()) {
         if (portrait) Column(Modifier.side(0.dp, 0f)) {
             Box(Modifier.horizontalScroll(rememberScrollState())) {
@@ -311,8 +316,11 @@ fun TimersPane() {
                     }
                 }
             } else {
-                val (cols, rows) = timerGrid(timers.size, maxWidth.value, maxHeight.value)
                 val gap = 14.dp
+                // never narrower than 170 dp a card, or its buttons get crushed: more rows instead (it scrolls)
+                val fit = ((maxWidth + gap) / (170.dp + gap)).toInt().coerceAtLeast(1)
+                val cols = timerGrid(timers.size, maxWidth.value, maxHeight.value).first.coerceAtMost(fit)
+                val rows = (timers.size + cols - 1) / cols
                 val cellW = (maxWidth - gap * (cols - 1)) / cols
                 val cellH = ((maxHeight - gap * (rows - 1)) / rows).coerceAtLeast(200.dp)
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(gap)) {
@@ -324,6 +332,8 @@ fun TimersPane() {
                 }
             }
         }
+    }
+    }
     }
 }
 
@@ -388,9 +398,9 @@ private fun RoundKey(text: String, onClick: () -> Unit) {
 
 /** A small grey pill key. */
 @Composable
-fun SmallKey(text: String, accent: Color = V.Muted, onClick: () -> Unit) {
+fun SmallKey(text: String, accent: Color = V.Muted, tight: Boolean = false, onClick: () -> Unit) {
     Box(
-        Modifier.height(36.dp).glass(Pill, 0.7f).clickable(onClick = onClick).padding(horizontal = 16.dp),
+        Modifier.height(36.dp).widthIn(min = if (tight) 44.dp else 0.dp).glass(Pill, 0.7f).clickable(onClick = onClick).padding(horizontal = if (tight) 10.dp else 16.dp),
         contentAlignment = Alignment.Center,
     ) { VText(text.lowercase(), size = Type.label, color = V.Text) }
 }
@@ -435,13 +445,15 @@ private fun TimerCard(t: KTimer, now: Long) {
                 if (!t.running && !t.rang) VText("Paused", size = Type.label, color = V.Muted)
             }
         }
+        // a narrow card (three timers in half the book) has no room for "+1 min" either side of play
+        val tight = maxWidth < 250.dp
         Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            SmallKey("+1 min") { KTimers.addTime(ctx, t.id, 60_000) }
+            SmallKey(if (tight) "+1" else "+1 min", tight = tight) { KTimers.addTime(ctx, t.id, 60_000) }
             Box(
                 Modifier.size(48.dp).clip(CircleShape).background(if (t.running) Brush.verticalGradient(listOf(V.Panel2, V.Panel2)) else Brush.verticalGradient(listOf(lerp(V.Coral, Color.White, 0.2f), V.Coral))).clickable { KTimers.toggle(ctx, t.id) },
                 contentAlignment = Alignment.Center,
             ) { Glyph(if (t.running) G.PAUSE else G.PLAY, if (t.running) V.Text else V.Bg, Modifier.size(20.dp)) }
-            SmallKey("+5 min") { KTimers.addTime(ctx, t.id, 300_000) }
+            SmallKey(if (tight) "+5" else "+5 min", tight = tight) { KTimers.addTime(ctx, t.id, 300_000) }
         }
     }
 }
@@ -515,17 +527,30 @@ fun ConvertPane() {
     val units = categories[cat].second
     val value = entry.toDoubleOrNull() ?: 0.0
 
+    // Half the book lying sideways is short and narrow: stacked, the keypad was squashed to
+    // slivers. There it goes side by side instead, keypad on the left, answers on the right.
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val sideBySide = LocalPortrait.current && maxHeight < 620.dp
+    val sideW = if (sideBySide) maxWidth * 0.55f else 330.dp
+    // too short for the kinds, the number and the keys in one panel (half the book either way up)
+    val keysOnly = sideBySide || (!LocalPortrait.current && maxHeight < 380.dp)
+    CompositionLocalProvider(LocalPortrait provides (LocalPortrait.current && !sideBySide)) {
     Split(Modifier.fillMaxSize()) {
-        VPanel(Modifier.side(330.dp, 1.1f)) {
+        val chips: @Composable () -> Unit = {
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 categories.forEachIndexed { i, (n, _) -> Chip(n, cat == i, V.Teal) { cat = i; from = 0; entry = if (n == "Temperature") "180" else "100" } }
             }
-            Gap(h = 12.dp)
+        }
+        val readout: @Composable () -> Unit = {
             Row(verticalAlignment = Alignment.Bottom) {
                 VText(entry.ifEmpty { "0" }, size = 46.sp, color = V.White, font = SansLight, maxLines = 1, modifier = Modifier.weight(1f))
                 VText(units[from].short, size = Type.title, color = V.Muted)
             }
-            Gap(h = 8.dp)
+        }
+        VPanel(Modifier.side(sideW, 1.1f)) {
+            // when it's short (half the book) the panel is only the keys, so they keep their
+            // height: the number and the kinds move over to the answers
+            if (!keysOnly) { chips(); Gap(h = 12.dp); readout(); Gap(h = 8.dp) }
             NumPad(Modifier.weight(1f).fillMaxWidth()) { k ->
                 entry = when (k) {
                     "<" -> entry.dropLast(1)
@@ -543,6 +568,7 @@ fun ConvertPane() {
                     items(cupGrams) { (n, g) -> ResultTile(n, "${fmtNum(g * value)} g", V.White) }
                 }
             } else {
+                if (keysOnly) { readout(); Gap(h = 10.dp); chips(); Gap(h = 12.dp) }
                 Label("Convert from")
                 Gap(h = 8.dp)
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -558,6 +584,8 @@ fun ConvertPane() {
                 }
             }
         }
+    }
+    }
     }
 }
 

@@ -33,6 +33,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.test.swipe
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.assertIsDisplayed
@@ -95,6 +96,8 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         store.resetClock()
         com.andysocial.voidos.ui.EscapeDoor.reset(); com.andysocial.voidos.ui.EscapeDoor.asked.value = false
         com.andysocial.voidos.ui.LockState.locked.value = false // the Shell tests start unlocked
+        // the ambient clock counts real minutes since the last touch; a long class run must not drift into it
+        com.andysocial.voidos.ui.Idle.touch(); com.andysocial.voidos.ui.Idle.ambient.value = false
         if (store.shopping.isEmpty()) listOf("Semi-skimmed milk", "Bananas", "Sourdough loaf", "Washing-up liquid", "Cheddar").forEach { store.addItem(it) }
         // start from a known board (other test classes share these objects)
         KTimers.silence(act)
@@ -418,6 +421,155 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     }
 
     @Test fun sky() { show { Shell(store, act, Module.WEATHER) }; shot("07_sky") }
+
+    /**
+     * A fixed, worst-case forecast (minus temperatures, the longest words, 100% everywhere)
+     * and a second kept place, so the Weather layout is checked on the same numbers every run
+     * instead of whatever the sky is doing.
+     */
+    private fun seedWeather() {
+        store.places.toList().forEach { store.removePlace(it) }
+        store.addPlace("Henley-in-Arden", 52.29f, -1.78f)
+        store.chooseAutoPlace(false)
+        store.setPlace("Henley-in-Arden", 52.29f, -1.78f)
+        pinWeather()
+    }
+
+    private fun pinWeather() {
+        val hours = (0 until 12).map { i -> com.andysocial.voidos.ui.Hour("%02d".format((13 + i) % 24), -12.4 + i * 1.7, listOf(96, 3, 61, 71, 0, 2)[i % 6], listOf(100, 85, 40, 5, 0, 60)[i % 6]) }
+        val days = listOf("Today", "Fri", "Sat", "Sun", "Mon", "Tue").mapIndexed { i, l ->
+            com.andysocial.voidos.ui.Day(l, listOf(96, 3, 61, 75, 0, 82)[i], -1.0 + i * 3, -11.6 + i, listOf(100, 40, 85, 100, 0, 65)[i])
+        }
+        val wx = com.andysocial.voidos.ui.Wx(-3.4, -10.6, 96, 34.0, 100, true, "07:35", "16:10", hours, days, System.currentTimeMillis())
+        // the screen's own refresh can land just after and blank it for a new place: pin until it stays
+        repeat(5) {
+            rule.runOnUiThread {
+                com.andysocial.voidos.ui.WeatherRepo.state.value = wx
+                com.andysocial.voidos.ui.WeatherRepo.offline.value = false
+                com.andysocial.voidos.ui.WeatherRepo.error.value = null
+            }
+            settle(600)
+            if (com.andysocial.voidos.ui.WeatherRepo.state.value === wx) return
+        }
+    }
+
+    /** The audit lines a shot added: empty when nothing was cut off, squashed, overlapping or off screen. */
+    private fun issuesOf(name: String) = clipped.filter { it.startsWith("$name ") }
+
+    private fun openHalf(m: Module, first: Boolean, other: com.andysocial.voidos.ui.Pane? = null) {
+        val pane = com.andysocial.voidos.ui.Pane.screen(m)
+        rule.runOnUiThread {
+            com.andysocial.voidos.ui.Book.set(act, if (first) com.andysocial.voidos.ui.BookState(first = pane, second = other) else com.andysocial.voidos.ui.BookState(first = other, second = pane))
+        }
+        settle(900)
+    }
+
+    private fun boundsOf(tagName: String) = rule.onNodeWithTag(tagName, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+
+    /**
+     * Weather in either half of the book, in this orientation, beside the clock and beside Notes:
+     * the compact layout, nothing cut or overlapping, every hour and day on screen or a scroll away,
+     * no hour squeezed narrower than its own words, and the second place still in the place bar.
+     */
+    @Test fun weatherHalfWidth() {
+        com.andysocial.voidos.ui.Book.reset()
+        store.saveWidgets(emptyList())
+        seedWeather()
+        show { Shell(store, act, Module.FACE) }
+        val notes = com.andysocial.voidos.ui.Pane.screen(Module.NOTES)
+        for (other in listOf(null, notes)) for (first in listOf(true, false)) {
+            com.andysocial.voidos.ui.Idle.touch()
+            openHalf(Module.WEATHER, first, other)
+            pinWeather()
+            val side = if (first) "left" else "right"
+            val name = "46_weather_half_${side}${if (other != null) "_notes" else ""}"
+            shot(name)
+            assertTrue("[$tag] $name: ${issuesOf(name)}", issuesOf(name).isEmpty())
+            val pane = boundsOf(if (first) "bookFirst" else "bookSecond")
+            val body = boundsOf("weatherCompact")
+            assertTrue("[$tag] $name: compact Weather $body outside its half $pane", body.left >= pane.left - 1 && body.right <= pane.right + 1)
+            // both places in the bar, the hero readable
+            expect("Here", "Henley-in-Arden", "°", "Feels", "Sunrise", "Sunset", "Next 12 hours")
+            // all 12 hours under the hours card, no column narrower than 52 dp, each inside the half once scrolled to
+            val inHours = androidx.compose.ui.test.hasAnyAncestor(androidx.compose.ui.test.hasTestTag("weatherHours"))
+            val rain = rule.onAllNodes(androidx.compose.ui.test.hasText("%", substring = true) and inHours, useUnmergedTree = true).fetchSemanticsNodes()
+            assertEquals("[$tag] $name: rain chance under every hour", 12, rain.size)
+            // each hour's column: the distance from one hour to the next along a row
+            val rows = rain.groupBy { (it.positionInRoot.y / 8).toInt() }.values
+            val minCell = rows.flatMap { r -> r.map { it.positionInRoot.x + it.size.width / 2f }.sorted().zipWithNext { a, b -> b - a } }.minOrNull()?.div(rule.density.density) ?: 999f
+            assertTrue("[$tag] $name: an hour squeezed to a ${minCell}dp column", minCell >= 52f)
+            rain.forEach { n ->
+                val l = n.positionInRoot.x; val r = l + n.size.width
+                assertTrue("[$tag] $name: an hour's rain chance at $l..$r sticks out of $pane", l >= pane.left - 1 && r <= pane.right + 1)
+            }
+            // all six days there; scroll down like a finger would until the last one is in view
+            val inDays = androidx.compose.ui.test.hasAnyAncestor(androidx.compose.ui.test.hasTestTag("weatherDays"))
+            listOf("Today", "Fri", "Sat", "Sun", "Mon", "Tue").forEach { d ->
+                rule.onNode(androidx.compose.ui.test.hasText(d) and inDays, useUnmergedTree = true).assertExists()
+            }
+            val tue = rule.onNode(androidx.compose.ui.test.hasText("Tue") and inDays, useUnmergedTree = true)
+            fun tueIn(): Boolean { val n = tue.fetchSemanticsNode(); val top = n.positionInRoot.y; return top >= pane.top - 1 && top + n.size.height <= pane.bottom + 1 }
+            var swipes = 0
+            while (!tueIn() && swipes < 4) {
+                rule.onNodeWithTag("weatherCompact", useUnmergedTree = true).performTouchInput {
+                    swipe(androidx.compose.ui.geometry.Offset(centerX, bottom - 20f), androidx.compose.ui.geometry.Offset(centerX, top + 20f), 500)
+                }
+                settle(900); swipes++
+            }
+            assertTrue("[$tag] $name: last day still not in view after $swipes swipes", tueIn())
+            shot("${name}_scrolled")
+            assertTrue("[$tag] ${name}_scrolled: ${issuesOf("${name}_scrolled")}", issuesOf("${name}_scrolled").isEmpty())
+            // the swipe up only scrolled: still on the same place, still two panes
+            // scrolling down to the days is not a swipe to the next place
+            assertTrue("[$tag] $name: scrolling moved place to ${store.city}", store.city == "Henley-in-Arden")
+            assertTrue("[$tag] $name: book closed", com.andysocial.voidos.ui.Book.state.value.isOpen)
+        }
+        rule.runOnUiThread { com.andysocial.voidos.ui.Book.reset() }
+        settle(600)
+    }
+
+    /** Full-screen Weather keeps its own layout (not the compact one) and nothing on it is cut off. */
+    @Test fun weatherFullScreen() {
+        com.andysocial.voidos.ui.Book.reset()
+        seedWeather()
+        show { Shell(store, act, Module.WEATHER) }
+        pinWeather()
+        shot("46_weather_full")
+        assertTrue("[$tag] full-screen Weather: ${issuesOf("46_weather_full")}", issuesOf("46_weather_full").isEmpty())
+        assertTrue("[$tag] full screen should not be compact", rule.onAllNodesWithTag("weatherCompact", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        expect("Here", "Henley-in-Arden", "Sunrise", "Sunset", "Open-Meteo", "Six days", "Tue")
+    }
+
+    /** Every screen that can go in a half of the book, on each half: nothing cut, squashed, overlapping or off screen. */
+    @Test fun everyScreenAtHalfWidth() {
+        com.andysocial.voidos.ui.Book.reset()
+        store.saveWidgets(emptyList())
+        seedWeather()
+        show { Shell(store, act, Module.FACE) }
+        val bad = mutableListOf<String>()
+        for (m in Module.values().filter { com.andysocial.voidos.ui.bookable(it) }) for (first in listOf(true, false)) {
+            com.andysocial.voidos.ui.Idle.touch()
+            openHalf(m, first)
+            if (m == Module.WEATHER) pinWeather()
+            val name = "47_half_${m.name.lowercase()}_${if (first) "left" else "right"}"
+            shot(name)
+            bad += issuesOf(name)
+            // every tool on the Tools, Camera and Utilities pages, not just the first one
+            val tools = com.andysocial.voidos.ui.KGroup.on(m).flatMap { it.tabs }.filter { it !in com.andysocial.voidos.ui.FULL_TOOLS }.drop(1)
+            for (t in tools) {
+                rule.runOnUiThread { com.andysocial.voidos.ui.pendingTool.value = t }
+                settle(700)
+                val tn = "${name}_${t.name.lowercase()}"
+                rule.onRoot().captureRoboImage(File(outDir, "${tag}_$tn.png").path)
+                audit(tn)
+                bad += issuesOf(tn)
+            }
+            rule.runOnUiThread { com.andysocial.voidos.ui.pendingTool.value = null }
+        }
+        rule.runOnUiThread { com.andysocial.voidos.ui.Book.reset() }
+        settle(600)
+        assertTrue("[$tag] squashed at half width:\n" + bad.joinToString("\n"), bad.isEmpty())
+    }
     private fun tapDesc(d: String) { rule.onAllNodesWithContentDescription(d)[0].performClick(); settle() }
     private fun typeInto(i: Int, text: String) { rule.onAllNodes(hasSetTextAction())[i].performTextInput(text); settle() }
 

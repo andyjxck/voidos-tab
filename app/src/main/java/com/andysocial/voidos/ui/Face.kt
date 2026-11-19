@@ -546,9 +546,10 @@ private fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module)
                 }
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                     if (w == null) VText("--", size = Type.large, color = V.Muted)
-                    else Column {
-                        WxIcon(w.code, w.isDay, Modifier.size(54.dp))
-                        Gap(h = 4.dp)
+                    // side by side: stacked, the temperature ran off the bottom of the tile
+                    else Row(verticalAlignment = Alignment.CenterVertically) {
+                        WxIcon(w.code, w.isDay, Modifier.size(50.dp))
+                        Gap(w = 10.dp)
                         VText(t(w.temp), size = Type.display, color = V.White, font = SansLight, maxLines = 1)
                     }
                 }

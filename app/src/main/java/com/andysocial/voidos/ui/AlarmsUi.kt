@@ -115,10 +115,14 @@ fun AlarmsPane() {
             ) { Glyph(G.PLUS, V.Bg, Modifier.size(22.dp)) }
         }
         if (list.isEmpty()) {
-            Centered(Modifier.fillMaxSize()) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Glyph(G.BELL, V.Tick, Modifier.size(64.dp))
-                    Gap(h = 16.dp)
+            // in a short half of the book the bell goes and the rest scrolls, so the button isn't cut off
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val roomy = maxHeight >= 280.dp
+                Column(
+                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+                ) {
+                    if (roomy) { Glyph(G.BELL, V.Tick, Modifier.size(64.dp)); Gap(h = 16.dp) }
                     VText("No alarms yet", size = Type.title, color = V.Text, font = SansLight)
                     Gap(h = 8.dp)
                     VText("Wake up to birds, a bugle or a screaming goat.", size = Type.body, color = V.Muted, align = TextAlign.Center)

@@ -13,6 +13,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -213,8 +215,7 @@ fun LevelPane() {
     val edge = Math.toDegrees(atan2(x.toDouble(), y.toDouble())).toFloat()
     val angle = if (flat) maxOf(abs(pitch), abs(roll)) else abs(((edge + 45 + 360) % 90) - 45)
     val level = angle < 0.6f
-    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Box(Modifier.size(300.dp)) {
+    val dial: @Composable (Dp) -> Unit = { side -> Box(Modifier.size(side)) {
             Canvas(Modifier.fillMaxSize()) {
                 val c = center; val r = size.minDimension / 2
                 drawCircle(Color.White.copy(alpha = 0.10f), r, c, style = Stroke(2.dp.toPx()))
@@ -223,9 +224,18 @@ fun LevelPane() {
                 val by = if (flat) (pitch / 20f).coerceIn(-1f, 1f) else 0f
                 drawCircle(if (level) V.Teal else V.Purple, r * 0.15f, c + Offset(bx * r * 0.8f, by * r * 0.8f))
             }
+        } }
+    val reading: @Composable () -> Unit = { VText("%.1f°".format(angle), size = 56.sp, font = SansLight, color = if (level) V.Teal else V.White, maxLines = 1) }
+    // the 300 dp dial plus the reading needs about 410 dp down; in half the book there's less,
+    // so the dial shrinks to fit, or sits beside the reading when the space is wide and short
+    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        val stacked = minOf(300.dp, maxWidth, maxHeight - 110.dp)
+        val besideSide = minOf(300.dp, maxHeight - 16.dp, maxWidth - 200.dp)
+        if (stacked >= 200.dp || maxWidth < 360.dp) Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            dial(stacked.coerceAtLeast(120.dp)); Gap(h = 24.dp); reading()
+        } else Row(verticalAlignment = Alignment.CenterVertically) {
+            dial(besideSide); Gap(w = 28.dp); reading()
         }
-        Gap(h = 24.dp)
-        VText("%.1f°".format(angle), size = 56.sp, font = SansLight, color = if (level) V.Teal else V.White)
     }
 }
 
@@ -372,9 +382,12 @@ fun CalendarPane(store: Store) {
         NextEventLine(store)
         Gap(h = 8.dp)
         BoxWithConstraints(Modifier.widthIn(max = 520.dp).fillMaxWidth().weight(1f)) {
-            val cell = min(maxWidth.value / 7f, maxHeight.value / 7f).dp
+            val cell = min(maxWidth.value / 7f, maxHeight.value / 6.6f).dp
             Column {
-                Row { listOf("M", "T", "W", "T", "F", "S", "S").forEach { VText(it, size = Type.label, color = V.Muted, align = TextAlign.Center, modifier = Modifier.size(cell, cell * 0.6f)) } }
+                // letters and numbers scale with the cell, so a short half of the book doesn't cut them
+                val dayText = minOf(Type.title.value, cell.value * 0.42f).sp
+                val headText = minOf(Type.label.value, cell.value * 0.34f).sp
+                Row { listOf("M", "T", "W", "T", "F", "S", "S").forEach { VText(it, size = headText, color = V.Muted, align = TextAlign.Center, modifier = Modifier.size(cell, cell * 0.6f).wrapContentHeight()) } }
                 val lead = month.dayOfWeek.value - 1
                 val days = month.lengthOfMonth()
                 for (w in 0 until (lead + days + 6) / 7) {
@@ -385,7 +398,7 @@ fun CalendarPane(store: Store) {
                                 if (n in 1..days) {
                                     val isToday = month.withDayOfMonth(n) == today
                                     if (isToday) Box(Modifier.size(cell * 0.8f).droplet(androidx.compose.foundation.shape.CircleShape, V.Teal, 1f))
-                                    VText("$n", size = Type.title, color = if (isToday) Color.White else if (d >= 5) V.Muted else V.Text)
+                                    VText("$n", size = dayText, color = if (isToday) Color.White else if (d >= 5) V.Muted else V.Text)
                                 }
                             }
                         }
