@@ -5,8 +5,8 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
- * Made-up numbers so every hub screen has something to show before any source is connected,
- * and so the tests are steady. Always marked as demo on screen ("Demo data"). Nothing here is
+ * TEST FIXTURE ONLY (never in the APK): made-up numbers so the screenshot tests have a full hub
+ * to draw. Nothing here is
  * the user's real figures.
  */
 object DemoHub {

@@ -46,7 +46,7 @@ val HUB_SOURCES = listOf(
 )
 
 /**
- * Settings › Hub. Where the numbers come from (off, demo, your server), the server's address and
+ * Settings › Hub. Whether the hub is linked, the server's address and
  * this tablet's token, the sites to check, and each source's state. Store and API keys are never
  * typed here: they go into the server's secrets (docs/hub-setup.md), so they never sit on the tablet.
  */
@@ -64,16 +64,13 @@ fun HubSettings() {
         VText("Your store and API keys stay on your own server, never on this tablet. The tablet only reads the one summary the server writes.",
             size = Type.body, color = V.Muted)
         Gap(h = 14.dp)
-        Label("Data")
+        Label("Status")
         Gap(h = 6.dp)
-        val modes = listOf(HubMode.OFF, HubMode.DEMO, HubMode.LIVE)
-        Segmented(listOf("Off", "Demo data", "My server"), modes.indexOf(HubRepo.mode), Modifier.fillMaxWidth()) { HubRepo.setMode(ctx, modes[it]) }
-        Gap(h = 6.dp)
-        VText(when (HubRepo.mode) {
-            HubMode.OFF -> "The hub screens show Not connected."
-            HubMode.DEMO -> "Made-up numbers, so you can try every screen. Nothing here is real."
-            HubMode.LIVE -> if (HubRepo.connected) freshness(s).ifBlank { "Waiting for the first summary" } else "Add your server and token below."
-        }, size = Type.caption, color = V.Muted, maxLines = 2)
+        VText(when {
+            !HubRepo.connected -> "Not linked yet. Add your server and token below; docs/hub-setup.md has the steps."
+            HubRepo.error != null -> "Couldn't reach your server: ${HubRepo.error}"
+            else -> freshness(s).ifBlank { "Linked. Waiting for the first summary." }
+        }, size = Type.caption, color = if (HubRepo.connected && HubRepo.error != null) V.Coral else V.Muted, maxLines = 2)
         Gap(h = 18.dp)
 
         Label("Your hub server")
@@ -86,9 +83,8 @@ fun HubSettings() {
             VButton("Save", filled = true, enabled = url.isNotBlank()) {
                 if (!url.trim().startsWith("https://")) { saved = "The address must start with https://"; return@VButton }
                 HubRepo.setServer(ctx, url, token.takeIf { it.isNotBlank() }); token = ""; saved = "Saved"
-                if (HubRepo.mode == HubMode.LIVE) HubRepo.refresh(ctx)
             }
-            if (HubRepo.mode == HubMode.LIVE && HubRepo.connected) VButton(if (HubRepo.busy) "Refreshing…" else "Refresh now", enabled = !HubRepo.busy) { HubRepo.refresh(ctx) }
+            if (HubRepo.connected) VButton(if (HubRepo.busy) "Refreshing…" else "Refresh now", enabled = !HubRepo.busy) { HubRepo.refresh(ctx) }
             if (HubRepo.hasToken) VButton("Forget token") { HubRepo.setServer(ctx, url, ""); saved = "Token removed" }
         }
         saved?.let { VText(it, size = Type.caption, color = if (it.startsWith("The")) V.Coral else V.Teal) }
@@ -123,15 +119,16 @@ fun HubSettings() {
 
         Label("Sites to check")
         Gap(h = 6.dp)
-        val sites = HubRepo.manualSites.ifEmpty { DEFAULT_SITES }
+        val sites = HubRepo.manualSites
+        if (sites.isEmpty()) VText("No sites yet. Add the Staff Hub and the White Swan site to have them checked.", size = Type.caption, color = V.Muted, maxLines = 2)
         sites.forEachIndexed { i, (n, u) ->
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     VText(n, size = Type.body, color = V.Text, maxLines = 1)
-                    VText(u.ifBlank { "Add the address on the server" }, size = Type.caption, color = V.Muted, maxLines = 1)
+                    VText(u, size = Type.caption, color = V.Muted, maxLines = 1)
                 }
                 VText("Remove", size = Type.label, color = V.Coral, font = SansMedium,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).tap { HubRepo.setSites(ctx, sites.filterIndexed { j, _ -> j != i }.ifEmpty { listOf("" to "") }.filter { it.first.isNotBlank() }) }.padding(8.dp))
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).tap { HubRepo.setSites(ctx, sites.filterIndexed { j, _ -> j != i }) }.padding(8.dp))
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -142,10 +139,8 @@ fun HubSettings() {
             }
         }
         Gap(h = 4.dp)
-        VText("The server's SITES setting is what it actually checks; this list is a reminder of what to put there.", size = Type.caption, color = V.Muted)
+        VText("Sent to your server with each refresh, which checks their uptime, certificate and domain. A sites list in the server's hub/config takes priority.", size = Type.caption, color = V.Muted, maxLines = 3)
         Gap(h = 24.dp)
     }
 }
 
-/** The two sites the hub starts with. The White Swan's address goes in on the server. */
-val DEFAULT_SITES = listOf("Staff Hub" to "https://tws-rota.co.uk", "White Swan" to "")

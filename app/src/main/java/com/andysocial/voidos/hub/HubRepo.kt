@@ -18,9 +18,6 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-/** Where the tablet's hub numbers come from. */
-enum class HubMode { OFF, DEMO, LIVE }
-
 /**
  * The tablet side of the hub. Reads the one summary the aggregator wrote, keeps the last good
  * copy on disk (so a failed refresh still shows the last numbers and "updated X min ago"), and
@@ -32,7 +29,6 @@ enum class HubMode { OFF, DEMO, LIVE }
  */
 object HubRepo {
     private const val PREFS = "voidos_hub"
-    private const val K_MODE = "mode"
     private const val K_URL = "url"
     private const val K_TOKEN = "token"
     private const val K_LAST = "last"
@@ -42,7 +38,6 @@ object HubRepo {
     private const val KEY_ALIAS = "voidos_hub_token"
 
     var summary by mutableStateOf<HubSummary?>(null); private set
-    var mode by mutableStateOf(HubMode.DEMO); private set
     var serverUrl by mutableStateOf(""); private set
     var hasToken by mutableStateOf(false); private set
     var busy by mutableStateOf(false); private set
@@ -59,39 +54,24 @@ object HubRepo {
     private val io = Executors.newSingleThreadExecutor()
     private var lastRefresh = 0L
 
-    val connected: Boolean get() = mode == HubMode.LIVE && serverUrl.isNotBlank() && hasToken
+    /** True once a server and its token are saved. Until then every hub screen shows its empty state. */
+    val connected: Boolean get() = serverUrl.isNotBlank() && hasToken
 
     fun init(ctx: Context) {
         if (prefs != null) return
         val p = ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         prefs = p
-        mode = runCatching { HubMode.valueOf(p.getString(K_MODE, HubMode.DEMO.name)!!) }.getOrDefault(HubMode.DEMO)
+        p.edit().remove("mode").apply() // the 2.0 alpha's Off / Demo / Server switch is gone
         serverUrl = p.getString(K_URL, "") ?: ""
         hasToken = !p.getString(K_TOKEN, null).isNullOrEmpty()
         lastRefresh = p.getLong(K_REFRESH_AT, 0L)
         manualSites = decodeSites(p.getString(K_SITES, "") ?: "")
-        summary = when (mode) {
-            HubMode.DEMO -> DemoHub.summary()
-            HubMode.LIVE -> p.getString(K_LAST, null)?.let { runCatching { Hub.parse(it) }.getOrNull() }
-            HubMode.OFF -> null
-        }
+        // only a summary the server sent counts: one saved by the alpha's demo mode is dropped
+        summary = if (connected) p.getString(K_LAST, null)?.let { runCatching { Hub.parse(it) }.getOrNull() }?.takeIf { !it.demo } else null
     }
 
-    /** For screenshot tests and previews: show this summary without touching disk or network. */
-    fun preview(s: HubSummary?, m: HubMode = HubMode.DEMO) { summary = s; mode = m }
-
-    fun setMode(ctx: Context, m: HubMode) {
-        init(ctx)
-        mode = m
-        prefs?.edit()?.putString(K_MODE, m.name)?.apply()
-        error = null
-        summary = when (m) {
-            HubMode.DEMO -> DemoHub.summary()
-            HubMode.LIVE -> prefs?.getString(K_LAST, null)?.let { runCatching { Hub.parse(it) }.getOrNull() }
-            HubMode.OFF -> null
-        }
-        if (m == HubMode.LIVE) refresh(ctx, force = true)
-    }
+    /** For tests only: show this summary without touching disk or network. */
+    internal fun preview(s: HubSummary?, server: String = "", token: Boolean = false) { summary = s; serverUrl = server; hasToken = token }
 
     fun setServer(ctx: Context, url: String, token: String?) {
         init(ctx)
@@ -102,6 +82,9 @@ object HubRepo {
             hasToken = token.isNotBlank()
         }
         e.apply()
+        error = null
+        if (!connected) { summary = null; prefs?.edit()?.remove(K_LAST)?.remove(K_SEEN)?.apply() }
+        else refresh(ctx, force = true)
     }
 
     fun setSites(ctx: Context, sites: List<Pair<String, String>>) {
@@ -115,16 +98,12 @@ object HubRepo {
     /** The screen came on: refresh unless the last one was under ten minutes ago, then show what changed. */
     fun onScreenOn(ctx: Context) {
         init(ctx)
-        if (mode == HubMode.DEMO) {
-            if (wakeLines.isEmpty()) wakeLines = listOf("Demo data: connect your sources in Settings › Hub")
-            return
-        }
         refresh(ctx, force = false, wake = true)
     }
 
     fun refresh(ctx: Context, force: Boolean = true, wake: Boolean = false) {
         init(ctx)
-        if (mode != HubMode.LIVE || !connected || busy) return
+        if (!connected || busy) return
         val now = System.currentTimeMillis()
         if (!force && !Hub.shouldRefresh(lastRefresh, now)) {
             if (wake) showSince()
@@ -192,10 +171,6 @@ object HubRepo {
     fun reply(ctx: Context, review: StoreReview, text: String, done: (String?) -> Unit) {
         init(ctx)
         val main = android.os.Handler(android.os.Looper.getMainLooper())
-        if (mode == HubMode.DEMO) {
-            summary = summary?.let { s -> s.copy(reviews = s.reviews.map { if (it.id == review.id) it.copy(reply = text) else it }) }
-            main.post { done(null) }; return
-        }
         if (!connected) { main.post { done("Set up the hub in Settings › Hub first") }; return }
         val url = serverUrl
         val token = prefs?.getString(K_TOKEN, null)?.let { decrypt(it) }
