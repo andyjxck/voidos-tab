@@ -3,6 +3,7 @@ package com.andysocial.voidos.ui
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
+import com.andysocial.voidos.ClosedApps
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -68,19 +69,24 @@ object Switcher {
      * go back to it, Back to step back inside it, Home to stay in VoidOS.
      */
     val fromApp = mutableStateOf(false)
+    /** The app the switcher was opened over, when it was. */
+    @Volatile var underApp: String? = null
 
     /** When each recent app was last at the front, from Android's usage records. */
     val lastUsed = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
     /**
-     * The apps used lately, newest first: what Android recorded coming to the front over the last
-     * two days (VoidOS has usage access through root), then the apps opened from VoidOS.
+     * The apps open right now, newest first (see com.andysocial.voidos.OpenApps): Android's
+     * records of what came to the front over the last two days (VoidOS has usage access through
+     * root) and the apps VoidOS opened, minus everything closed since, everything from before the
+     * last Close all and everything from before the tablet started. Never VoidOS or another home
+     * app. Also refreshes OpenApps.list, which the right edge drawer shows. Blocks: call off the main thread.
      */
     fun recent(ctx: Context, store: Store, limit: Int = 12): List<String> {
+        val now = System.currentTimeMillis()
         val fromSystem = runCatching {
             val usm = ctx.getSystemService(UsageStatsManager::class.java)
-            val now = System.currentTimeMillis()
-            val ev = usm.queryEvents(now - 2 * 86_400_000L, now)
+            val ev = usm.queryEvents(now - ClosedApps.WINDOW_MS, now)
             val e = UsageEvents.Event()
             val last = HashMap<String, Long>()
             while (ev.hasNextEvent()) {
@@ -88,20 +94,35 @@ object Switcher {
                 @Suppress("DEPRECATION")
                 if (e.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) last[e.packageName] = e.timeStamp
             }
-            lastUsed.clear(); lastUsed.putAll(last)
-            last.entries.sortedByDescending { it.value }.map { it.key }
+            last
+        }.getOrDefault(HashMap())
+        lastUsed.clear(); lastUsed.putAll(fromSystem)
+        store.openedApps.forEach { (k, v) -> if ((lastUsed[k] ?: 0L) < v) lastUsed[k] = v }
+        val bootAt = bootTime()
+        val list = com.andysocial.voidos.OpenApps.pick(
+            fromSystem, store.openedApps, AppsRepo.all(ctx).map { it.pkg }.toSet(), excluded(ctx),
+            store.closedApps, store.clearedAt, bootAt,
+        ).filter { blockReason(ctx, store, it) == null }.take(limit)
+        com.andysocial.voidos.OpenApps.set(list)
+        return list
+    }
+
+    /** When the tablet started, on the wall clock. Swappable for the tests, whose clocks are fake. */
+    var bootTime: () -> Long = { System.currentTimeMillis() - android.os.SystemClock.elapsedRealtime() }
+
+    /** VoidOS, every other home app (the stock launcher too) and the system UI: never open apps. */
+    fun excluded(ctx: Context): Set<String> {
+        val homes = runCatching {
+            ctx.packageManager.queryIntentActivities(
+                android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_HOME), 0,
+            ).map { it.activityInfo.packageName }
         }.getOrDefault(emptyList())
-        return order(fromSystem, store.recentApps, AppsRepo.all(ctx).map { it.pkg }.toSet(), ctx.packageName)
-            .filter { blockReason(ctx, store, it) == null }
-            .take(limit)
+        return (homes + ctx.packageName + "com.android.systemui").toSet()
     }
 
     /** Pure: system order first, then VoidOS's own list, only apps you can open, never VoidOS. */
     fun order(system: List<String>, voidRecent: List<String>, launchable: Set<String>, self: String): List<String> =
         (system + voidRecent).distinct().filter { it != self && it in launchable }
-
-    /** Closes an app for good: Android stops it (root). */
-    fun close(pkg: String) { Su.run("am force-stop ${Su.q(pkg)}") }
 }
 
 /** Pure: how many columns of cards fit in this width, between 2 and 4. */
@@ -156,6 +177,8 @@ fun AppSwitcher(store: Store) {
         if (shown) {
             val list = withContext(Dispatchers.IO) { Switcher.recent(ctx, store) }
             apps.clear(); apps.addAll(list)
+            // opened over an app: that app was the last one at the front, so it's the first card
+            Switcher.underApp = if (Switcher.fromApp.value) list.firstOrNull() else null
         }
     }
     BackHandler(enabled = shown) { dismiss(ctx, back = false) }
@@ -172,7 +195,7 @@ fun AppSwitcher(store: Store) {
             Column(Modifier.fillMaxSize().padding(horizontal = 48.dp).padding(top = 40.dp, bottom = 28.dp)) {
                 androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.Bottom) {
                     Column(Modifier.weight(1f)) {
-                        VText("Recent apps", size = 30.sp, font = SansLight, color = V.White)
+                        VText("Open apps", size = 30.sp, font = SansLight, color = V.White)
                         VText(
                             when (apps.size) { 0 -> "Nothing open"; 1 -> "1 app"; else -> "${apps.size} apps" } +
                                 if (apps.isNotEmpty()) "  ·  tap to open, swipe up to close" else "",
@@ -186,7 +209,7 @@ fun AppSwitcher(store: Store) {
                         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                             Glyph(G.APPS, V.Muted, Modifier.size(44.dp))
                             androidx.compose.foundation.layout.Spacer(Modifier.height(Grid.m))
-                            VText("No recent apps", size = Type.body, color = V.Muted)
+                            VText("No apps open", size = Type.body, color = V.Muted)
                         }
                     } else androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
                         val (gridCols, cardH) = switcherLayout(maxWidth.value, maxHeight.value, apps.size)
@@ -202,8 +225,10 @@ fun AppSwitcher(store: Store) {
                                 if (e != null) SwitcherCard(e, store, lastUsedLabel(now, Switcher.lastUsed[pkg]), cardH.dp,
                                     onOpen = { shown = false; if (!launchApp(ctx, store, pkg)) store.forgetRecent(pkg) },
                                     onClose = {
-                                        apps.remove(pkg); store.forgetRecent(pkg)
-                                        scope.launch(Dispatchers.IO) { Switcher.close(pkg) }
+                                        apps.remove(pkg)
+                                        // closed the app it was opened over: leaving goes home, not back into it
+                                        if (pkg == Switcher.underApp) { Switcher.fromApp.value = false; Switcher.underApp = null }
+                                        scope.launch { com.andysocial.voidos.AppKill.closeFromSwitcher(ctx, store, pkg) }
                                     },
                                 )
                             }
@@ -220,8 +245,8 @@ fun AppSwitcher(store: Store) {
                     }
                     androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
                     if (apps.isNotEmpty()) SwitcherButton("Close all", G.CLOSE, accent = true) {
-                        val gone = apps.toList(); apps.clear(); gone.forEach { store.forgetRecent(it) }
-                        scope.launch(Dispatchers.IO) { gone.forEach { Switcher.close(it) } }
+                        val gone = (apps.toList() + store.recentApps).distinct(); apps.clear()
+                        com.andysocial.voidos.AppKill.closeAll(ctx, store, gone, scope)
                         Switcher.fromApp.value = false; shown = false
                     }
                 }

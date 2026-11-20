@@ -191,10 +191,10 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     private fun note(): Notification {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(CHANNEL) == null) {
-            nm.createNotificationChannel(NotificationChannel(CHANNEL, "Edge wheels", NotificationManager.IMPORTANCE_MIN).apply { setShowBadge(false) })
+            nm.createNotificationChannel(NotificationChannel(CHANNEL, "Edge drawers", NotificationManager.IMPORTANCE_MIN).apply { setShowBadge(false) })
         }
         val b = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL) else @Suppress("DEPRECATION") Notification.Builder(this)
-        return b.setSmallIcon(R.mipmap.ic_launcher).setContentTitle("Edge wheels").setOngoing(true).build()
+        return b.setSmallIcon(R.mipmap.ic_launcher).setContentTitle("Edge drawers").setOngoing(true).build()
     }
 
     // ---------------------------------------------------------------- the strips
@@ -522,22 +522,24 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     private fun OverlayWheels(onClosed: () -> Unit) {
         val ctx = this
         val st = store
-        val pages = Module.entries.filter { it.name !in st.wheelHidden }
-        val apps = remember { st.recentApps.filter { blockReason(ctx, st, it) == null }.take(7) }
+        val pages = Module.entries
+        val openNow by OpenApps.list
         val all = remember { AppsRepo.all(ctx) }
         val overlayScope = androidx.compose.runtime.rememberCoroutineScope()
+        fun refreshOpen() { overlayScope.launch(kotlinx.coroutines.Dispatchers.IO) { runCatching { com.andysocial.voidos.ui.Switcher.recent(ctx, st) } } }
+        androidx.compose.runtime.LaunchedEffect(Unit) { refreshOpen() }
         CompositionLocalProvider(LocalRoom provides Rooms.overlay) {
-            EdgeWheels(
+            com.andysocial.voidos.ui.EdgeDrawers(
                 tabs = pages.map { m -> WheelItem(m.name, m.label) { mod, c -> Glyph(m.glyph, c, mod) } },
                 currentTab = "",
                 onTab = { k -> backToVoid(k) },
-                apps = apps.mapNotNull { pkg ->
+                apps = openNow.mapNotNull { pkg ->
                     val e = all.firstOrNull { it.pkg == pkg } ?: return@mapNotNull null
-                    WheelItem(pkg, e.label) { mod, _ -> Box(mod) { AppGlyph(e, st.iconStyle, 36.dp) } }
+                    WheelItem(pkg, e.label) { mod, _ -> Box(mod) { AppGlyph(e, st.iconStyle, com.andysocial.voidos.ui.Drawer.TILE_DP.dp) } }
                 },
                 onApp = { pkg -> if (!launchApp(ctx, st, pkg)) st.forgetRecent(pkg) },
-                onAllApps = { backToVoid(Module.APPS.name) },
-                // hold an app's slot, swipe down: the app is closed completely
+                onOpen = { e -> if (e == com.andysocial.voidos.ui.Edge.RIGHT) refreshOpen() },
+                // hold an app's row, pull down: the app is closed completely
                 onCloseApp = { pkg -> overlayScope.launch { AppKill.close(ctx, st, pkg) } },
                 canClose = { pkg -> AppKill.closable(ctx, pkg) },
                 overlay = true,

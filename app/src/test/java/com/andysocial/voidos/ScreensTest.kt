@@ -1,5 +1,6 @@
 package com.andysocial.voidos
 
+import kotlin.math.abs
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -91,6 +92,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     @Before
     fun seed() {
         act = rule.activity
+        com.andysocial.voidos.ui.Switcher.bootTime = { 0L }
         // the hub never idles (clocks tick every second), so time only moves when a test moves it
         rule.mainClock.autoAdvance = false
         fakeApps()
@@ -825,35 +827,97 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     private val winH get() = act.window.decorView.height.toFloat()
     private val dens get() = act.resources.displayMetrics.density
 
+    /**
+     * 1.20.0: the edge drawers. Left edge: one row per VoidOS screen. Slide in and along the
+     * rail, hold on a row, let go: that screen. Right edge: only the apps open now, and with
+     * none open it says so. Every shot is audited for clipped text and overlap, and the rows
+     * must sit on one grid, one size, clear of the island at the top and the switcher's edge.
+     */
     @Test fun wheel() {
+        com.andysocial.voidos.OpenApps.clear()
         show { Shell(store, act, Module.FACE) }
         settle(300)
         val midY = winH * 0.5f
-        // finger on the left edge, then slide down and out: the tab wheel opens and follows
-        down(4f, midY); drag(4f, midY, 40f, midY + 160f)
+        down(4f, midY); drag(4f, midY, 120f * dens, midY, steps = 6)
         settle(600)
-        // sliding down and out lands on the last slots: Settings, then the pencil past it
-        shot("17_tab_wheel")
-        touchT += 600 // held on the slot a moment, as a person choosing does
-        up(40f, midY + 160f)
-        settle(800)
-        // letting go opens Settings, or on the pencil the picker for which screens the wheel shows
-        if (rule.onAllNodesWithText("Side wheel").fetchSemanticsNodes().isNotEmpty()) {
-            expect("Home", "Settings", "Done"); shot("17a_wheel_pages"); tap("Done")
-        } else expect("Wi-Fi", "Bluetooth")
-        // a slide up the edge from there picks a slot above
-        down(4f, midY); drag(4f, midY, 4f, midY - 220f)
-        settle(600)
-        shot("17b_tab_wheel_up")
+        shot("17_tab_drawer")
+        assertDrawerShotClean("17_tab_drawer", Module.entries.map { it.label })
+        assertDrawerRows("17_tab_drawer", Module.entries.map { it.label }, left = true)
+        // slide along the rail to Settings, hold a moment, let go: Settings
+        val st = drawerRow("Settings", left = true)
+        drag(120f * dens, midY, 120f * dens, st.y, steps = 8)
+        settle(300)
+        shot("17b_tab_drawer_settings")
         touchT += 600
-        up(4f, midY - 220f)
-        settle(800)
-        // right edge: the app wheel, which lists apps opened from VoidOS
-        down(winW - 4f, midY); drag(winW - 4f, midY, winW - 60f, midY)
+        up(120f * dens, st.y)
+        settle(900)
+        assertEquals("[$tag] picked Settings; log ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", Module.SYSTEM, com.andysocial.voidos.ui.ShellNow.module.value)
+        // right edge with nothing open: the drawer says so, and nothing else
+        down(winW - 4f, midY); drag(winW - 4f, midY, winW - 120f * dens, midY, steps = 6)
         settle(600)
-        shot("18_app_wheel")
-        up(winW - 60f, midY)
+        expect("No apps open")
+        shot("18_app_drawer_empty")
+        // the frosted rail sits over Home's widgets: only its own text counts here
+        assertDrawerShotClean("18_app_drawer_empty", listOf("No apps open"))
+        touchT += 600
+        up(winW - 120f * dens, midY)
         settle(800)
+        // left pinned open by a quick swipe: a tap away closes it
+        if (rule.onAllNodesWithContentDescription("Open apps drawer", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) {
+            down(winW * 0.3f, midY); up(winW * 0.3f, midY); settle(900)
+        }
+        // with apps open: exactly those, one row each, on the grid
+        listOf("com.spotify.music", "com.whatsapp", "com.android.chrome").forEach { store.setAllowed(it, true); store.noteRecent(it) }
+        com.andysocial.voidos.ui.AppsRepo.all(act, fresh = true)
+        rule.runOnUiThread { com.andysocial.voidos.OpenApps.set(listOf("com.spotify.music", "com.whatsapp", "com.android.chrome")) }
+        settle(300)
+        rule.runOnUiThread { com.andysocial.voidos.ui.EdgeSwipe.request.value = false }
+        settle(900)
+        shot("18_app_drawer")
+        val labels = com.andysocial.voidos.OpenApps.list.value.mapNotNull { k -> com.andysocial.voidos.ui.AppsRepo.all(act).firstOrNull { it.pkg == k }?.label }
+        assertDrawerShotClean("18_app_drawer", labels)
+        assertTrue("[$tag] open apps listed: $labels", labels.isNotEmpty())
+        assertDrawerRows("18_app_drawer", labels, left = false)
+        com.andysocial.voidos.OpenApps.clear()
+    }
+
+    /**
+     * The drawer's rows: all there, one height, one x, evenly spaced, the rail inside the screen
+     * and clear of the island band at the top and the switcher's bottom edge.
+     */
+    /**
+     * A drawer shot: no clipped or offscreen text at all, and no drawer text on top of other drawer
+     * text. The frosted rail covers Home's widgets underneath, so a drawer label over a widget's
+     * label (one of each) is the glass doing its job, not a collision.
+     */
+    private fun assertDrawerShotClean(name: String, drawer: List<String>) {
+        val bad = issuesOf(name).filterNot { line ->
+            val m = Regex("OVERLAP\\s+\"(.*)\" / \"(.*)\"").find(line) ?: return@filterNot false
+            val (a, b) = m.destructured
+            (a in drawer) != (b in drawer)
+        }
+        assertTrue("[$tag] $name: $bad", bad.isEmpty())
+    }
+
+    private fun drawerRow(label: String, left: Boolean): Offset {
+        val rail = rule.onAllNodesWithContentDescription(if (left) "Screens drawer" else "Open apps drawer", useUnmergedTree = true).fetchSemanticsNodes().first().boundsInWindow
+        return rule.onAllNodesWithContentDescription(label, useUnmergedTree = true).fetchSemanticsNodes().map { it.boundsInWindow }
+            .first { b -> b.left >= rail.left - 1f && b.right <= rail.right + 1f && b.top >= rail.top - 1f && b.bottom <= rail.bottom + 1f }.center
+    }
+
+    private fun assertDrawerRows(name: String, labels: List<String>, left: Boolean) {
+        val rail = rule.onAllNodesWithContentDescription(if (left) "Screens drawer" else "Open apps drawer", useUnmergedTree = true).fetchSemanticsNodes().first().boundsInWindow
+        assertTrue("[$tag] $name rail inside the screen: $rail", rail.left >= 0f && rail.right <= winW + 0.5f && rail.top >= 0f && rail.bottom <= winH + 0.5f)
+        assertTrue("[$tag] $name rail clear of the island: $rail", rail.top >= com.andysocial.voidos.ui.Drawer.TOP_DP * dens - 1f)
+        assertTrue("[$tag] $name rail clear of the switcher edge: $rail", rail.bottom <= winH - com.andysocial.voidos.ui.Drawer.BOTTOM_DP * dens + 1f)
+        assertTrue("[$tag] $name on its own edge: $rail", if (left) rail.left < winW / 2 else rail.right > winW / 2)
+        val rows = labels.map { l -> rule.onAllNodesWithContentDescription(l, useUnmergedTree = true).fetchSemanticsNodes().map { it.boundsInWindow }.filter { b -> b.left >= rail.left - 1f && b.right <= rail.right + 1f }.let { assertTrue("[$tag] $name row $l", it.isNotEmpty()); it.first() } }
+        val visible = rows.filter { it.top >= rail.top - 1f && it.bottom <= rail.bottom + 1f }
+        assertTrue("[$tag] $name rows visible: ${visible.size}/${rows.size}", visible.isNotEmpty())
+        val h0 = visible.first().height
+        visible.forEach { assertTrue("[$tag] $name rows one height: ${it.height} vs $h0", abs(it.height - h0) < 1f) }
+        visible.forEach { assertTrue("[$tag] $name rows one x: ${it.left} vs ${visible.first().left}", abs(it.left - visible.first().left) < 1f) }
+        visible.zipWithNext().forEach { (a, b) -> assertTrue("[$tag] $name rows evenly stacked, no overlap: $a $b", abs(b.top - a.bottom) < 1f) }
     }
 
     /** A swipe whose first point lands a little way in from the bezel still opens the wheel, and the page doesn't turn. */
@@ -913,9 +977,9 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
                     }
                 }
                 CompositionLocalProvider(com.andysocial.voidos.ui.LocalRoom provides com.andysocial.voidos.ui.Rooms.overlay) {
-                    com.andysocial.voidos.ui.EdgeWheels(
+                    com.andysocial.voidos.ui.EdgeDrawers(
                         tabs = Module.entries.map { m -> com.andysocial.voidos.ui.WheelItem(m.name, m.label) { mod, c -> com.andysocial.voidos.ui.Glyph(m.glyph, c, mod) } },
-                        currentTab = "", onTab = { picked = it }, apps = emptyList(), onApp = {}, onAllApps = {}, overlay = true,
+                        currentTab = "", onTab = { picked = it }, apps = emptyList(), onApp = {}, overlay = true,
                     )
                 }
             }
@@ -1150,9 +1214,9 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         }
         show {
             Box(Modifier.fillMaxSize()) {
-                com.andysocial.voidos.ui.EdgeWheels(
+                com.andysocial.voidos.ui.EdgeDrawers(
                     tabs = Module.entries.map { m -> com.andysocial.voidos.ui.WheelItem(m.name, m.label) { mod, c -> com.andysocial.voidos.ui.Glyph(m.glyph, c, mod) } },
-                    currentTab = "FACE", onTab = {}, apps = apps, onApp = { opened = it }, onAllApps = {},
+                    currentTab = "FACE", onTab = {}, apps = apps, onApp = { opened = it },
                     onDrop = { k, _, _ -> dropped = k }, onCloseApp = { closed = it },
                 )
             }
@@ -1184,7 +1248,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         down(wa.x, wa.y)
         touchT += 500
         settle(600)
-        assertTrue("[$tag] held: the close hint shows; log ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", rule.onAllNodesWithContentDescription("Swipe down to close", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() || rule.onAllNodesWithContentDescription("Let go to close", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        assertTrue("[$tag] held: the close hint shows; log ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", rule.onAllNodesWithContentDescription("Pull down to close", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() || rule.onAllNodesWithContentDescription("Let go to close", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         drag(wa.x, wa.y, wa.x, wa.y + 140f * dens, steps = 6)
         settle(200)
         up(wa.x, wa.y + 140f * dens)
@@ -1237,7 +1301,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         up(x0 - winW * 0.6f, midY)
         settle(1200)
         // no wheel came up; the pager moved on from Tools to the next screen, now Camera
-        rule.onAllNodesWithText("Apps you open from VoidOS", substring = true).assertCountEquals(0)
+        rule.onAllNodesWithContentDescription("Open apps drawer", useUnmergedTree = true).assertCountEquals(0)
         assertEquals(Module.CAMERA, com.andysocial.voidos.ui.ShellNow.module.value)
     }
 
@@ -1418,7 +1482,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         settle(1500)
         // the list is read off the main thread
         rule.waitUntil(10_000) { Thread.sleep(50); settle(100); rule.onAllNodesWithTag("switcher_card", useUnmergedTree = true).fetchSemanticsNodes().size == 6 }
-        expect("Recent apps", "6 apps", "Spotify", "Netflix", "BBC Sounds", "Back", "Home", "Close all")
+        expect("Open apps", "6 apps", "Spotify", "Netflix", "BBC Sounds", "Back", "Home", "Close all")
         shot("60_switcher"); assertTrue("[$tag] 60_switcher: ${issuesOf("60_switcher")}", issuesOf("60_switcher").isEmpty())
         assertEvenGrid("60_switcher", tagBounds("switcher_card"))
         assertTrue("[$tag] switcher should show all six", tagBounds("switcher_card").size == 6)
@@ -1432,7 +1496,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         store.recentApps.toList().forEach { store.forgetRecent(it) }
         rule.runOnUiThread { sw.shown.value = true }
         settle(1200)
-        expect("No recent apps"); shot("60b_switcher_empty")
+        expect("No apps open"); shot("60b_switcher_empty")
         rule.runOnUiThread { sw.shown.value = false }
         settle(600)
 

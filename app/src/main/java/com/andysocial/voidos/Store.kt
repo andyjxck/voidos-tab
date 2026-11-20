@@ -131,6 +131,16 @@ class Store(private val ctx: Context) {
     var motion by mutableStateOf(p.getBoolean("motion", true)); private set
     /** Apps opened from VoidOS, newest first: what the right-edge app wheel offers. */
     var recentApps by mutableStateOf(p.getString("recentApps", "")!!.split(',').filter { it.isNotBlank() }); private set
+    /**
+     * Apps you closed (switcher card, Close all or the wheel) and when. The switcher hides an app
+     * until Android sees it come to the front again after that moment, so a closed app stays gone
+     * through reopening the switcher, going home and a restart, and comes back when you open it.
+     */
+    var closedApps by mutableStateOf(ClosedApps.parse(p.getString("closedApps", ""))); private set
+    /** When Close all was last pressed: nothing used before it is shown again. */
+    var clearedAt by mutableStateOf(p.getLong("clearedAt", 0L)); private set
+    /** 1.20.0: when VoidOS last opened each app, so the open-apps list (OpenApps) knows it's open even before Android's records do. */
+    var openedApps by mutableStateOf(ClosedApps.parse(p.getString("openedApps", ""))); private set
     var favs by mutableStateOf(p.getString("favs", "")!!.split(',').filter { it.isNotBlank() }); private set
     var hubName by mutableStateOf(p.getString("hubName", "Home")!!); private set
     /** How Android app icons are drawn: "colour" (as shipped), "void" (VoidOS glyph or tinted) or "letter". */
@@ -184,7 +194,7 @@ class Store(private val ctx: Context) {
             "alarmVibrate" -> alarmVibrate = v
             "waveWake" -> waveWake = v
             "voidVolume" -> voidVolume = v
-            "voidPower" -> voidPower = v
+            "voidPower" -> { voidPower = v; VoidKeysService.instance?.syncPowerHold() }
             "voidKeyguard" -> voidKeyguard = v
             "faceDownQuiet" -> faceDownQuiet = v
             "notifyLight" -> notifyLight = v
@@ -230,13 +240,40 @@ class Store(private val ctx: Context) {
         p.edit().putString("favs", favs.joinToString(",")).apply()
     }
 
-    fun noteRecent(pkg: String) {
+    fun noteRecent(pkg: String, at: Long = System.currentTimeMillis()) {
         recentApps = (listOf(pkg) + recentApps.filter { it != pkg }).take(8)
-        p.edit().putString("recentApps", recentApps.joinToString(",")).apply()
+        // opened again: it's no longer closed
+        if (pkg in closedApps) closedApps = closedApps - pkg
+        openedApps = ClosedApps.prune(openedApps + (pkg to at), at)
+        p.edit().putString("recentApps", recentApps.joinToString(",")).putString("closedApps", ClosedApps.format(closedApps))
+            .putString("openedApps", ClosedApps.format(openedApps)).apply()
+    }
+
+    /** [pkg] was closed at [at]: it leaves the wheel and the switcher until it's opened again. */
+    fun markClosed(pkg: String, at: Long = System.currentTimeMillis()) {
+        recentApps = recentApps.filter { it != pkg }
+        closedApps = ClosedApps.prune(closedApps + (pkg to at), at)
+        openedApps = openedApps - pkg
+        p.edit().putString("recentApps", recentApps.joinToString(",")).putString("closedApps", ClosedApps.format(closedApps))
+            .putString("openedApps", ClosedApps.format(openedApps)).commit()
+        OpenApps.drop(pkg)
+    }
+
+    /** Close all: [pkgs] are closed, the wheel's list is emptied, and nothing used before [at] comes back. */
+    fun closeAll(pkgs: Collection<String>, at: Long = System.currentTimeMillis()) {
+        recentApps = emptyList()
+        clearedAt = at
+        closedApps = ClosedApps.prune(closedApps + pkgs.associateWith { at }, at)
+        openedApps = emptyMap()
+        p.edit().putString("recentApps", "").putLong("clearedAt", at).putString("closedApps", ClosedApps.format(closedApps))
+            .putString("openedApps", "").commit()
+        OpenApps.clear()
     }
     fun forgetRecent(pkg: String) {
         recentApps = recentApps.filter { it != pkg }
-        p.edit().putString("recentApps", recentApps.joinToString(",")).apply()
+        openedApps = openedApps - pkg
+        p.edit().putString("recentApps", recentApps.joinToString(",")).putString("openedApps", ClosedApps.format(openedApps)).apply()
+        OpenApps.drop(pkg)
     }
 
     fun setAmbient(min: Int) { ambientMinutes = min; p.edit().putInt("ambientMinutes", min).apply() }

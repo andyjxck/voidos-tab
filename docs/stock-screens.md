@@ -19,7 +19,7 @@
 - **First unlock after a restart.** The tablet's storage is encrypted and only Android's own lock screen can unlock it. VoidOS can't run until that first unlock, so Android's PIN pad shows once per boot.
 - **Boot, recovery and Magisk safe mode.** These run before Android, and VoidOS with it, has started. The boot and shutdown animations are already VoidOS's own.
 - **Android's grey shutdown box.** Android draws it itself while it shuts down. VoidOS covers it with its own screen, but it can flash for a moment.
-- **Android's power dialog.** It still opens when power is held. VoidOS closes it straight away and shows its own menu, so it can flash for a moment.
+- **Android's power dialog.** From 1.20.0 (with system module 1.3) it no longer opens when power is held: the hold goes straight to VoidOS's menu. It comes back only if VoidOS or its key service is missing, so there's always a way to power off.
 - **The keyboard.** Typing goes through the installed keyboard app (Gboard or the tablet's own). A home app can't draw the keyboard for other apps.
 - **Other apps' permission prompts** ("Allow Spotify to…"). Android shows these for each app. VoidOS only pre-grants its own.
 - **App not responding and crash dialogs.** Android raises these for other apps. Hiding them would leave a frozen app on screen with no way to close it.

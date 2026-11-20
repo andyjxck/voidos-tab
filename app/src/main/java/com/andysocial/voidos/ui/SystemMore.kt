@@ -91,7 +91,7 @@ fun HubPane(store: Store, act: MainActivity) {
     SettingRow("Swipe between screens") {
         VToggle(store.swipeScreens) { store.set("swipeScreens", it) }
     }
-    SettingRow("Edge wheels in other apps", if (com.andysocial.voidos.EdgeOverlay.allowed.value) null else "Needs permission") {
+    SettingRow("Edge drawers in other apps", if (com.andysocial.voidos.EdgeOverlay.allowed.value) null else "Needs permission") {
         VToggle(store.edgeInApps) { store.set("edgeInApps", it); com.andysocial.voidos.EdgeOverlay.sync(ctx, store) }
     }
     SettingRow("Tap sound") {

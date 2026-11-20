@@ -242,8 +242,8 @@ def build(out: Path):
 
 # ---------------------------------------------------------------- system app
 
-SYS_VERSION = "1.2"
-SYS_VERSION_CODE = 3
+SYS_VERSION = "1.3"
+SYS_VERSION_CODE = 4
 PACKAGE = "com.andysocial.voidos"
 APK_RELEASE = vm.ROOT / "app/build/outputs/apk/release/app-release.apk"
 APK_DEBUG = vm.ROOT / "app/build/outputs/apk/debug/app-debug.apk"
@@ -289,6 +289,9 @@ ui_print "- Reboot. If VoidOS is already installed with the same key it stays,"
 ui_print "  now as an updated system app. Remove this module in Magisk to undo."
 set_perm_recursive $MODPATH/system 0 0 0755 0644
 set_perm $MODPATH/service.sh 0 0 0755
+set_perm $MODPATH/uninstall.sh 0 0 0755
+ui_print "- Holding power opens VoidOS's power menu (Android's comes back if"
+ui_print "  VoidOS is ever missing, or when this module is removed)."
 ui_print "- No navigation bar from the next boot (hold volume down while booting"
 ui_print "  for Magisk safe mode if you ever need Android's bar back)."
 """
@@ -329,6 +332,33 @@ settings put secure accessibility_enabled 1
 # no "Viewing full screen" or accessibility shortcut dialogs
 settings put secure accessibility_shortcut_dialog_shown 1
 settings put secure immersive_mode_confirmations confirmed
+# 1.3 (VoidOS 1.20.0): a hold on power goes straight to VoidOS's menu (PowerHold.kt), and
+# Android's white dialog is never drawn. VoidOS switches it on itself; this watchdog switches
+# Android's dialog back on whenever VoidOS or its service is missing, so there is always a
+# power menu. A short press still sleeps and wakes the screen.
+voidos_ok() {
+  cmd package list packages -e $P 2>/dev/null | grep -qx "package:$P" || return 1
+  case "$(settings get secure enabled_accessibility_services)" in *VoidKeysService*) ;; *) return 1 ;; esac
+  return 0
+}
+(
+  while true; do
+    if ! voidos_ok && [ "$(settings get global power_button_long_press)" = "5" ]; then
+      settings put global power_button_long_press 1
+      settings delete secure assistant
+    fi
+    sleep 20
+  done
+) &
+"""
+
+# 1.3: removing the module in Magisk gives a hold on power back to Android's dialog
+SYS_UNINSTALL = """#!/system/bin/sh
+(
+  until [ "$(getprop sys.boot_completed)" = "1" ]; do sleep 2; done
+  settings put global power_button_long_press 1
+  case "$(settings get secure assistant)" in *com.andysocial.voidos*) settings delete secure assistant ;; esac
+) &
 """
 
 OVERLAY_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
@@ -433,6 +463,7 @@ def build_system(out: Path, apk: Path = APK):
         z.writestr("system/priv-app/VoidOS/VoidOS.apk", apk.read_bytes())
         z.writestr("system.prop", SYS_PROP_FILE)
         z.writestr("service.sh", SYS_SERVICE)
+        z.writestr("uninstall.sh", SYS_UNINSTALL)
         z.writestr("system/vendor/overlay/VoidOSNoBar/VoidOSNoBar.apk", build_nobar_overlay())
         # a system app's native code is not unpacked from its APK: ship it beside it
         for name, data in libs.items():

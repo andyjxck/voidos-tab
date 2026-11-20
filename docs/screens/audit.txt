@@ -11,17 +11,17 @@
 [land] 05c_alarm_sounds: ok
 [land] 05d_alarm_new: ok
 [land] 05e_alarm_ringing: 12 issue(s)
-  OVERLAP   "Timers" / "17:23"
-  OVERLAP   "Stopwatch" / "17:23"
-  OVERLAP   "Alarms" / "17:23"
-  OVERLAP   "World" / "17:23"
-  OVERLAP   "00" / "17:23"
-  OVERLAP   "sec" / "17:23"
-  OVERLAP   "+" / "17:23"
-  OVERLAP   "Laundry" / "17:23"
-  OVERLAP   "8:55" / "17:23"
-  OVERLAP   "+1 min" / "17:23"
-  OVERLAP   "+5 min" / "17:23"
+  OVERLAP   "Timers" / "23:57"
+  OVERLAP   "Stopwatch" / "23:57"
+  OVERLAP   "Alarms" / "23:57"
+  OVERLAP   "World" / "23:57"
+  OVERLAP   "00" / "23:57"
+  OVERLAP   "sec" / "23:57"
+  OVERLAP   "+" / "23:57"
+  OVERLAP   "Laundry" / "23:57"
+  OVERLAP   "8:58" / "23:57"
+  OVERLAP   "+1 min" / "23:57"
+  OVERLAP   "+5 min" / "23:57"
   OVERLAP   "6:00" / "9 minutes"
 [land] 46_weather_half_left: ok
 [land] 46_weather_half_left_scrolled: ok
@@ -248,10 +248,14 @@
 [land] 64_pin_pad: ok
 [land] 64b_pin_pad_wrong: ok
 [land] 65_calculator: ok
-[land] 17c_flick_from_bezel: 1 issue(s)
-  OVERLAP   "−" / "Notes"
-[land] 17d_flick_leaves_wheel_open: 1 issue(s)
-  OVERLAP   "sec" / "Notes"
+[land] 17c_flick_from_bezel: 3 issue(s)
+  OVERLAP   "−" / "Weather"
+  OVERLAP   "05" / "Weather"
+  OVERLAP   "QUICK START" / "Settings"
+[land] 17d_flick_leaves_wheel_open: 3 issue(s)
+  OVERLAP   "−" / "Weather"
+  OVERLAP   "05" / "Weather"
+  OVERLAP   "QUICK START" / "Settings"
 [land] 07_sky: ok
 [land] 12_apps: ok
 [land] 13_apps_manage: ok
@@ -275,10 +279,10 @@
 [land] 09b_media_files: ok
 [land] 02_tools_timers: ok
 [land] 06_tools_list: ok
-[land] 17_tab_wheel: ok
-[land] 17b_tab_wheel_up: 1 issue(s)
-  OVERLAP   "Wi-Fi" / "Home"
-[land] 18_app_wheel: ok
+[land] 17_tab_drawer: ok
+[land] 17b_tab_drawer_settings: ok
+[land] 18_app_drawer_empty: ok
+[land] 18_app_drawer: ok
 [land] 46_face_lasso: ok
 [land] 47_face_picked: ok
 [land] 48_face_group_moved: ok
@@ -355,10 +359,10 @@
 [port] 05c_alarm_sounds: ok
 [port] 05d_alarm_new: ok
 [port] 05e_alarm_ringing: 4 issue(s)
-  OVERLAP   "Laundry" / "17:26"
-  OVERLAP   "8:59" / "17:26"
-  OVERLAP   "Call Maya" / "17:26"
-  OVERLAP   "21:59" / "17:26"
+  OVERLAP   "Laundry" / "00:00"
+  OVERLAP   "8:59" / "00:00"
+  OVERLAP   "Call Maya" / "00:00"
+  OVERLAP   "21:59" / "00:00"
 [port] 46_weather_half_left: ok
 [port] 46_weather_half_left_scrolled: ok
 [port] 46_weather_half_right: ok
@@ -583,8 +587,14 @@
 [port] 64_pin_pad: ok
 [port] 64b_pin_pad_wrong: ok
 [port] 65_calculator: ok
-[port] 17c_flick_from_bezel: ok
-[port] 17d_flick_leaves_wheel_open: ok
+[port] 17c_flick_from_bezel: 3 issue(s)
+  OVERLAP   "05" / "Home"
+  OVERLAP   "9:00" / "Weather"
+  OVERLAP   "Stretch" / "Apps"
+[port] 17d_flick_leaves_wheel_open: 3 issue(s)
+  OVERLAP   "05" / "Home"
+  OVERLAP   "9:00" / "Weather"
+  OVERLAP   "Stretch" / "Apps"
 [port] 07_sky: ok
 [port] 12_apps: ok
 [port] 13_apps_manage: ok
@@ -610,10 +620,11 @@
   OVERLAP   "Not playing" / "No music files yet"
 [port] 02_tools_timers: ok
 [port] 06_tools_list: ok
-[port] 17_tab_wheel: ok
-[port] 17b_tab_wheel_up: 1 issue(s)
-  OVERLAP   "Display & sound" / "Home"
-[port] 18_app_wheel: ok
+[port] 17_tab_drawer: ok
+[port] 17b_tab_drawer_settings: ok
+[port] 18_app_drawer_empty: ok
+[port] 18_app_drawer: 1 issue(s)
+  OVERLAP   "Battery" / "Chrome"
 [port] 46_face_lasso: ok
 [port] 47_face_picked: ok
 [port] 48_face_group_moved: ok

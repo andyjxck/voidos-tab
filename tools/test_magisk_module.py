@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
+import subprocess
 import zipfile
 from pathlib import Path
 
@@ -39,7 +40,7 @@ class Common:
                 self.assertIn(k, p)
             self.assertRegex(p["id"], r"^[a-zA-Z][a-zA-Z0-9._-]+$")
             self.assertIn("install_module", z.read("META-INF/com/google/android/update-binary").decode())
-            self.assertTrue(all(n.startswith(("META-INF/", "system/", "orient/")) or n in ("module.prop", "customize.sh", "orient.sh", "screenoff.sh", "system.prop", "service.sh") for n in names))
+            self.assertTrue(all(n.startswith(("META-INF/", "system/", "orient/")) or n in ("module.prop", "customize.sh", "orient.sh", "screenoff.sh", "system.prop", "service.sh", "uninstall.sh") for n in names))
             self.assertIsNone(z.testzip())
 
 
@@ -124,6 +125,26 @@ class SystemModule(Common, unittest.TestCase):
         self.assertIn('abort "! VoidOS needs Android 10', c)
         self.assertIn("ro.product.cpu.abi", c)
         self.assertIn("set_perm_recursive $MODPATH/system 0 0 0755 0644", c)
+
+    def test_power_hold_has_a_way_back(self):
+        # 1.3: VoidOS takes over a hold on power, and Android's dialog comes back whenever VoidOS is missing
+        with zipfile.ZipFile(SYSTEM) as z:
+            sv = z.read("service.sh").decode()
+            un = z.read("uninstall.sh").decode()
+            c = z.read("customize.sh").decode()
+            self.assertEqual(props(z)["version"], "1.3")
+        self.assertIn("cmd package list packages -e $P", sv)
+        self.assertIn("VoidKeysService", sv)
+        self.assertIn("settings put global power_button_long_press 1", sv)
+        self.assertIn("settings put global power_button_long_press 1", un)
+        self.assertIn("sys.boot_completed", un)
+        self.assertIn("set_perm $MODPATH/uninstall.sh 0 0 0755", c)
+        # shell syntax
+        for name, text in (("service.sh", sv), ("uninstall.sh", un)):
+            with tempfile.NamedTemporaryFile("w", suffix=".sh") as f:
+                f.write(text); f.flush()
+                r = subprocess.run(["sh", "-n", f.name], capture_output=True, text=True)
+                self.assertEqual(r.returncode, 0, f"{name}: {r.stderr}")
 
 
 if __name__ == "__main__":

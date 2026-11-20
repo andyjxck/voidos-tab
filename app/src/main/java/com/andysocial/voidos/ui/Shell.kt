@@ -18,6 +18,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.geometry.CornerRadius
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -255,34 +256,32 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
         PageDots(pages.size, pager.currentPage + pager.currentPageOffsetFraction)
     }
 
-    val apps = remember(store.recentApps, store.allowed) {
-        store.recentApps.filter { blockReason(ctx, store, it) == null }.take(7)
+    // 1.20.0: the right drawer shows exactly the apps open now (OpenApps), the switcher's own list
+    val openNow by com.andysocial.voidos.OpenApps.list
+    fun refreshOpen() { scope.launch(Dispatchers.IO) { runCatching { Switcher.recent(ctx, store) } } }
+    LaunchedEffect(store.closedApps, store.openedApps, store.clearedAt, store.allowed) { refreshOpen() }
+    val all = remember(openNow) { AppsRepo.all(ctx) }
+    // the left drawer: one row for every VoidOS screen, nothing else
+    val tabItems = remember(pages) {
+        pages.map { m -> WheelItem(m.name, m.label) { mod, c -> Glyph(m.glyph, c, mod) } }
     }
-    val all = remember(apps) { AppsRepo.all(ctx) }
-    // the side wheel shows the screens you picked, then a pencil at its end to change them:
-    // slide past the last screen onto it, or tap it
-    var editWheel by remember { mutableStateOf(false) }
-    val tabItems = remember(pages, store.wheelHidden) {
-        pages.filter { it.name !in store.wheelHidden }.map { m -> WheelItem(m.name, m.label) { mod, c -> Glyph(m.glyph, c, mod) } } +
-            WheelItem(WHEEL_EDIT, "Edit") { mod, c -> Glyph(G.PEN, c.copy(alpha = 0.7f), mod) }
-    }
-    val appItems = remember(apps, all, store.iconStyle) {
-        apps.mapNotNull { pkg ->
+    val appItems = remember(openNow, all, store.iconStyle) {
+        openNow.mapNotNull { pkg ->
             val e = all.firstOrNull { it.pkg == pkg } ?: return@mapNotNull null
-            WheelItem(pkg, e.label) { mod, _ -> Box(mod) { AppGlyph(e, store.iconStyle, 36.dp) } }
+            WheelItem(pkg, e.label) { mod, _ -> Box(mod) { AppGlyph(e, store.iconStyle, Drawer.TILE_DP.dp) } }
         }
     }
-    EdgeWheels(
+    EdgeDrawers(
         tabs = tabItems,
         currentTab = module.name,
-        onTab = { k -> if (k == WHEEL_EDIT) editWheel = true else go(Module.valueOf(k), animate = false) },
+        onTab = { k -> go(Module.valueOf(k), animate = false) },
         apps = appItems,
         onApp = { pkg -> if (!launchApp(ctx, store, pkg)) store.forgetRecent(pkg) },
-        onAllApps = { go(Module.APPS, animate = false) },
-        // pull a slot out past the wheel and drop it on a half of the screen: it opens there, beside the watch face
+        onOpen = { e -> if (e == Edge.RIGHT) refreshOpen() },
+        // pull a row out past the drawer and drop it on a half of the screen: it opens there, beside the watch face
         onDrop = { key, isApp, first -> dropOnBook(ctx, store, act, scope, key, isApp, first); go(Module.FACE, animate = false) },
         canDrop = { key, isApp -> isApp || runCatching { bookable(Module.valueOf(key)) }.getOrDefault(false) },
-        // hold an app's slot, swipe down: the app is closed completely, and leaves the book if it's in it
+        // hold an app's row, pull down: the app is closed completely, and leaves the book if it's in it
         onCloseApp = { pkg ->
             scope.launch {
                 if (Book.state.value.app?.key == pkg) Book.closeApp(ctx, store)
@@ -295,7 +294,6 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
     )
     FullToolOverlay()
 
-    if (editWheel) WheelPagesEditor(store, pages) { editWheel = false }
     EdgeDebugOverlay()
     val ccReq by EdgeSwipe.controlRequest
     LaunchedEffect(ccReq) { if (ccReq) { EdgeSwipe.controlRequest.value = false; control = true } }
@@ -307,40 +305,6 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
 
 /** The key of the pencil at the end of the side wheel. */
 const val WHEEL_EDIT = "__edit"
-
-/** Picks which screens the side wheel shows. Home always stays, so the wheel is never empty. */
-@Composable
-private fun WheelPagesEditor(store: Store, pages: List<Module>, onDone: () -> Unit) {
-    Box(
-        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f))
-            .pointerInput(Unit) { detectTapGestures(onTap = { onDone() }) },
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            Modifier.widthIn(max = 420.dp).fillMaxWidth(0.86f).glass(RoundedCornerShape(32.dp))
-                .pointerInput(Unit) { detectTapGestures { } }
-                .padding(horizontal = 22.dp, vertical = 18.dp),
-        ) {
-            VText("Side wheel", size = Type.title, font = SansMedium, color = V.White)
-            Gap(h = 10.dp)
-            pages.forEach { m ->
-                val shown = m.name !in store.wheelHidden
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
-                        .tap { if (m != Module.FACE) store.setWheelShown(m.name, !shown) }.padding(vertical = 10.dp, horizontal = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Glyph(m.glyph, if (shown) V.Teal else V.Muted, Modifier.size(24.dp))
-                    Gap(w = 14.dp)
-                    VText(m.label, size = Type.body, color = if (shown) V.White else V.Muted, modifier = Modifier.weight(1f))
-                    VToggle(shown, enabled = m != Module.FACE) { store.setWheelShown(m.name, it) }
-                }
-            }
-            Gap(h = 12.dp)
-            GlassActions(listOf(GlassAction("Done", onClick = onDone)), height = 46.dp)
-        }
-    }
-}
 
 /** Why the edges are off right now, for the debug overlay and the log; empty when they're on. */
 private fun edgeOff(escape: Boolean, control: Boolean, ambient: Boolean, locked: Boolean): String {

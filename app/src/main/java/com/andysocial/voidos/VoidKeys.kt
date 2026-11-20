@@ -42,9 +42,10 @@ import com.andysocial.voidos.ui.VolumeHud
  *
  *  - Volume: it filters the volume keys, changes the volume itself with no Android UI, and
  *    shows VoidOS's sliders. Android's panel never opens, because the key never reaches it.
- *  - Power: holding power still makes Android open its power dialog, and Android tells every
- *    app first (ACTION_CLOSE_SYSTEM_DIALOGS, reason "globalactions"). VoidOS closes Android's
- *    dialog on that signal and shows its own menu: lock, restart, power off, through root.
+ *  - Power (1.20.0): a hold on power is handed to VoidOS before Android draws anything
+ *    (PowerHold.kt), and VoidOS shows its own menu: lock, restart, power off, through root.
+ *    If Android's dialog ever opens anyway (reason "globalactions"), VoidOS closes it and
+ *    shows its own, as before.
  *  - PIN: when the tablet has an Android PIN, Android's lock screen stays underneath, because
  *    it holds the key to the tablet's encrypted storage. VoidOS draws its own PIN pad above it,
  *    then types the PIN into Android's hidden pad through root. Android checks it and counts
@@ -89,6 +90,39 @@ class VoidKeysService : AccessibilityService(), LifecycleOwner, SavedStateRegist
         runCatching { registerReceiver(rx, f) }
         connected.value = true
         main.postDelayed({ syncLock() }, 300)
+        syncPowerHold()
+    }
+
+    /** VoidOS power menu on: a hold on power comes to VoidOS. Off: back to Android's dialog. */
+    fun syncPowerHold() {
+        val on = store().voidPower
+        Thread {
+            if (on) {
+                val prev = Su.run("settings get secure assistant").text.trim()
+                if (prev != PowerHold.ASSISTANT && prev.isNotEmpty() && !prev.contains("rror")) {
+                    getSharedPreferences("voidos", MODE_PRIVATE).edit().putString("prevAssistant", prev).apply()
+                }
+                Su.run(PowerHold.takeOverCommands().joinToString("; "))
+            } else {
+                Su.run(PowerHold.giveBackCommands(getSharedPreferences("voidos", MODE_PRIVATE).getString("prevAssistant", null)).joinToString("; "))
+            }
+        }.start()
+    }
+
+    private var lastHoldAt = 0L
+    /** A hold on power (PowerHold): VoidOS's menu, once per hold. */
+    fun onPowerHold() {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (!store().voidPower || now - lastHoldAt <= 800L) return
+        lastHoldAt = now
+        showPower()
+    }
+
+    override fun onUnbind(intent: Intent?): Boolean {
+        // the service was turned off: Android's power dialog comes back
+        val prev = getSharedPreferences("voidos", MODE_PRIVATE).getString("prevAssistant", null)
+        Thread { Su.run(PowerHold.giveBackCommands(prev).joinToString("; ")) }.start()
+        return super.onUnbind(intent)
     }
 
     override fun onDestroy() {
@@ -118,6 +152,8 @@ class VoidKeysService : AccessibilityService(), LifecycleOwner, SavedStateRegist
                     if (reason == "globalactions" && store().voidPower) {
                         closeSystemDialogs()
                         main.post { showPower() }
+                    } else if (PowerHold.isHold(reason, store().voidPower, android.os.SystemClock.uptimeMillis(), lastHoldAt)) {
+                        main.post { onPowerHold() }
                     }
                 }
                 Intent.ACTION_SCREEN_OFF -> { removePower(); removeVol(); main.postDelayed({ syncLock() }, 150) }

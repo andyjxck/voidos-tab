@@ -155,6 +155,22 @@
         <!-- the edge wheels over other apps: two invisible edge strips and the wheel window -->
         <service android:name=".EdgeOverlayService" android:exported="false" />
 
+        <!-- 1.20.0: holding power hands the press to "the assistant", which VoidOS makes this
+             invisible screen: it opens VoidOS's power menu and goes (PowerHold.kt) -->
+        <activity
+            android:name=".PowerHoldActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:showWhenLocked="true"
+            android:taskAffinity="com.andysocial.voidos.power"
+            android:theme="@style/Theme.VoidOS.Invisible">
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- VoidOS's volume sliders, power menu and PIN pad over Android's lock screen -->
         <service
             android:name=".VoidKeysService"

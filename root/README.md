@@ -4,7 +4,7 @@
 
 | File | What it is | Used in |
 | --- | --- | --- |
-| `voidos-tab-1.19.0.apk` | The VoidOS app, release build (same fixed key as every build, so it installs over any earlier one and keeps device owner) | main README, Install; after unlocking (section 1) |
+| `voidos-tab-1.20.0.apk` | The VoidOS app, release build (same fixed key as every build, so it installs over any earlier one and keeps device owner) | main README, Install; after unlocking (section 1) |
 | `voidos-boot-magisk.zip` | Magisk module 3.2: the boot animation and the shutdown animation, in portrait and both ways round in landscape | section 3 |
 | `bootanimation.zip`, `shutdownanimation.zip` | The two animations on their own (portrait), for a hand copy or your own firmware; `orient/90` and `orient/270` hold the landscape ones | section 3 |
 | `logo-voidos.bin` | The power-on logo for the TB-X306F, build TB-X306F_S120637_230301_BMP, ready to flash | section 5 |
@@ -281,6 +281,15 @@ Install the same way as the boot module: `adb push
 root/voidos-system-magisk.zip /sdcard/Download/`, Magisk > Modules > Install
 from storage, reboot. the app then runs as part of the system.
 Remove the module and reboot to make VoidOS an ordinary app again.
+
+Module 1.3 (VoidOS 1.20.0): holding power opens VoidOS's power menu straight
+away, and Android's white Power off / Restart dialog isn't drawn at all. VoidOS
+hands a hold on power to itself (Android's "long press power" setting, set to
+"assistant", with VoidOS as the assistant). A short press still sleeps and wakes
+the screen. There's always a way out: if VoidOS's key service stops, Android
+restarts it and the next hold works; if VoidOS or its service is ever missing,
+the module puts Android's dialog back within about 20 seconds; and removing
+the module puts it back too.
 
 After a VoidOS update (`adb install -r -t ...`) rebuild the module too
 (`./gradlew assembleRelease && python3 tools/magisk_module.py system`) so the

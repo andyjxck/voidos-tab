@@ -15,6 +15,13 @@
         <item name="android:windowAnimationStyle">@null</item>
         <item name="android:windowNoTitle">true</item>
     </style>
+    <!-- PowerHoldActivity: never seen, it opens the power menu and finishes -->
+    <style name="Theme.VoidOS.Invisible" parent="android:Theme.Translucent.NoTitleBar">
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowNoDisplay">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
     <color name="void_bg">#FF0B0B0D</color>
     <string name="app_name">VoidOS</string>
     <string name="void_keys_desc">Shows the VoidOS volume sliders, power menu and PIN pad in place of Android\'s.</string>
