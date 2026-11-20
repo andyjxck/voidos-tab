@@ -91,6 +91,7 @@ internal const val DASHED = 2
 @Composable
 fun NotesScreen(store: Store) {
     val portrait = LocalPortrait.current
+    val appFilter = NotesNav.app.value
     var openId by remember { mutableLongStateOf(if (portrait) 0L else store.notes.firstOrNull()?.id ?: 0L) }
     var drawing by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
@@ -98,7 +99,8 @@ fun NotesScreen(store: Store) {
 
     fun create(sketch: Boolean) {
         val id = System.currentTimeMillis()
-        store.saveNote(Note(id, "", 0, id)); openId = id; drawing = sketch; query = ""
+        NotesNav.newApp = appFilter.takeIf { it != NotesNav.ALL } ?: ""
+        store.saveNote(Note(id, "", 0, id, app = appFilter.takeIf { it != NotesNav.ALL } ?: "")); openId = id; drawing = sketch; query = ""
     }
 
     if (portrait) {
@@ -122,14 +124,37 @@ fun NotesScreen(store: Store) {
     }
 }
 
-/** The list: title, count, search, then notes grouped by day, newest first. */
+/**
+ * 2.0: which app's notes are showing. ALL shows every note grouped by app; "" is General
+ * (notes not tied to an app); anything else is a hub app id. The status board's "Notes" button
+ * sets this before switching to Notes.
+ */
+object NotesNav {
+    const val ALL = "__all"
+    val app = mutableStateOf(ALL)
+    /** The app a note made right now belongs to. */
+    var newApp = ""
+
+    /** The hub's apps and sites, then any app a note still names that the hub no longer lists. */
+    fun apps(store: Store): List<Pair<String, String>> {
+        val hub = com.andysocial.voidos.hub.HubRepo.summary?.apps.orEmpty().map { it.id to it.name }
+        val extra = store.notes.map { it.app }.filter { a -> a.isNotEmpty() && hub.none { it.first == a } }.distinct()
+            .map { it to it.substringAfter(':').replaceFirstChar { c -> c.titlecase() } }
+        return hub + extra
+    }
+}
+
+/** The list: title, count, search, app chips, then notes grouped by app (All) or by day, newest first. */
 @Composable
 private fun NoteList(
     store: Store, query: String, onQuery: (String) -> Unit, selected: Long?,
     onOpen: (Long) -> Unit, onNew: (Boolean) -> Unit, modifier: Modifier,
 ) {
     val portrait = LocalPortrait.current
+    val appFilter = NotesNav.app.value
+    val apps = NotesNav.apps(store)
     val shown = store.notes
+        .filter { appFilter == NotesNav.ALL || it.app == appFilter }
         .filter { query.isBlank() || it.text.contains(query.trim(), ignoreCase = true) }
         .sortedByDescending { it.updated }
     Column(modifier) {
@@ -141,7 +166,15 @@ private fun NoteList(
         }
         Gap(h = 16.dp)
         SearchPill(query, onQuery)
-        Gap(h = 8.dp)
+        Gap(h = 10.dp)
+        // 2.0: notes are organised by app. A chip per app (from the hub), plus General for the rest.
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+            (listOf(NotesNav.ALL to "All", "" to "General") + apps).forEach { (id, name) ->
+                val n = if (id == NotesNav.ALL) store.notes.size else store.notes.count { it.app == id }
+                Chip(if (n > 0) "$name  $n" else name, appFilter == id, V.Yellow, Modifier.padding(end = 6.dp)) { NotesNav.app.value = id }
+            }
+        }
+        Gap(h = 4.dp)
         if (shown.isEmpty()) {
             Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                 VText(if (query.isBlank()) "No notes yet" else "No matches", size = Type.headline, color = V.Muted)
@@ -152,7 +185,9 @@ private fun NoteList(
             }
             return@Column
         }
-        val groups = shown.groupBy { dayBucket(it.updated) }
+        val names = apps.toMap()
+        val groups = if (appFilter == NotesNav.ALL) shown.groupBy { names[it.app] ?: if (it.app.isEmpty()) "General" else it.app.substringAfter(':') }
+            else shown.groupBy { dayBucket(it.updated) }
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 24.dp)) {
             groups.forEach { (bucket, list) ->
                 item(key = "h-$bucket") {
@@ -246,7 +281,7 @@ private fun NotePage(
         delay(600)
         val o = store.notes.firstOrNull { it.id == id } ?: return@LaunchedEffect
         if (text != o.text || colour != o.colour || ink.toList() != o.ink) {
-            store.saveNote(Note(id, text, colour, System.currentTimeMillis(), ink.toList()))
+            store.saveNote(Note(id, text, colour, System.currentTimeMillis(), ink.toList(), store.notes.firstOrNull { it.id == id }?.app ?: NotesNav.newApp))
         }
     }
     // Clear needs a second tap within a moment, and can still be undone

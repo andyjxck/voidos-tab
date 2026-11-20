@@ -522,26 +522,18 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     private fun OverlayWheels(onClosed: () -> Unit) {
         val ctx = this
         val st = store
-        val pages = Module.entries
-        val openNow by OpenApps.list
-        val all = remember { AppsRepo.all(ctx) }
-        val overlayScope = androidx.compose.runtime.rememberCoroutineScope()
-        fun refreshOpen() { overlayScope.launch(kotlinx.coroutines.Dispatchers.IO) { runCatching { com.andysocial.voidos.ui.Switcher.recent(ctx, st) } } }
-        androidx.compose.runtime.LaunchedEffect(Unit) { refreshOpen() }
+        // 2.0: over a Dev App the drawers are the same hub drawers as on VoidOS: picking a metric or
+        // an app brings VoidOS back on the metric view with that choice
+        com.andysocial.voidos.hub.HubRepo.init(ctx)
+        val summary = com.andysocial.voidos.hub.HubRepo.summary
         CompositionLocalProvider(LocalRoom provides Rooms.overlay) {
             com.andysocial.voidos.ui.EdgeDrawers(
-                tabs = pages.map { m -> WheelItem(m.name, m.label) { mod, c -> Glyph(m.glyph, c, mod) } },
-                currentTab = "",
-                onTab = { k -> backToVoid(k) },
-                apps = openNow.mapNotNull { pkg ->
-                    val e = all.firstOrNull { it.pkg == pkg } ?: return@mapNotNull null
-                    WheelItem(pkg, e.label) { mod, _ -> Box(mod) { AppGlyph(e, st.iconStyle, com.andysocial.voidos.ui.Drawer.TILE_DP.dp) } }
-                },
-                onApp = { pkg -> if (!launchApp(ctx, st, pkg)) st.forgetRecent(pkg) },
-                onOpen = { e -> if (e == com.andysocial.voidos.ui.Edge.RIGHT) refreshOpen() },
-                // hold an app's row, pull down: the app is closed completely
-                onCloseApp = { pkg -> overlayScope.launch { AppKill.close(ctx, st, pkg) } },
-                canClose = { pkg -> AppKill.closable(ctx, pkg) },
+                tabs = com.andysocial.voidos.hub.HubDrawers.metricItems(),
+                currentTab = st.hubMetric,
+                onTab = { k -> st.setHub(metric = k); backToVoid(Module.METRICS.name) },
+                apps = com.andysocial.voidos.hub.HubDrawers.appItems(summary),
+                currentApp = st.hubApp,
+                onApp = { id -> st.setHub(app = id); backToVoid(Module.METRICS.name) },
                 overlay = true,
                 onClosed = onClosed,
             )

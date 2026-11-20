@@ -109,14 +109,14 @@ object ShellNow {
 }
 
 enum class Module(val label: String, val glyph: G, val accent: Color) {
+    // 2.0, the Void Hub: Home, the status board, the metric view, Notes by app, Time, Weather, Settings.
+    // (TOOLS and APPS keep their old names so saved splits and settings still read.)
     FACE("Home", G.FACE, V.Teal),
-    TOOLS("Tools", G.TIMER, V.Teal),
-    CAMERA("Camera", G.CAMERA, V.Teal),
-    UTILITIES("Utilities", G.LEVEL, V.Teal),
-    WEATHER("Weather", G.WEATHER, V.Teal),
+    APPS("Status", G.HUB, V.Teal),
+    METRICS("Metrics", G.CHART, V.Teal),
     NOTES("Notes", G.NOTES, V.Teal),
-    MEDIA("Music", G.MEDIA, V.Teal),
-    APPS("Apps", G.APPS, V.Teal),
+    TOOLS("Time", G.TIMER, V.Teal),
+    WEATHER("Weather", G.WEATHER, V.Teal),
     SYSTEM("Settings", G.SYSTEM, V.Teal),
 }
 
@@ -242,13 +242,11 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
                         // Home is the watch face, split like a book when a screen or an app is dropped on it
                         Module.FACE -> BookHome(store, face = { FaceScreen(store, onOpen = { go(it) }) }) { m -> BookScreen(store, act, m) }
                         Module.TOOLS -> ToolsScreen(store, Module.TOOLS)
-                        Module.CAMERA -> ToolsScreen(store, Module.CAMERA)
-                        Module.UTILITIES -> ToolsScreen(store, Module.UTILITIES)
+                        Module.METRICS -> com.andysocial.voidos.hub.MetricsScreen(store)
                         Module.WEATHER -> WeatherScreen(store)
                         Module.NOTES -> NotesScreen(store)
                         Module.SYSTEM -> SystemScreen(store, act)
-                        Module.MEDIA -> MediaScreen()
-                        Module.APPS -> AppsScreen(store)
+                        Module.APPS -> com.andysocial.voidos.hub.StatusBoard(store) { go(it) }
                     }
                 }
             }
@@ -256,39 +254,32 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
         PageDots(pages.size, pager.currentPage + pager.currentPageOffsetFraction)
     }
 
-    // 1.20.0: the right drawer shows exactly the apps open now (OpenApps), the switcher's own list
-    val openNow by com.andysocial.voidos.OpenApps.list
+    // 2.0: the open-apps list now lives under Control Centre; it still refreshes when that opens
     fun refreshOpen() { scope.launch(Dispatchers.IO) { runCatching { Switcher.recent(ctx, store) } } }
     LaunchedEffect(store.closedApps, store.openedApps, store.clearedAt, store.allowed) { refreshOpen() }
-    val all = remember(openNow) { AppsRepo.all(ctx) }
-    // the left drawer: one row for every VoidOS screen, nothing else
-    val tabItems = remember(pages) {
-        pages.map { m -> WheelItem(m.name, m.label) { mod, c -> Glyph(m.glyph, c, mod) } }
-    }
-    val appItems = remember(openNow, all, store.iconStyle) {
-        openNow.mapNotNull { pkg ->
-            val e = all.firstOrNull { it.pkg == pkg } ?: return@mapNotNull null
-            WheelItem(pkg, e.label) { mod, _ -> Box(mod) { AppGlyph(e, store.iconStyle, Drawer.TILE_DP.dp) } }
-        }
-    }
+    // 2.0, the hub drawers: metrics on the left, your apps and sites on the right (hub/HubDrawers.kt)
+    val hubSummary = com.andysocial.voidos.hub.HubRepo.summary
+    val tabItems = remember { com.andysocial.voidos.hub.HubDrawers.metricItems() }
+    val appItems = remember(hubSummary) { com.andysocial.voidos.hub.HubDrawers.appItems(hubSummary) }
     EdgeDrawers(
         tabs = tabItems,
-        currentTab = module.name,
-        onTab = { k -> go(Module.valueOf(k), animate = false) },
+        currentTab = store.hubMetric,
+        onTab = { k -> store.setHub(metric = k); go(Module.METRICS, animate = false) },
         apps = appItems,
-        onApp = { pkg -> if (!launchApp(ctx, store, pkg)) store.forgetRecent(pkg) },
-        onOpen = { e -> if (e == Edge.RIGHT) refreshOpen() },
-        // pull a row out past the drawer and drop it on a half of the screen: it opens there, beside the watch face
-        onDrop = { key, isApp, first -> dropOnBook(ctx, store, act, scope, key, isApp, first); go(Module.FACE, animate = false) },
-        canDrop = { key, isApp -> isApp || runCatching { bookable(Module.valueOf(key)) }.getOrDefault(false) },
-        // hold an app's row, pull down: the app is closed completely, and leaves the book if it's in it
-        onCloseApp = { pkg ->
-            scope.launch {
-                if (Book.state.value.app?.key == pkg) Book.closeApp(ctx, store)
-                com.andysocial.voidos.AppKill.close(ctx, store, pkg)
-            }
+        currentApp = store.hubApp,
+        onApp = { id -> store.setHub(app = id); go(Module.METRICS, animate = false) },
+        // pull a row out past the drawer and drop it on a half of Home: a metric opens the metric view
+        // there, an app opens its status panel there, beside the watch face (the book, ui/Book.kt)
+        onDrop = { key, isApp, first ->
+            if (isApp) { store.setHub(app = key); com.andysocial.voidos.hub.StatusNav.open.value = key.takeIf { it != com.andysocial.voidos.hub.Hub.ALL } }
+            else store.setHub(metric = key)
+            dropOnBook(ctx, store, act, scope, (if (isApp) Module.APPS else Module.METRICS).name, false, first)
+            go(Module.FACE, animate = false)
         },
-        canClose = { pkg -> com.andysocial.voidos.AppKill.closable(ctx, pkg) },
+        canDrop = { _, _ -> true },
+        // hold-and-pull-down closes Android apps; hub rows aren't apps, so it's off here and lives in the
+        // recent apps under Control Centre
+        onCloseApp = null,
         // anything over the screens (lock, ringing timer, control centre, the way out, the ambient clock) keeps the edges
         enabled = edgeOff(escape, control, ambient, LockState.locked.value && store.voidLock).isEmpty() && fullTool.value == null,
     )
@@ -299,6 +290,7 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
     LaunchedEffect(ccReq) { if (ccReq) { EdgeSwipe.controlRequest.value = false; control = true } }
     ControlCentre(control, store, act, onClose = { control = false }, onSettings = { go(Module.SYSTEM, animate = false) })
     AppSwitcher(store)
+    com.andysocial.voidos.hub.DevAppsSheet(store)
     if (ambient) AmbientClock(store)
     if (escape) EscapeOverlay(store, act, onClose = { escape = false })
 }
@@ -457,7 +449,12 @@ fun AmbientClock(store: Store, battery: Battery = rememberBattery()) {
     val fmt = if (store.use24h) "HH:mm" else "h:mm"
     val portrait = LocalPortrait.current
     Box(Modifier.fillMaxSize().background(Color.Black).semantics { contentDescription = "Standby clock" }, contentAlignment = Alignment.Center) {
-        if (battery.charging) ChargingRing(battery.pct, Modifier.fillMaxSize())
+        // 2.0: the ring is the hub's alert light too: it flashes teal when an app goes live, glows
+        // coral while something's in trouble, and is the charging ring otherwise
+        val hub = com.andysocial.voidos.hub.HubRepo.summary
+        val alert = com.andysocial.voidos.hub.ringAlert(hub, com.andysocial.voidos.hub.HubRepo.justLive.isNotEmpty())
+        if (alert != null) ChargingRing(battery.pct, Modifier.fillMaxSize(), colour = alert.first, flash = alert.second)
+        else if (battery.charging) ChargingRing(battery.pct, Modifier.fillMaxSize())
         Column(Modifier.offset((dx * 0.6f).dp, (dy * 0.8f).dp), horizontalAlignment = Alignment.CenterHorizontally) {
             if (store.ambientFace == "analog") {
                 AnalogueClock(now, Modifier.size(if (portrait) 300.dp else 280.dp))
@@ -466,6 +463,11 @@ fun AmbientClock(store: Store, battery: Battery = rememberBattery()) {
                 VText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), size = if (portrait) 120.sp else 150.sp, color = V.Text.copy(alpha = 0.5f), font = SansThin)
             }
             VText(SimpleDateFormat("EEEE d MMMM", Locale.UK).format(Date(now)), size = Type.title, color = V.Muted.copy(alpha = 0.6f))
+            if (com.andysocial.voidos.hub.HubRepo.justLive.isNotEmpty()) {
+                Gap(h = Grid.s)
+                VText(com.andysocial.voidos.hub.HubRepo.justLive.joinToString(", ") + " is live", size = Type.label, color = V.Teal.copy(alpha = 0.8f),
+                    modifier = Modifier.clickable { com.andysocial.voidos.hub.HubRepo.justLive = emptyList() })
+            }
             if (battery.charging) {
                 Gap(h = Grid.s)
                 VText(if (battery.pct >= 100) "Charged" else if (battery.pct >= 0) "Charging  \u00b7  ${battery.pct}%" else "Charging",
@@ -493,12 +495,12 @@ fun AmbientClock(store: Store, battery: Battery = rememberBattery()) {
  * that breathes in and out. It stays dim so it's fine on a bedside table at night.
  */
 @Composable
-internal fun ChargingRing(pct: Int, modifier: Modifier) {
+internal fun ChargingRing(pct: Int, modifier: Modifier, colour: Color? = null, flash: Boolean = false) {
     val breathe by androidx.compose.animation.core.rememberInfiniteTransition(label = "charge").animateFloat(
-        0.45f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(2600), androidx.compose.animation.core.RepeatMode.Reverse), label = "ring",
+        if (flash) 0.1f else 0.45f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(if (flash) 600 else 2600), androidx.compose.animation.core.RepeatMode.Reverse), label = "ring",
     )
     val full = pct >= 100
-    val c = if (full) V.Teal else V.Green
+    val c = colour ?: if (full) V.Teal else V.Green
     Canvas(modifier.semantics { contentDescription = "Charging ring" }) {
         val inset = 10.dp.toPx()
         val r = 34.dp.toPx()
@@ -557,13 +559,11 @@ private fun BookScreen(store: Store, act: MainActivity, m: Module) {
     when (m) {
         Module.FACE -> Unit
         Module.TOOLS -> ToolsScreen(store, Module.TOOLS)
-        Module.CAMERA -> ToolsScreen(store, Module.CAMERA)
-        Module.UTILITIES -> ToolsScreen(store, Module.UTILITIES)
+        Module.METRICS -> com.andysocial.voidos.hub.MetricsScreen(store)
         Module.WEATHER -> WeatherScreen(store)
         Module.NOTES -> NotesScreen(store)
         Module.SYSTEM -> SystemScreen(store, act)
-        Module.MEDIA -> MediaScreen()
-        Module.APPS -> AppsScreen(store)
+        Module.APPS -> com.andysocial.voidos.hub.StatusBoard(store, onGo = null)
     }
 }
 

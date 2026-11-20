@@ -184,7 +184,7 @@ fun FaceScreen(store: Store, onOpen: (Module) -> Unit) {
             if (editing) WidgetMenu(store, Modifier.align(Alignment.TopEnd).padding(top = 60.dp)) { editing = false }
         }
         // favourites, only when you've starred some
-        if (favs.isNotEmpty()) {
+        if (false && favs.isNotEmpty()) { // 2.0: Home launches nothing; Dev Apps are up from the bottom edge
             Row(
                 Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp)
                     .glass(RoundedCornerShape(Radius.panel), 0.7f).padding(horizontal = 16.dp, vertical = 8.dp),
@@ -434,11 +434,13 @@ private fun WidgetMenu(store: Store, modifier: Modifier, onDone: () -> Unit) {
                 }
             }
             row("Weather", G.WEATHER, V.Teal, "sky")
-            row("Music", G.MEDIA, V.Teal, "sound")
-            row("List", G.LIST, V.Teal, "list")
+            // 2.0, the hub widgets
+            row("Status", G.HUB, V.Teal, "hstatus")
+            row("Revenue today", G.MONEY, V.Teal, "hrev")
+            row("Downloads today", G.DOWNLOAD, V.Teal, "hdl")
+            row("Crashes", G.BUG, V.Coral, "hcrash")
+            row("Uptime", G.UPTIME, V.Teal, "hup")
             row("Battery", G.BATTERY, V.Teal, "battery")
-            row("Calendar", G.CALENDAR, V.Teal, "calendar")
-            row("World clock", G.WORLD, V.Teal, "world")
             row("Stopwatch", G.STOPWATCH, V.Teal, "stopwatch")
             row("Next alarm", G.BELL, V.Teal, "alarm")
             row("Forecast", G.WEATHER, V.Teal, "forecast")

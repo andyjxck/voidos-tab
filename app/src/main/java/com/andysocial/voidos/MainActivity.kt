@@ -39,6 +39,11 @@ class MainActivity : ComponentActivity() {
         val anim = try { android.provider.Settings.Global.getFloat(contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) } catch (_: Throwable) { -1f }
         EdgeSwipe.log("start ${dm.widthPixels}x${dm.heightPixels} density=${dm.density} animScale=$anim version=${BuildConfig.VERSION_NAME}")
         EdgeOverlay.sync(this, store)
+        // 2.0, the hub: last numbers from disk now; a fresh pull each time the screen comes on
+        // (skipped when the last one was under ten minutes ago), and the "Since you last looked" card
+        com.andysocial.voidos.hub.HubRepo.init(this)
+        runCatching { registerReceiver(screenOn, android.content.IntentFilter(Intent.ACTION_SCREEN_ON)) }
+        com.andysocial.voidos.hub.HubRepo.onScreenOn(this)
         intent?.getStringExtra(EXTRA_MODULE)?.let { com.andysocial.voidos.ui.Idle.openModule.value = it }
         if (intent?.getBooleanExtra(EXTRA_CONTROL, false) == true) com.andysocial.voidos.ui.EdgeSwipe.controlRequest.value = true
         if (intent?.getBooleanExtra(EXTRA_SWITCHER, false) == true) openSwitcher(intent)
@@ -91,15 +96,16 @@ class MainActivity : ComponentActivity() {
 
     /** The switcher, opened from the bottom edge; over another app it also offers Back into that app. */
     private fun openSwitcher(i: Intent) {
-        com.andysocial.voidos.ui.Switcher.fromApp.value = i.getBooleanExtra(EXTRA_FROM_APP, false)
-        com.andysocial.voidos.ui.Switcher.shown.value = true
+        // 2.0: the bottom edge opens Dev Apps; the open apps moved under Control Centre
+        com.andysocial.voidos.hub.DevAppsNav.fromApp.value = i.getBooleanExtra(EXTRA_FROM_APP, false)
+        com.andysocial.voidos.hub.DevAppsNav.shown.value = true
     }
 
     private var bottomDownY = -1f
     private var bottomDownX = 0f
 
     /**
-     * Swipe up from the middle of the bottom edge: VoidOS's own app switcher. Taps and other
+     * Swipe up from the middle of the bottom edge: Dev Apps (2.0; it was the app switcher). Taps and other
      * gestures there go on to the page as usual; only a clear push upwards is taken.
      */
     private fun routeBottom(ev: MotionEvent): Boolean {
@@ -116,8 +122,8 @@ class MainActivity : ComponentActivity() {
                 if (kotlin.math.abs(ev.x - bottomDownX) > 48 * d) bottomDownY = -1f
                 else if (up > 36 * d) {
                     bottomDownY = -1f
-                    com.andysocial.voidos.ui.Switcher.fromApp.value = false
-                    com.andysocial.voidos.ui.Switcher.shown.value = true
+                    com.andysocial.voidos.hub.DevAppsNav.fromApp.value = false
+                    com.andysocial.voidos.hub.DevAppsNav.shown.value = true
                     super.dispatchTouchEvent(MotionEvent.obtain(ev).apply { action = MotionEvent.ACTION_CANCEL })
                     swallowTouch = true
                     return true
@@ -284,7 +290,12 @@ class MainActivity : ComponentActivity() {
         if (!isInMultiWindowMode && store.splitApp.isNotEmpty()) { store.setSplit(""); enforceLockTask() }
     }
 
+    private val screenOn = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: android.content.Context, i: Intent) { com.andysocial.voidos.hub.HubRepo.onScreenOn(this@MainActivity) }
+    }
+
     override fun onDestroy() {
+        runCatching { unregisterReceiver(screenOn) }
         if (live?.get() === this) live = null
         super.onDestroy()
     }

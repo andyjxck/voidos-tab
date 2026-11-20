@@ -46,7 +46,8 @@ import kotlin.math.min
 /** A widget's normal size on the face, before any pinch. */
 internal fun widgetSize(kind: String): Pair<Dp, Dp> = when (kind) {
     "note" -> 200.dp to 170.dp
-    "sound" -> 230.dp to 120.dp
+    "hrev", "hdl" -> 190.dp to 150.dp
+    "hstatus" -> 230.dp to 150.dp
     "world", "forecast" -> 230.dp to 150.dp
     "stopwatch", "focus" -> 190.dp to 110.dp
     else -> 150.dp to 150.dp
@@ -129,8 +130,10 @@ internal fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module
             .liquidGlass(shape, GlassLook(smoke = if (lifted) 0.9f else 0.72f, depth = if (lifted) 1.6f else 0.9f, shine = if (lifted) 1.3f else 1f, stain = if (lifted) accent else null, stainAlpha = 0.14f))
             .tap {
                 onOpen(when (wd.kind) {
-                    "sky", "forecast" -> Module.WEATHER; "sound" -> Module.MEDIA
-                    "list", "calendar", "world", "stopwatch", "alarm" -> Module.TOOLS; "battery", "focus" -> Module.SYSTEM
+                    "sky", "forecast" -> Module.WEATHER
+                    "stopwatch", "alarm" -> Module.TOOLS; "battery", "focus" -> Module.SYSTEM
+                    "hstatus", "hcrash", "hup" -> Module.APPS
+                    "hrev", "hdl" -> { store.setHub(app = com.andysocial.voidos.hub.Hub.ALL, metric = if (wd.kind == "hrev") "REVENUE" else "DOWNLOADS"); Module.METRICS }
                     else -> Module.NOTES
                 })
             },
@@ -150,11 +153,8 @@ internal fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module
 private fun WidgetContent(store: Store, wd: FaceWidget, now: Long, fit: WFit) {
     when (wd.kind) {
         "sky" -> SkyWidget(store, now, fit)
-        "sound" -> SoundWidget(fit)
-        "list" -> ListWidget(store, fit)
         "battery" -> BatteryWidget(fit)
-        "calendar" -> CalendarWidget(fit)
-        "world" -> WorldWidget(store, fit)
+        "hrev", "hdl", "hcrash", "hup", "hstatus" -> com.andysocial.voidos.hub.HubWidget(wd.kind, fit.shape == WShape.WIDE, fit.iw, fit.ih)
         "stopwatch" -> StopwatchWidget(now, fit)
         "alarm" -> AlarmWidget(store, now, fit)
         "forecast" -> ForecastWidget(store, fit)
@@ -210,67 +210,6 @@ private fun SkyWidget(store: Store, now: Long, fit: WFit) {
 }
 
 @Composable
-private fun SoundWidget(fit: WFit) {
-    val playing by Now.playing
-    val p = playing
-    val head = if (p != null) p.appName.take(18) else "Sound"
-    val idle = p == null || p.title.isBlank()
-    if (fit.shape == WShape.TALL) Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Head(head, Modifier.align(Alignment.Start))
-        Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            if (idle) VText("Nothing playing", size = Type.caption, color = V.Muted, align = TextAlign.Center)
-            else {
-                FitText(p!!.title, Type.headline, Modifier.fillMaxWidth().height(min(64f, fit.ih * 0.4f).dp), font = Sans, align = Alignment.Center, min = 7.sp, lines = 2)
-                Gap(h = 4.dp)
-                FitText(p.artist, Type.caption, Modifier.fillMaxWidth(), color = V.Muted, font = Sans, align = Alignment.Center, min = 7.sp)
-            }
-        }
-        if (p != null) IconTap(if (p.playing) G.PAUSE else G.PLAY, V.White, 52.dp) { Now.playPause() }
-    }
-    else Column(Modifier.fillMaxSize()) {
-        Head(head)
-        Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            if (idle) VText("Nothing playing", size = Type.caption, color = V.Muted, modifier = Modifier.weight(1f))
-            else Column(Modifier.weight(1f)) {
-                FitText(p!!.title, if (fit.shape == WShape.WIDE) Type.headline else Type.body, Modifier.fillMaxWidth().height(min(44f, fit.ih - 40f).coerceAtLeast(14f).dp), font = Sans, min = 7.sp, lines = 2)
-                FitText(p.artist, Type.caption, Modifier.fillMaxWidth(), color = V.Muted, font = Sans, min = 7.sp)
-            }
-            if (p != null) { Gap(w = 8.dp); IconTap(if (p.playing) G.PAUSE else G.PLAY, V.White, min(44f, fit.ih - 22f).coerceAtLeast(28f).dp) { Now.playPause() } }
-        }
-    }
-}
-
-@Composable
-private fun ListWidget(store: Store, fit: WFit) {
-    val left = store.shopping.filter { !it.done }
-    val line = 18f
-    Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().height(28.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) { Label("List") }
-            FitText("${left.size}", Type.title, Modifier.fillMaxHeight(), font = SansLight, align = Alignment.CenterEnd)
-        }
-        Gap(h = 8.dp)
-        if (left.isEmpty()) { VText("All bought", size = Type.caption, color = V.Muted); return@Column }
-        val cols = if (fit.shape == WShape.WIDE) (fit.iw / 110f).toInt().coerceIn(1, 3) else 1
-        val rows = linesIn(fit.ih - 36f, line).coerceAtLeast(1)
-        val room = rows * cols
-        val shown = if (left.size > room) left.take((room - 1).coerceAtLeast(0)) else left
-        val more = left.size - shown.size
-        val cells = shown.map { it.text } + (if (more > 0) listOf("+$more more") else emptyList())
-        Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            (0 until cols).forEach { c ->
-                Column(Modifier.weight(1f)) {
-                    cells.drop(c * rows).take(rows).forEachIndexed { i, txt ->
-                        val isMore = more > 0 && c * rows + i == cells.lastIndex
-                        FitText(txt, Type.label, Modifier.fillMaxWidth().height(line.dp), color = if (isMore) V.Muted else V.Text, font = Sans, min = 7.sp)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun BatteryWidget(fit: WFit) {
     val b = rememberBattery()
     val pct = if (b.pct < 0) "--" else "${b.pct}%"
@@ -301,60 +240,6 @@ private fun BatteryWidget(fit: WFit) {
         Gap(h = 4.dp)
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
             Ring(min(fit.iw, fit.ih - 22f).coerceAtLeast(20f) * 0.92f, true)
-        }
-    }
-}
-
-@Composable
-private fun CalendarWidget(fit: WFit) {
-    val d = java.time.LocalDate.now()
-    val day = d.format(java.time.format.DateTimeFormatter.ofPattern("EEEE", java.util.Locale.UK))
-    val month = d.format(java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy", java.util.Locale.UK))
-    if (fit.shape == WShape.WIDE) Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-        FitText("${d.dayOfMonth}", 64.sp, Modifier.fillMaxHeight().weight(0.8f))
-        Gap(w = 12.dp)
-        Column(Modifier.weight(1.2f)) {
-            Label(day)
-            Gap(h = 4.dp)
-            FitText(month, Type.headline, Modifier.fillMaxWidth(), color = V.Text, font = Sans)
-        }
-    }
-    else Column(Modifier.fillMaxSize(), horizontalAlignment = if (fit.shape == WShape.TALL) Alignment.CenterHorizontally else Alignment.Start) {
-        Label(day)
-        FitText("${d.dayOfMonth}", 56.sp, Modifier.weight(1f).fillMaxWidth(), align = if (fit.shape == WShape.TALL) Alignment.Center else Alignment.CenterStart)
-        FitText(month, Type.caption, Modifier.fillMaxWidth(), color = V.Muted, font = Sans, align = if (fit.shape == WShape.TALL) Alignment.Center else Alignment.CenterStart)
-    }
-}
-
-@Composable
-private fun WorldWidget(store: Store, fit: WFit) {
-    val fmt = java.time.format.DateTimeFormatter.ofPattern(if (store.use24h) "HH:mm" else "h:mm a", java.util.Locale.UK)
-    fun timeIn(zone: String) = runCatching { java.time.ZonedDateTime.now(java.time.ZoneId.of(zone)).format(fmt).lowercase() }.getOrDefault("--")
-    val clocks = store.worldClocks
-    Column(Modifier.fillMaxSize()) {
-        Label("World")
-        Gap(h = 8.dp)
-        if (clocks.isEmpty()) { VText("No clocks", size = Type.caption, color = V.Muted); return@Column }
-        if (fit.shape == WShape.WIDE) {
-            val n = min(clocks.size, (fit.iw / 96f).toInt().coerceAtLeast(1))
-            Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                clocks.take(n).forEach { (name, zone) ->
-                    Column(Modifier.weight(1f)) {
-                        FitText(name, Type.caption, Modifier.fillMaxWidth(), color = V.Muted, font = Sans, min = 7.sp)
-                        FitText(timeIn(zone), Type.large, Modifier.fillMaxWidth())
-                    }
-                }
-            }
-        } else {
-            val rowH = 32f
-            val n = min(clocks.size, linesIn(fit.ih - 24f, rowH).coerceAtLeast(1))
-            clocks.take(n).forEach { (name, zone) ->
-                Row(Modifier.fillMaxWidth().height(rowH.dp), verticalAlignment = Alignment.CenterVertically) {
-                    FitText(name, Type.body, Modifier.weight(1f), color = V.Text, font = Sans, min = 7.sp)
-                    Gap(w = 8.dp)
-                    FitText(timeIn(zone), Type.title, Modifier.weight(1f), align = Alignment.CenterEnd)
-                }
-            }
         }
     }
 }

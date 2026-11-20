@@ -51,6 +51,12 @@ ICONS = {
     "ring": ("trip_origin", False), "restart": ("restart_alt", False), "files": ("folder_open", False),
     "vibrate": ("vibration", False), "focus_mode": ("self_improvement", False), "work": ("work", False),
     "bed": ("bed", False), "book": ("menu_book", False), "game": ("sports_esports", False),
+    "download": ("download", False), "money": ("payments", False), "bug": ("bug_report", False),
+    "chart": ("monitoring", False), "ads": ("ads_click", False), "review": ("reviews", False),
+    "uptime": ("network_check", False), "code": ("code", False), "cloud_up": ("cloud_done", False),
+    "mail": ("mail", False), "key": ("key", False), "hub": ("hub", False), "dns": ("dns", False),
+    "web": ("captive_portal", False), "store": ("storefront", False), "refresh": ("refresh", False),
+    "receipt": ("receipt_long", False), "edit_list": ("edit_note", False),
 }
 
 

@@ -337,6 +337,11 @@ enum class G(@DrawableRes val res: Int) {
     SPLIT(R.drawable.vi_split), SCAN(R.drawable.vi_scan), MIRROR(R.drawable.vi_mirror), ZOOM(R.drawable.vi_zoom), DOC(R.drawable.vi_doc),
     WAVE(R.drawable.vi_wave), RING(R.drawable.vi_ring), RESTART(R.drawable.vi_restart), FILES(R.drawable.vi_files), VIBRATE(R.drawable.vi_vibrate),
     FOCUS_MODE(R.drawable.vi_focus_mode), WORK(R.drawable.vi_work), BED(R.drawable.vi_bed), BOOK(R.drawable.vi_book), GAME(R.drawable.vi_game),
+    DOWNLOAD(R.drawable.vi_download), MONEY(R.drawable.vi_money), BUG(R.drawable.vi_bug), CHART(R.drawable.vi_chart),
+    ADS(R.drawable.vi_ads), REVIEW(R.drawable.vi_review), UPTIME(R.drawable.vi_uptime), CODE(R.drawable.vi_code),
+    CLOUD_UP(R.drawable.vi_cloud_up), MAIL(R.drawable.vi_mail), KEY(R.drawable.vi_key), HUB(R.drawable.vi_hub),
+    DNS(R.drawable.vi_dns), WEB(R.drawable.vi_web), STORE(R.drawable.vi_store), REFRESH(R.drawable.vi_refresh),
+    RECEIPT(R.drawable.vi_receipt), EDIT_LIST(R.drawable.vi_edit_list),
 }
 
 @Suppress("UNUSED_PARAMETER")

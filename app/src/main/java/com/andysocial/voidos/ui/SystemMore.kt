@@ -81,7 +81,7 @@ fun HubPane(store: Store, act: MainActivity) {
     val ctx = LocalContext.current
     var name by remember { mutableStateOf(store.hubName) }
     val access = remember { mutableStateOf(VoidListener.enabled(ctx)) }
-    Head("Home & lock screen")
+    Head("Drawers, standby & clock")
     SettingRow("Tablet name") {}
     Row(verticalAlignment = Alignment.CenterVertically) {
         VField(name, { name = it.take(16) }, Modifier.weight(1f), placeholder = "Home", onDone = { store.setHubName(name.ifBlank { "Home" }) })
