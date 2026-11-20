@@ -32,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -99,7 +100,8 @@ fun StatusBoard(store: Store, onGo: ((Module) -> Unit)?) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { NotConnected("App Store Connect") }
             return@Column
         }
-        BoxWithConstraints(Modifier.fillMaxSize()) {
+        // clipped to its own box: the rings can never ride up over the title
+        BoxWithConstraints(Modifier.fillMaxSize().clipToBounds()) {
             val d = LocalDensity.current
             val w = constraints.maxWidth.toFloat(); val h = constraints.maxHeight.toFloat()
             val panelOpen = app != null
@@ -110,7 +112,8 @@ fun StatusBoard(store: Store, onGo: ((Module) -> Unit)?) {
             val combH = if (panelOpen && portrait) h - panelH - with(d) { 12.dp.toPx() } else h
             val cw by animateFloatAsState(combW, tween(320), label = "combW")
             val ch by animateFloatAsState(combH, tween(320), label = "combH")
-            val layout = honeyLayout(s.apps.size, cw, ch, with(d) { 72.dp.toPx() }, with(d) { 168.dp.toPx() })
+            // rings shrink to 52dp before the cluster would spill (half a book with large text)
+            val layout = honeyLayout(s.apps.size, cw, ch, with(d) { 52.dp.toPx() }, with(d) { 168.dp.toPx() })
             val cell = layout.cell
             s.apps.forEachIndexed { i, a ->
                 val o = layout.cells.getOrNull(i) ?: return@forEachIndexed
@@ -153,8 +156,9 @@ private fun StatusCell(a: HubApp, chosen: Boolean, sizePx: Float, modifier: Modi
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 6.dp)) {
                 VText(a.initials, size = (size.value * 0.2f).coerceIn(14f, 30f).sp, font = SansMedium, color = V.White, maxLines = 1)
+                // a long name wraps onto a second line before it shrinks, so small rings never cut it
                 FitText(a.name, (size.value * 0.085f).coerceIn(9f, 13f).sp, Modifier.fillMaxWidth(), color = V.Muted, font = SansMedium,
-                    align = Alignment.Center, min = 7.sp)
+                    align = Alignment.Center, min = 7.sp, lines = 2)
             }
         }
     }
@@ -213,17 +217,21 @@ fun AppPanel(a: HubApp, s: HubSummary, store: Store, onGo: ((Module) -> Unit)?, 
             }
         }
         Gap(h = 8.dp)
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+        // in half a book the panel is narrow: shorter labels so all three buttons still read whole
+        val narrow = maxWidth < 380.dp
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val n = store.notes.count { it.app == a.id }
-            VButton(if (n > 0) "Notes ($n)" else "Notes", Modifier.weight(1f)) { NotesNav.app.value = a.id; onGo?.invoke(Module.NOTES) }
+            VButton(if (n > 0 && !narrow) "Notes ($n)" else "Notes", Modifier.weight(1f)) { NotesNav.app.value = a.id; onGo?.invoke(Module.NOTES) }
             if (a.kind == HubKind.APP) {
-                VButton("App Store", Modifier.weight(1f)) { DevApps.openUrl(ctx, store, a.consoleUrl.ifBlank { "https://appstoreconnect.apple.com/apps" }) }
+                VButton(if (narrow) "Store" else "App Store", Modifier.weight(1f)) { DevApps.openUrl(ctx, store, a.consoleUrl.ifBlank { "https://appstoreconnect.apple.com/apps" }) }
                 if (a.adsUrl.isNotBlank() || a.metrics.containsKey(Metric.ADS))
                     VButton("AdMob", Modifier.weight(1f)) { DevApps.openUrl(ctx, store, a.adsUrl.ifBlank { "https://apps.admob.com" }) }
             } else {
                 if (a.url.isNotBlank()) VButton("Open site", Modifier.weight(1f)) { DevApps.openUrl(ctx, store, a.url) }
                 if (a.consoleUrl.isNotBlank()) VButton("Console", Modifier.weight(1f)) { DevApps.openUrl(ctx, store, a.consoleUrl) }
             }
+        }
         }
     }
 }

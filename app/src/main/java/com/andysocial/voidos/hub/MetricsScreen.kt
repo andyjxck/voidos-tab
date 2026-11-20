@@ -172,7 +172,7 @@ private fun CostsCard(costs: List<CostLine>, modifier: Modifier) {
         costs.forEach { c ->
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    VText(c.label, size = Type.body, color = V.Text, maxLines = 1)
+                    VText(c.label, size = Type.body, color = V.Text, maxLines = 2)
                     VText(listOf(c.note, c.due).filter { it.isNotBlank() }.joinToString(" "), size = Type.caption, color = V.Muted, maxLines = 1)
                 }
                 VText(c.amount?.let { if (c.currency == "credits") Hub.count(it) else Hub.money(it, c.currency) } ?: "–", size = Type.headline,

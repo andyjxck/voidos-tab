@@ -655,7 +655,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
             assertTrue("[$tag] ${a.name} cell under the panel: cell $b panel $panel", clear)
         }
         // its buttons sit below the scrolling part, always in view
-        val btn = rule.onAllNodes(hasText("Notes", substring = true) and hasClickAction(), useUnmergedTree = true).fetchSemanticsNodes().map { it.boundsInWindow }.filter { it.top >= panel.top && it.bottom <= panel.bottom + 1f }
+        val btn = rule.onAllNodes(hasText("Notes", substring = true) and hasClickAction()).fetchSemanticsNodes().map { it.boundsInWindow }.filter { it.top >= panel.top && it.bottom <= panel.bottom + 1f }
         assertTrue("[$tag] Notes button inside the panel", btn.isNotEmpty())
     }
 
@@ -877,8 +877,11 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         assertTrue("[$tag] $name rail clear of the switcher edge: $rail", rail.bottom <= winH - com.andysocial.voidos.ui.Drawer.BOTTOM_DP * dens + 1f)
         assertTrue("[$tag] $name on its own edge: $rail", if (left) rail.left < winW / 2 else rail.right > winW / 2)
         val rows = labels.map { l -> rule.onAllNodesWithContentDescription(l, useUnmergedTree = true).fetchSemanticsNodes().map { it.boundsInWindow }.filter { b -> b.left >= rail.left - 1f && b.right <= rail.right + 1f }.let { assertTrue("[$tag] $name row $l", it.isNotEmpty()); it.first() } }
-        val visible = rows.filter { it.top >= rail.top - 1f && it.bottom <= rail.bottom + 1f }
-        assertTrue("[$tag] $name rows visible: ${visible.size}/${rows.size}", visible.isNotEmpty())
+        // 2.0's metrics drawer has eleven rows, so with large text in landscape it scrolls: a row half
+        // under the rail's edge is clipped there on purpose; only whole rows are compared
+        val full = rows.maxOf { it.height }
+        val visible = rows.filter { it.top >= rail.top - 1f && it.bottom <= rail.bottom + 1f && it.height >= full - 1f }
+        assertTrue("[$tag] $name rows visible: ${visible.size}/${rows.size}", visible.size >= minOf(rows.size, 5))
         val h0 = visible.first().height
         visible.forEach { assertTrue("[$tag] $name rows one height: ${it.height} vs $h0", abs(it.height - h0) < 1f) }
         visible.forEach { assertTrue("[$tag] $name rows one x: ${it.left} vs ${visible.first().left}", abs(it.left - visible.first().left) < 1f) }
@@ -1042,9 +1045,9 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     @Test fun faceGroupMove() {
         com.andysocial.voidos.ui.Book.reset()
         store.saveWidgets(emptyList())
-        store.addWidget("sky"); store.addWidget("list")
+        store.addWidget("sky"); store.addWidget("hrev")
         val sky = store.widgets.first { it.kind == "sky" }.id
-        val list = store.widgets.first { it.kind == "list" }.id
+        val list = store.widgets.first { it.kind == "hrev" }.id
         store.placeWidget(sky, 0.15f, 0.08f, 1f, 1f, 0f)
         store.placeWidget(list, 0.85f, 0.08f, 1f, 1f, 0f)
         show { Shell(store, act, Module.FACE) }
@@ -1059,14 +1062,14 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         assertTrue("[$tag] box drawn", rule.onAllNodesWithTag("lasso", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         up(winW * 0.9f, winH * 0.05f)
         settle(400)
-        assertTrue("[$tag] both picked", listOf("sky", "list").all { k -> rule.onAllNodesWithTag("picked-$k", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() })
+        assertTrue("[$tag] both picked", listOf("sky", "hrev").all { k -> rule.onAllNodesWithTag("picked-$k", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() })
         shot("47_face_picked")
         // drag the weather widget down: the list comes too
-        val s0 = box("sky"); val l0 = box("list")
+        val s0 = box("sky"); val l0 = box("hrev")
         val c = s0.center
         down(c.x, c.y); drag(c.x, c.y, c.x + 10f, c.y + 160f, steps = 8); up(c.x + 10f, c.y + 160f)
         settle(600)
-        val s1 = box("sky"); val l1 = box("list")
+        val s1 = box("sky"); val l1 = box("hrev")
         assertTrue("[$tag] weather moved down: $s0 -> $s1", s1.top > s0.top + 60f)
         assertTrue("[$tag] list moved with it: $l0 -> $l1", l1.top > l0.top + 60f)
         assertEquals(Module.FACE, com.andysocial.voidos.ui.ShellNow.module.value)
