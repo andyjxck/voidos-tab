@@ -4,7 +4,7 @@
 
 | File | What it is | Used in |
 | --- | --- | --- |
-| `voidos-tab-2.0.0.apk` | The VoidOS app, release build (same fixed key as every build, so it installs over any earlier one and keeps device owner) | main README, Install; after unlocking (section 1) |
+| `voidos-tab-2.0.1.apk` | The VoidOS app, release build (same fixed key as every build, so it installs over any earlier one and keeps device owner) | main README, Install; after unlocking (section 1) |
 | `voidos-boot-magisk.zip` | Magisk module 3.3: the boot animation and the shutdown animation, in portrait and both ways round in landscape | section 3 |
 | `bootanimation.zip`, `shutdownanimation.zip` | The two animations on their own (portrait), for a hand copy or your own firmware; `orient/90` and `orient/270` hold the landscape ones | section 3 |
 | `logo-voidos.bin` | The power-on logo for the TB-X306F, build TB-X306F_S120637_230301_BMP, ready to flash | section 5 |
@@ -288,6 +288,16 @@ Install the same way as the boot module: `adb push
 root/voidos-system-magisk.zip /sdcard/Download/`, Magisk > Modules > Install
 from storage, reboot. the app then runs as part of the system.
 Remove the module and reboot to make VoidOS an ordinary app again.
+
+Module 1.5 (VoidOS 2.0.1) carries the 2.0.1 app and themes the Android screens VoidOS can't
+replace: two static overlays in /vendor/overlay put VoidOS navy, teal and squarer corners on
+Android's dialogs, share sheet, shade, quick settings and volume, Manrope replaces Roboto,
+dark mode is forced on, heads-up banners and "isn't responding" dialogs are off, and the
+VoidOS keyboard becomes the default. Reflash it: `adb push root/voidos-system-magisk.zip
+/sdcard/Download/`, then `adb shell su -c "magisk --install-module
+/sdcard/Download/voidos-system-magisk.zip"`, then `adb reboot`. Check the overlays after the
+reboot with `adb shell cat /data/local/tmp/voidos_overlays.txt` (each should show [x]). The
+full list of Android screens and what happens to each is in docs/stock-screens.md.
 
 Module 1.4 (VoidOS 2.0.0) carries the 2.0.0 app; nothing else changed since 1.3.
 

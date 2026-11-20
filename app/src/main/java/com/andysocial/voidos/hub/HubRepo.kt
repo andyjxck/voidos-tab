@@ -189,7 +189,7 @@ object HubRepo {
     fun reply(ctx: Context, review: StoreReview, text: String, done: (String?) -> Unit) {
         init(ctx)
         val main = android.os.Handler(android.os.Looper.getMainLooper())
-        if (!connected) { main.post { done("Set up the hub in Settings › Hub first") }; return }
+        if (!connected) { main.post { done("No hub server") }; return }
         val url = serverUrl
         val token = prefs?.getString(K_TOKEN, null)?.let { decrypt(it) }
         io.execute {
