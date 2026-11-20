@@ -82,7 +82,7 @@ fun DevAppsSheet(store: Store) {
 fun DevAppsGrid(store: Store, modifier: Modifier = Modifier, onLaunched: () -> Unit = {}) {
     val ctx = LocalContext.current
     val list = DevApps.list(store)
-    BoxWithConstraints(modifier.glass(RoundedCornerShape(36.dp), 0.7f).tap { }.padding(24.dp).semantics { contentDescription = "Dev Apps" }.testTag("dev_apps")) {
+    BoxWithConstraints(modifier.glass(Chamfer(Radius.panel), 0.7f).tap { }.padding(24.dp).semantics { contentDescription = "Dev Apps" }.testTag("dev_apps")) {
         val cols = when { maxWidth < 420.dp -> 3; maxWidth < 640.dp -> 4; else -> 5 }
         Column {
             Label("Dev Apps")
@@ -92,7 +92,7 @@ fun DevAppsGrid(store: Store, modifier: Modifier = Modifier, onLaunched: () -> U
                     row.forEach { a ->
                         val native = DevApps.native(ctx, a)
                         Column(
-                            Modifier.weight(1f).clip(RoundedCornerShape(22.dp)).tap { if (DevApps.launch(ctx, store, a)) onLaunched() }
+                            Modifier.weight(1f).clip(Chamfer(Radius.card)).tap { if (DevApps.launch(ctx, store, a)) onLaunched() }
                                 .padding(vertical = 10.dp).semantics(mergeDescendants = true) { contentDescription = a.name + if (native) "" else ", opens in the browser" },
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {

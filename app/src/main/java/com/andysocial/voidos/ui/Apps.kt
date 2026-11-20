@@ -412,7 +412,7 @@ private fun AppTile(app: AppEntry, store: Store, starred: Boolean) {
     val view = androidx.compose.ui.platform.LocalView.current
     val ctx = LocalContext.current
     Column(
-        Modifier.fillMaxWidth().squish().clip(RoundedCornerShape(Radius.card))
+        Modifier.fillMaxWidth().squish().clip(Radius.Card)
             .combinedClickable(onClick = { launchApp(ctx, store, app.pkg) }, onLongClick = { com.andysocial.voidos.Haptics.press(view); store.toggleFav(app.pkg) })
             .padding(vertical = 8.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -440,7 +440,7 @@ private fun AppTile(app: AppEntry, store: Store, starred: Boolean) {
 private fun Dock(apps: List<AppEntry>, store: Store, modifier: Modifier) {
     val view = androidx.compose.ui.platform.LocalView.current
     val ctx = LocalContext.current
-    val shape = RoundedCornerShape(Radius.panel)
+    val shape = Radius.Panel
     Row(
         modifier.glass(shape, 0.92f)
             .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -448,7 +448,7 @@ private fun Dock(apps: List<AppEntry>, store: Store, modifier: Modifier) {
     ) {
         apps.forEach { app ->
             Box(
-                Modifier.size(64.dp).squish(0.88f).clip(RoundedCornerShape(Radius.control))
+                Modifier.size(64.dp).squish(0.88f).clip(Radius.Control)
                     .semantics { contentDescription = app.label }
                     .combinedClickable(onClick = { launchApp(ctx, store, app.pkg) }, onLongClick = { com.andysocial.voidos.Haptics.press(view); store.toggleFav(app.pkg) }),
                 contentAlignment = Alignment.Center,

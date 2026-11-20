@@ -66,7 +66,7 @@ import kotlin.math.sin
 internal enum class InkPanel { NONE, COLOUR, SIZE, BRUSH }
 
 private val Cell = 40.dp
-private val PanelShape = RoundedCornerShape(28.dp)
+private val PanelShape = Chamfer(Radius.panel)
 
 /** One tool in the pill: an icon in a 40 dp round cell, lit teal when on. */
 @Composable

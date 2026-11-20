@@ -61,7 +61,7 @@ fun RoundIcon(
 @Composable
 fun SearchPill(query: String, onChange: (String) -> Unit, modifier: Modifier = Modifier, hint: String = "Search") {
     Row(
-        modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(Radius.control)).background(Color.White.copy(alpha = 0.07f))
+        modifier.fillMaxWidth().height(40.dp).clip(Radius.Control).background(Color.White.copy(alpha = 0.07f))
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -98,10 +98,8 @@ fun BackLink(text: String, onClick: () -> Unit) {
 }
 
 /** Row shape in a grouped list: the first and last rows carry the group's corners. */
-fun groupShape(first: Boolean, last: Boolean, r: Dp = 16.dp) = RoundedCornerShape(
-    topStart = if (first) r else 0.dp, topEnd = if (first) r else 0.dp,
-    bottomStart = if (last) r else 0.dp, bottomEnd = if (last) r else 0.dp,
-)
+fun groupShape(first: Boolean, last: Boolean, r: Dp = Radius.card): androidx.compose.ui.graphics.Shape =
+    Chamfer(r, (if (first) 0b0011 else 0) or (if (last) 0b1100 else 0))
 
 /** The fill behind a grouped-list row. */
 val GroupFill = Color(0xFF1C1C1F).copy(alpha = 0.82f)

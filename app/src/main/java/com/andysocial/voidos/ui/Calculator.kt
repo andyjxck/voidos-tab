@@ -224,7 +224,7 @@ fun calcTextSize(chars: Int, widthDp: Float, maxSp: Float): Float =
 @Composable
 private fun CalcDisplay(prev: String, line: String, shown: String?, live: BigDecimal?, modifier: Modifier, key: Dp) {
     BoxWithConstraints(
-        modifier.clip(RoundedCornerShape(28.dp)).background(Color.White.copy(alpha = 0.06f)).padding(horizontal = 20.dp, vertical = 14.dp),
+        modifier.clip(Chamfer(Radius.panel)).background(Color.White.copy(alpha = 0.06f)).padding(horizontal = 20.dp, vertical = 14.dp),
     ) {
         val w = maxWidth.value
         val big = line.ifEmpty { "0" }

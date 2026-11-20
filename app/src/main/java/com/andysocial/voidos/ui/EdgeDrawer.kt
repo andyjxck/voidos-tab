@@ -352,7 +352,7 @@ fun EdgeDrawers(
                         IntOffset(x.roundToInt(), (hy - px(17f)).roundToInt())
                     }
                         .size(width = 150.dp, height = 34.dp)
-                        .liquidGlass(RoundedCornerShape(17.dp), GlassLook(smoke = 0.8f, depth = 1f, shine = 1.1f), still = true)
+                        .liquidGlass(Chamfer(Radius.control), GlassLook(smoke = 0.8f, depth = 1f, shine = 1.1f), still = true)
                         .semantics { contentDescription = if (ready) "Let go to close" else "Pull down to close" },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -441,7 +441,7 @@ fun EdgeDrawers(
             Box(
                 Modifier.offset { IntOffset((p.x - px(32f)).roundToInt(), (p.y - px(32f)).roundToInt()) }
                     .size(64.dp)
-                    .liquidGlass(RoundedCornerShape(20.dp), GlassLook(smoke = 0.6f, depth = 1.3f, shine = 1.5f, magnify = 1.3f), still = true),
+                    .liquidGlass(Chamfer(Radius.card), GlassLook(smoke = 0.6f, depth = 1.3f, shine = 1.5f, magnify = 1.3f), still = true),
                 contentAlignment = Alignment.Center,
             ) { held.icon(Modifier.size(if (carryApp) Drawer.TILE_DP.dp else 26.dp), V.White) }
         }

@@ -651,5 +651,5 @@ fun ShoppingPane(store: Store) {
     }
 }
 
-val CutCorner6 = androidx.compose.foundation.shape.RoundedCornerShape(Radius.chip)
+val CutCorner6 = Radius.Chip
 

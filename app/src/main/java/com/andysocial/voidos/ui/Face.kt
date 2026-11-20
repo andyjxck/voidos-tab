@@ -164,7 +164,7 @@ fun FaceScreen(store: Store, onOpen: (Module) -> Unit) {
                     Modifier.offset { IntOffset((clockBox.cx - clockBox.w / 2f).roundToInt(), (clockBox.cy - clockBox.h / 2f).roundToInt()) }
                         .size(with(d) { clockBox.w.toDp() }, with(d) { clockBox.h.toDp() })
                         .graphicsLayer { rotationZ = clockBox.rot }
-                        .background(Brush.radialGradient(listOf(V.Teal.copy(alpha = 0.16f), Color.Transparent)), RoundedCornerShape(Radius.panel)),
+                        .background(Brush.radialGradient(listOf(V.Teal.copy(alpha = 0.16f), Color.Transparent)), Radius.Panel),
                 )
                 WidgetLayer(store, now, editing, onOpen, faceW, faceH, live, picked)
                 // the box being drawn: a thin sheet of glass from the finger
@@ -172,7 +172,7 @@ fun FaceScreen(store: Store, onOpen: (Module) -> Unit) {
                     Box(
                         Modifier.offset { IntOffset(l.left.roundToInt(), l.top.roundToInt()) }
                             .size(with(d) { (l.right - l.left).toDp() }, with(d) { (l.bottom - l.top).toDp() })
-                            .liquidGlass(RoundedCornerShape(Radius.panel), GlassLook(smoke = 0.25f, depth = 0.8f, shine = 1.1f), still = true)
+                            .liquidGlass(Radius.Panel, GlassLook(smoke = 0.25f, depth = 0.8f, shine = 1.1f), still = true)
                             .testTag("lasso"),
                     )
                 }
@@ -187,7 +187,7 @@ fun FaceScreen(store: Store, onOpen: (Module) -> Unit) {
         if (false && favs.isNotEmpty()) { // 2.0: Home launches nothing; Dev Apps are up from the bottom edge
             Row(
                 Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp)
-                    .glass(RoundedCornerShape(Radius.panel), 0.7f).padding(horizontal = 16.dp, vertical = 8.dp),
+                    .glass(Radius.Panel, 0.7f).padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) { favs.take(6).forEach { app -> AppIcon(app, 42.dp) { launchApp(ctx, store, app.pkg) } } }
         }
@@ -477,7 +477,7 @@ private fun WidgetLayer(store: Store, now: Long, editing: Boolean, onOpen: (Modu
             // picked to move with others: a soft teal glow behind it
             if (wd.id in picked) Box(
                 Modifier.fillMaxSize().graphicsLayer { scaleX = 1.12f; scaleY = 1.18f }
-                    .background(Brush.radialGradient(listOf(V.Teal.copy(alpha = 0.22f), Color.Transparent)), RoundedCornerShape(Radius.panel))
+                    .background(Brush.radialGradient(listOf(V.Teal.copy(alpha = 0.22f), Color.Transparent)), Radius.Panel)
                     .testTag("picked-${wd.kind}"),
             )
             Box(Modifier.fillMaxSize().offset(x = if (editing && held == null) (wiggle * 1.2f).dp else 0.dp)) {

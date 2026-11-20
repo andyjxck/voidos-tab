@@ -339,7 +339,7 @@ private fun SoundPicker(selected: String, volume: Float, onPick: (String) -> Uni
         AlarmSounds.all.filter { it.cat == cat }.forEach { s ->
             val on = s.key == selected
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.control)).background(if (on) V.Panel2 else Color.Transparent)
+                Modifier.fillMaxWidth().clip(Radius.Control).background(if (on) V.Panel2 else Color.Transparent)
                     .clickable { onPick(s.key) }.padding(horizontal = 8.dp, vertical = 8.dp).testTag("sound_${s.key}"),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -368,7 +368,7 @@ fun TimeWheel(hour: Int, minute: Int, h24: Boolean, modifier: Modifier, rowH: Dp
     val pm = hour >= 12
     Box(modifier, contentAlignment = Alignment.Center) {
         // the band the chosen row sits in
-        Box(Modifier.fillMaxWidth().height(rowH).clip(RoundedCornerShape(Radius.control)).background(V.Panel2))
+        Box(Modifier.fillMaxWidth().height(rowH).clip(Radius.Control).background(V.Panel2))
         Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
             if (h24) {
                 Wheel(24, hour, { String.format(Locale.UK, "%02d", it) }, rowH, Modifier.width(rowH * 1.7f), "wheel_hour") { onChange(it, minute) }

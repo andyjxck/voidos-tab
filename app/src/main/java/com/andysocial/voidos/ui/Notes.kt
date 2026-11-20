@@ -226,7 +226,7 @@ private fun NoteRow(n: Note, selected: Boolean, first: Boolean, last: Boolean, o
             }
             if (n.ink.isNotEmpty()) {
                 Gap(w = 8.dp)
-                InkPreview(n.ink, Modifier.size(42.dp).clip(RoundedCornerShape(Radius.chip)).background(Color.White.copy(alpha = 0.05f)).padding(4.dp))
+                InkPreview(n.ink, Modifier.size(42.dp).clip(Radius.Chip).background(Color.White.copy(alpha = 0.05f)).padding(4.dp))
             }
         }
     }
@@ -383,7 +383,7 @@ private fun NotePage(
     }
 }
 
-private val PageShape = RoundedCornerShape(26.dp)
+private val PageShape = Chamfer(Radius.panel)
 
 /** Dotted: round dots one pen-width apart. Dashed: dashes three widths long. */
 internal fun effectFor(style: Int, widthPx: Float): PathEffect? = when (style) {

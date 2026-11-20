@@ -94,7 +94,7 @@ fun VolumeHud(audio: AudioManager, onTouch: () -> Unit) {
         val main = VolumeState.stream.intValue
         val streams = if (all) VolumeStreams else VolumeStreams.filter { it.first == main }.ifEmpty { listOf(Triple(main, "Volume", G.VOLUME)) }
         Row(
-            Modifier.padding(end = 20.dp).liquidGlass(RoundedCornerShape(30.dp), GlassLook(smoke = 0.82f, depth = 1f, shine = 1.2f, magnify = 1.1f))
+            Modifier.padding(end = 20.dp).liquidGlass(Chamfer(Radius.panel), GlassLook(smoke = 0.82f, depth = 1f, shine = 1.2f, magnify = 1.1f))
                 .padding(horizontal = 10.dp, vertical = 12.dp)
                 .semantics { contentDescription = "Volume" },
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -118,7 +118,7 @@ private fun VolumeSlider(audio: AudioManager, stream: Int, label: String, g: G, 
         VText("${Math.round(volumeFraction(level, min, max) * 100)}", size = Type.caption, color = V.Text, align = TextAlign.Center)
         Box(Modifier.height(8.dp))
         Box(
-            Modifier.width(48.dp).height(h).clip(RoundedCornerShape(24.dp)).background(Color.White.copy(alpha = 0.10f))
+            Modifier.width(48.dp).height(h).clip(Chamfer(Radius.card)).background(Color.White.copy(alpha = 0.10f))
                 .semantics { contentDescription = "$label volume" }
                 .pointerInput(stream, max) {
                     fun set(y: Float) {
@@ -283,8 +283,8 @@ fun LowBatteryBanner(pct: Int, onDismiss: () -> Unit) {
     val warn = pct <= 10
     Box(Modifier.padding(top = 20.dp)) {
         Row(
-            Modifier.clip(RoundedCornerShape(28.dp))
-                .liquidGlass(RoundedCornerShape(28.dp), GlassLook(smoke = 0.92f, depth = 1.4f, stain = if (warn) V.Coral else V.Yellow, stainAlpha = 0.16f))
+            Modifier.clip(Chamfer(Radius.panel))
+                .liquidGlass(Chamfer(Radius.panel), GlassLook(smoke = 0.92f, depth = 1.4f, stain = if (warn) V.Coral else V.Yellow, stainAlpha = 0.16f))
                 .clickable(remember { MutableInteractionSource() }, null) { onDismiss() }
                 .semantics(mergeDescendants = true) { contentDescription = "Battery low, $pct percent" }
                 .padding(horizontal = 22.dp, vertical = 14.dp),

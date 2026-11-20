@@ -235,7 +235,7 @@ fun wxAge(fetched: Long, now: Long = System.currentTimeMillis()): String {
 fun OfflineBadge(wx: Wx?, modifier: Modifier = Modifier) {
     // a full-width banner: no Wi-Fi is the first thing you see on the page
     Row(
-        modifier.fillMaxWidth().droplet(RoundedCornerShape(Radius.card), V.Coral, 2.2f)
+        modifier.fillMaxWidth().droplet(Radius.Card, V.Coral, 2.2f)
             .padding(horizontal = 24.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -821,7 +821,7 @@ fun PlaceSearch(query: String, onQuery: (String) -> Unit, onPick: (WeatherRepo.P
     Gap(h = 8.dp)
     results.forEach { r ->
         Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.control)).tap { onPick(r) }.padding(horizontal = 8.dp, vertical = 10.dp),
+            Modifier.fillMaxWidth().clip(Radius.Control).tap { onPick(r) }.padding(horizontal = 8.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Glyph(G.PIN, V.Muted, Modifier.size(18.dp)); Gap(w = 12.dp)

@@ -295,7 +295,7 @@ private fun NowPlayingCard(src: Source?, hasFiles: Boolean, modifier: Modifier, 
     val connected by com.andysocial.voidos.VoidListener.connected
     val access = remember(System.currentTimeMillis() / 5000) { com.andysocial.voidos.VoidListener.enabled(ctx) }
     val tint = remember(src?.art) { artTint(src?.art) }
-    val shape = RoundedCornerShape(Radius.panel)
+    val shape = Radius.Panel
     BoxWithConstraints(
         modifier.liquidGlass(shape, GlassLook(smoke = 0.8f, depth = 1f))
             .background(Brush.radialGradient(listOf(tint.copy(alpha = 0.34f), Color.Transparent), center = Offset(0f, 0f), radius = 1400f))
@@ -311,7 +311,7 @@ private fun NowPlayingCard(src: Source?, hasFiles: Boolean, modifier: Modifier, 
         val artSide = if (wide) wideArt else tall
         val art: @Composable () -> Unit = {
             Box(
-                Modifier.size(artSide).clip(RoundedCornerShape(Radius.card)).background(Color.White.copy(alpha = 0.06f)),
+                Modifier.size(artSide).clip(Radius.Card).background(Color.White.copy(alpha = 0.06f)),
                 contentAlignment = Alignment.Center,
             ) {
                 val a = src?.art
@@ -476,7 +476,7 @@ private fun NoiseRow() {
 private fun FilesSidebar(tracks: List<Track>, modifier: Modifier, onClose: () -> Unit) {
     val ctx = LocalContext.current
     val idx = Player.index.intValue
-    val shape = RoundedCornerShape(Radius.panel)
+    val shape = Radius.Panel
     Column(
         modifier.liquidGlass(shape, GlassLook(smoke = 1.25f, depth = 1.2f)).tap { }.padding(16.dp),
     ) {
@@ -499,7 +499,7 @@ private fun FilesSidebar(tracks: List<Track>, modifier: Modifier, onClose: () ->
         LazyColumn(contentPadding = PaddingValues(bottom = 8.dp)) {
             itemsIndexed(tracks, key = { _, t -> t.uri.toString() }) { i, t ->
                 val sel = i == idx
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.control)).background(if (sel) Color.White.copy(alpha = 0.07f) else Color.Transparent).clickable { Player.play(ctx, i) }) {
+                Column(Modifier.fillMaxWidth().clip(Radius.Control).background(if (sel) Color.White.copy(alpha = 0.07f) else Color.Transparent).clickable { Player.play(ctx, i) }) {
                     Row(Modifier.padding(horizontal = 8.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             VText(t.title, size = Type.body, color = if (sel) V.Teal else V.Text, maxLines = 1)

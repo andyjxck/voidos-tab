@@ -124,7 +124,7 @@ private fun linesIn(room: Float, unit: Float) = floor(room / unit).toInt().coerc
 @Composable
 internal fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module) -> Unit, lifted: Boolean) {
     val accent = V.Teal
-    val shape = RoundedCornerShape(Radius.card)
+    val shape = Radius.Card
     BoxWithConstraints(
         Modifier.fillMaxSize()
             .liquidGlass(shape, GlassLook(smoke = if (lifted) 0.9f else 0.72f, depth = if (lifted) 1.6f else 0.9f, shine = if (lifted) 1.3f else 1f, stain = if (lifted) accent else null, stainAlpha = 0.14f))

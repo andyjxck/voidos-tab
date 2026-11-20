@@ -290,7 +290,7 @@ private fun dismiss(ctx: Context, back: Boolean) {
 private fun SwitcherCard(e: AppEntry, store: Store, used: String, height: androidx.compose.ui.unit.Dp, onOpen: () -> Unit, onClose: () -> Unit) {
     val scope = rememberCoroutineScope()
     val dy = remember { Animatable(0f) }
-    val shape = RoundedCornerShape(26.dp)
+    val shape = Chamfer(Radius.panel)
     Box(
         Modifier.fillMaxWidth().height(height)
             .testTag("switcher_card")

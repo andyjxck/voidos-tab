@@ -40,16 +40,42 @@ object Grid {
     val xxl = 32.dp
 }
 
-/** Corner radii: chips, controls, cards, panels. Nothing else. */
+/**
+ * 2.0.1: corners are the old VoidOS chamfer, not round. Every card, panel, control and chip is
+ * cut at 45 degrees, in four sizes. Nothing else: round is kept only for dots, toggles and pills.
+ */
 object Radius {
-    val chip = 8.dp
-    val control = 14.dp
-    val card = 20.dp
-    val panel = 28.dp
-    val Chip = RoundedCornerShape(chip)
-    val Control = RoundedCornerShape(control)
-    val Card = RoundedCornerShape(card)
-    val Panel = RoundedCornerShape(panel)
+    val chip = 5.dp
+    val control = 9.dp
+    val card = 13.dp
+    val panel = 18.dp
+    val Chip = Chamfer(chip)
+    val Control = Chamfer(control)
+    val Card = Chamfer(card)
+    val Panel = Chamfer(panel)
+}
+
+/**
+ * The chamfered corner, cut straight at 45 degrees with the two bends softened by a hair so
+ * the glass rim catches the light along the cut instead of breaking at a sharp point.
+ */
+class Chamfer(private val cut: androidx.compose.ui.unit.Dp, private val corners: Int = 0b1111) : androidx.compose.ui.graphics.Shape {
+    override fun createOutline(size: androidx.compose.ui.geometry.Size, layoutDirection: androidx.compose.ui.unit.LayoutDirection, density: androidx.compose.ui.unit.Density): androidx.compose.ui.graphics.Outline {
+        val c = with(density) { cut.toPx() }.coerceAtMost(kotlin.math.min(size.width, size.height) / 2f)
+        val w = size.width; val h = size.height
+        val tl = if (corners and 1 != 0) c else 0f
+        val tr = if (corners and 2 != 0) c else 0f
+        val br = if (corners and 4 != 0) c else 0f
+        val bl = if (corners and 8 != 0) c else 0f
+        val p = androidx.compose.ui.graphics.Path().apply {
+            moveTo(tl, 0f); lineTo(w - tr, 0f); lineTo(w, tr)
+            lineTo(w, h - br); lineTo(w - br, h); lineTo(bl, h)
+            lineTo(0f, h - bl); lineTo(0f, tl); close()
+        }
+        return androidx.compose.ui.graphics.Outline.Generic(p)
+    }
+    override fun equals(other: Any?) = other is Chamfer && other.cut == cut && other.corners == corners
+    override fun hashCode() = cut.hashCode() * 31 + corners
 }
 
 /** The same two motions everywhere: a soft spring for things that move, a quick ease for fades. */

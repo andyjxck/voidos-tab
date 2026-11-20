@@ -171,7 +171,7 @@ private fun NavItem(t: Tab, sel: Boolean, onClick: () -> Unit) {
     ) {
         // a lit glass tile in the page's colour, like the icons in an iPad's settings
         Box(
-            Modifier.size(32.dp).droplet(RoundedCornerShape(Radius.chip), t.accent, 2.2f),
+            Modifier.size(32.dp).droplet(Radius.Chip, t.accent, 2.2f),
             contentAlignment = Alignment.Center,
         ) {
             Glyph(t.g, Color.White, Modifier.size(18.dp))

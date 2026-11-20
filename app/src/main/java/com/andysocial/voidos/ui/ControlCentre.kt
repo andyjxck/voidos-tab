@@ -283,7 +283,7 @@ fun ControlCentre(
                             .widthIn(max = 460.dp)
                             .width(min(w - 32.dp, 460.dp))
                             .heightIn(max = h * 0.88f)
-                            .ccGlass(RoundedCornerShape(36.dp), smoke = 0.74f)
+                            .ccGlass(Chamfer(Radius.panel), smoke = 0.74f)
                             .tap { }
                             .verticalScroll(rememberScrollState())
                             .padding(24.dp),
@@ -356,7 +356,7 @@ private fun CcGrid(
     Column(
         Modifier.padding(top = 16.dp).width(panelW)
             .heightIn(max = h - 32.dp)
-            .liquidGlass(RoundedCornerShape(40.dp), GlassLook(smoke = 0.62f, depth = 1f, shine = 1.1f, magnify = 1.05f))
+            .liquidGlass(Chamfer(Radius.panel), GlassLook(smoke = 0.62f, depth = 1f, shine = 1.1f, magnify = 1.05f))
             .tap { }
             .verticalScroll(rememberScrollState())
             .padding(pad)
@@ -396,7 +396,7 @@ internal fun ccTileHeight(tileW: Dp, roomH: Dp, rows: Int): Dp =
 @Composable
 private fun CcTile(it: CcItem, w: Dp, h: Dp) {
     val lit by animateFloatAsState(if (it.on) 1f else 0f, Motion.pop(), label = "lit")
-    val shape = RoundedCornerShape(24.dp)
+    val shape = Chamfer(Radius.card)
     Column(
         Modifier.size(w, h)
             .testTag("cc_tile")
@@ -471,7 +471,7 @@ internal val CcPad = 12.dp
 @Composable
 private fun CcCluster(items: List<CcItem>, cols: Int, bubble: Dp, modifier: Modifier) {
     Column(
-        modifier.ccGlass(RoundedCornerShape(Radius.panel)).padding(CcPad),
+        modifier.ccGlass(Radius.Panel).padding(CcPad),
         verticalArrangement = Arrangement.SpaceEvenly,
     ) {
         items.chunked(cols.coerceAtLeast(1)).forEach { row ->
@@ -502,8 +502,8 @@ private fun CcHeader(store: Store, onSettings: () -> Unit, onPower: () -> Unit) 
         }
         val bat = rememberBattery()
         if (bat.pct >= 0) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
-            Box(Modifier.size(24.dp, 12.dp).clip(RoundedCornerShape(Radius.chip)).background(V.Text.copy(alpha = 0.22f)).padding(2.dp)) {
-                Box(Modifier.fillMaxHeight().fillMaxWidth((bat.pct / 100f).coerceIn(0.05f, 1f)).clip(RoundedCornerShape(Radius.chip))
+            Box(Modifier.size(24.dp, 12.dp).clip(Radius.Chip).background(V.Text.copy(alpha = 0.22f)).padding(2.dp)) {
+                Box(Modifier.fillMaxHeight().fillMaxWidth((bat.pct / 100f).coerceIn(0.05f, 1f)).clip(Radius.Chip)
                     .background(if (bat.pct <= 15 && !bat.charging) V.Coral else V.Text))
             }
             Spacer(Modifier.width(8.dp))
@@ -558,7 +558,7 @@ private fun CcTall(g: G, value: Float, modifier: Modifier, fill: List<Color>, la
     val cb by rememberUpdatedState(onChange)
     val hold by rememberUpdatedState(onHold)
     val v = value.coerceIn(0f, 1f)
-    val shape = RoundedCornerShape(24.dp)
+    val shape = Chamfer(Radius.card)
     Box(
         modifier.semantics { contentDescription = label }
             .clip(shape)
@@ -622,13 +622,13 @@ private fun MediaModule(modifier: Modifier, onHold: () -> Unit) {
     val p by Now.playing
     val ctx = LocalContext.current
     Column(
-        modifier.clip(RoundedCornerShape(24.dp)).background(Color.White.copy(alpha = 0.07f)).border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
+        modifier.clip(Chamfer(Radius.card)).background(Color.White.copy(alpha = 0.07f)).border(1.dp, Color.White.copy(alpha = 0.08f), Chamfer(Radius.card))
             .tapOrHold({ p?.let { Now.open(ctx) } }, onHold).padding(horizontal = 14.dp),
         verticalArrangement = Arrangement.Center,
     ) {
         val cur = p
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.10f)), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(40.dp).clip(Chamfer(Radius.control)).background(Color.White.copy(alpha = 0.10f)), contentAlignment = Alignment.Center) {
                 val art = cur?.art
                 if (art != null) Image(art.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 else Glyph(G.MEDIA, V.Muted, Modifier.size(20.dp))
@@ -713,7 +713,7 @@ private fun PanelRow(
 ) {
     Row(
         Modifier.fillMaxWidth().padding(vertical = 2.dp)
-            .then(if (chosen) Modifier.ccGlass(RoundedCornerShape(Radius.card), smoke = 0.55f, stain = accent, lit = 0.35f) else Modifier.clip(RoundedCornerShape(Radius.card)))
+            .then(if (chosen) Modifier.ccGlass(Radius.Card, smoke = 0.55f, stain = accent, lit = 0.35f) else Modifier.clip(Radius.Card))
             .then(if (onClick != null) Modifier.tap(onClick) else Modifier)
             .padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -778,7 +778,7 @@ private fun ColumnScope.ConnectPanel(st: CcState, store: Store, act: MainActivit
     VText("Connections", size = Type.title, font = SansMedium, color = V.Text, modifier = Modifier.padding(start = 4.dp, bottom = 12.dp))
     @Composable
     fun line(g: G, title: String, sub: String, on: Boolean, accent: Color, toggle: () -> Unit, part: CcPart) {
-        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.card)).tap { go(part) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().clip(Radius.Card).tap { go(part) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             val lit by animateFloatAsState(if (on) 1f else 0f, label = "lit")
             Box(Modifier.size(50.dp).semantics { contentDescription = title; selected = on }.ccGlass(CircleShape, smoke = 0.72f, stain = accent, lit = lit).tap(toggle),
                 contentAlignment = Alignment.Center) { Glyph(g, if (on) Color.White else V.Text, Modifier.size(21.dp)) }
@@ -1132,7 +1132,7 @@ private fun ColumnScope.MediaPanel() {
     }
     var pos by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(cur) { while (isActive) { pos = Now.position(cur).toFloat(); delay(500) } }
-    Box(Modifier.align(Alignment.CenterHorizontally).size(180.dp).ccGlass(RoundedCornerShape(Radius.panel)), contentAlignment = Alignment.Center) {
+    Box(Modifier.align(Alignment.CenterHorizontally).size(180.dp).ccGlass(Radius.Panel), contentAlignment = Alignment.Center) {
         cur.art?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) } ?: Glyph(G.MEDIA, V.Muted, Modifier.size(56.dp))
     }
     Spacer(Modifier.height(18.dp))
@@ -1184,7 +1184,7 @@ private fun NoticesPanel(onOpened: () -> Unit) {
     if (list.isEmpty()) VText("Nothing new", size = Type.body, color = V.Muted)
     list.forEach { n ->
         Column(
-            Modifier.fillMaxWidth().padding(vertical = Grid.xs).ccGlass(RoundedCornerShape(Radius.card), smoke = 0.5f)
+            Modifier.fillMaxWidth().padding(vertical = Grid.xs).ccGlass(Radius.Card, smoke = 0.5f)
                 .tap { com.andysocial.voidos.VoidListener.open(n.key); onOpened() }
                 .padding(horizontal = Grid.l, vertical = Grid.m),
         ) {

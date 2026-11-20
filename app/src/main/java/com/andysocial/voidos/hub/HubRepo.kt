@@ -35,9 +35,22 @@ object HubRepo {
     private const val K_SEEN = "seen"
     private const val K_REFRESH_AT = "refreshAt"
     private const val K_SITES = "sites"
+    private const val K_HIDDEN = "hidden"
     private const val KEY_ALIAS = "voidos_hub_token"
 
-    var summary by mutableStateOf<HubSummary?>(null); private set
+    /** The summary as the server sent it; [summary] is the same with the apps hidden on this tablet taken out. */
+    private var raw by mutableStateOf<HubSummary?>(null)
+    /** App ids hidden on this tablet (long-press › Hide), plus any the server's appstore.hide already drops. */
+    var hidden by mutableStateOf<Set<String>>(emptySet()); private set
+    /** Everything on the tablet reads this one: hidden apps are gone from the board, drawers, Notes, Metrics and the totals. */
+    val summary: HubSummary? get() = raw?.let { Hub.withoutHidden(it, hidden) }
+    /** Every app the server knows about, hidden ones included, for the unhide list in Settings. */
+    val allApps: List<HubApp> get() = raw?.apps.orEmpty()
+
+    fun hide(id: String, on: Boolean = true) {
+        hidden = if (on) hidden + id else hidden - id
+        prefs?.edit()?.putStringSet(K_HIDDEN, HashSet(hidden))?.apply()
+    }
     var serverUrl by mutableStateOf(""); private set
     var hasToken by mutableStateOf(false); private set
     var busy by mutableStateOf(false); private set
@@ -67,13 +80,14 @@ object HubRepo {
         lastRefresh = p.getLong(K_REFRESH_AT, 0L)
         manualSites = decodeSites(p.getString(K_SITES, "") ?: "")
         // only a summary the server sent counts: one saved by the alpha's demo mode is dropped
-        summary = if (connected) p.getString(K_LAST, null)?.let { runCatching { Hub.parse(it) }.getOrNull() }?.takeIf { !it.demo } else null
+        hidden = p.getStringSet(K_HIDDEN, emptySet()).orEmpty().toSet()
+        raw = if (connected) p.getString(K_LAST, null)?.let { runCatching { Hub.parse(it) }.getOrNull() }?.takeIf { !it.demo } else null
     }
 
     /** For tests only: show this summary without touching disk or network. */
     /** For tests only: show this summary without touching disk or network (it counts as just refreshed). */
     internal fun preview(s: HubSummary?, server: String = "", token: Boolean = false) {
-        summary = s; serverUrl = server; hasToken = token
+        raw = s; serverUrl = server; hasToken = token
         error = null; busy = false; wakeLines = emptyList(); lastRefresh = System.currentTimeMillis()
     }
 
@@ -87,7 +101,7 @@ object HubRepo {
         }
         e.apply()
         error = null
-        if (!connected) { summary = null; prefs?.edit()?.remove(K_LAST)?.remove(K_SEEN)?.apply() }
+        if (!connected) { raw = null; prefs?.edit()?.remove(K_LAST)?.remove(K_SEEN)?.apply() }
         else refresh(ctx, force = true)
     }
 
@@ -123,7 +137,7 @@ object HubRepo {
                 result.onSuccess { (json, s) ->
                     lastRefresh = System.currentTimeMillis()
                     val before = summary
-                    summary = s
+                    raw = s
                     error = null
                     val live = s.wentLive(before).map { it.name }
                     if (live.isNotEmpty()) justLive = live
@@ -191,7 +205,7 @@ object HubRepo {
                 if (code !in 200..299) throw java.io.IOException("HTTP $code")
             }
             main.post {
-                if (r.isSuccess) summary = summary?.let { s -> s.copy(reviews = s.reviews.map { if (it.id == review.id) it.copy(reply = text) else it }) }
+                if (r.isSuccess) raw = raw?.let { s -> s.copy(reviews = s.reviews.map { if (it.id == review.id) it.copy(reply = text) else it }) }
                 done(r.exceptionOrNull()?.let { "Couldn't send the reply" })
             }
         }

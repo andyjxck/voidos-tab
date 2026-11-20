@@ -728,7 +728,7 @@ fun EdgeWheels(
                     Box(
                         Modifier.offset { IntOffset((hp.x - px(150f)).roundToInt(), (hp.y + px(34f)).roundToInt()) }
                             .size(width = 130.dp, height = 34.dp)
-                            .liquidGlass(androidx.compose.foundation.shape.RoundedCornerShape(17.dp), GlassLook(smoke = 0.8f, depth = 1f, shine = 1.1f), still = true)
+                            .liquidGlass(Chamfer(Radius.control), GlassLook(smoke = 0.8f, depth = 1f, shine = 1.1f), still = true)
                             .semantics { contentDescription = if (ready) "Let go to close" else "Swipe down to close" },
                         contentAlignment = Alignment.Center,
                     ) {
@@ -829,7 +829,7 @@ fun EdgeWheels(
             // where it will open
             Box(
                 Modifier.offset { halfAt(sw) }.size(dw, dh).padding(Grid.l)
-                    .liquidGlass(androidx.compose.foundation.shape.RoundedCornerShape(Radius.panel), GlassLook(smoke = 0.45f, depth = 1.2f, shine = 1.3f), still = true)
+                    .liquidGlass(Radius.Panel, GlassLook(smoke = 0.45f, depth = 1.2f, shine = 1.3f), still = true)
                     .semantics { contentDescription = "Drop ${held.label} here" },
             )
             Box(

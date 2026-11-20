@@ -173,7 +173,7 @@ class GlassGroupScope internal constructor() {
         Row(
             Modifier.fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 2.dp)
-                .then(if (selected) Modifier.droplet(RoundedCornerShape(Radius.card), V.Teal, 0.6f) else Modifier.clip(RoundedCornerShape(Radius.card)))
+                .then(if (selected) Modifier.droplet(Radius.Card, V.Teal, 0.6f) else Modifier.clip(Radius.Card))
                 .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
                 .padding(horizontal = 16.dp, vertical = if (detail != null) 12.dp else 14.dp),
             verticalAlignment = Alignment.CenterVertically,

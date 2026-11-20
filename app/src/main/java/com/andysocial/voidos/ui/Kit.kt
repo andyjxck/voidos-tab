@@ -64,10 +64,10 @@ import androidx.compose.foundation.Canvas
 import kotlin.math.cos
 import kotlin.math.sin
 
-/** Card corners. (Named Oct from the old octagon style; now plain rounded corners.) */
-val Oct = RoundedCornerShape(Radius.panel)
-/** Small control corners. */
-val OctS = RoundedCornerShape(Radius.card)
+/** Panel corners: the old octagon chamfer. */
+val Oct: androidx.compose.ui.graphics.Shape = Radius.Panel
+/** Card and control corners, the same chamfer, smaller. */
+val OctS: androidx.compose.ui.graphics.Shape = Radius.Card
 /** Fully round ends. */
 val Pill = RoundedCornerShape(50)
 

@@ -194,6 +194,16 @@ data class HubSummary(
 }
 
 object Hub {
+    /** The summary without the apps hidden on this tablet: their reviews, sites and repos go with them. */
+    fun withoutHidden(s: HubSummary, hidden: Set<String>): HubSummary {
+        if (hidden.isEmpty() || s.apps.none { it.id in hidden }) return s
+        return s.copy(
+            apps = s.apps.filter { it.id !in hidden },
+            reviews = s.reviews.filter { it.appId !in hidden },
+            sites = s.sites.filter { it.appId !in hidden },
+        )
+    }
+
     /** Pseudo app id for the "All apps" row at the top of the right drawer. */
     const val ALL = "__all"
 
