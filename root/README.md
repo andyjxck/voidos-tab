@@ -289,6 +289,8 @@ root/voidos-system-magisk.zip /sdcard/Download/`, Magisk > Modules > Install
 from storage, reboot. the app then runs as part of the system.
 Remove the module and reboot to make VoidOS an ordinary app again.
 
+Module 1.4 (VoidOS 2.0.0) carries the 2.0.0 app; nothing else changed since 1.3.
+
 Module 1.3 (VoidOS 1.20.0): holding power opens VoidOS's power menu straight
 away, and Android's white Power off / Restart dialog isn't drawn at all. VoidOS
 hands a hold on power to itself (Android's "long press power" setting, set to

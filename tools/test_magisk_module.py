@@ -132,7 +132,7 @@ class SystemModule(Common, unittest.TestCase):
             sv = z.read("service.sh").decode()
             un = z.read("uninstall.sh").decode()
             c = z.read("customize.sh").decode()
-            self.assertEqual(props(z)["version"], "1.3")
+            self.assertEqual(props(z)["version"], mm.SYS_VERSION)
         self.assertIn("cmd package list packages -e $P", sv)
         self.assertIn("VoidKeysService", sv)
         self.assertIn("settings put global power_button_long_press 1", sv)

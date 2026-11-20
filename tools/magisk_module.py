@@ -242,8 +242,8 @@ def build(out: Path):
 
 # ---------------------------------------------------------------- system app
 
-SYS_VERSION = "1.3"
-SYS_VERSION_CODE = 4
+SYS_VERSION = "1.4"
+SYS_VERSION_CODE = 5
 PACKAGE = "com.andysocial.voidos"
 APK_RELEASE = vm.ROOT / "app/build/outputs/apk/release/app-release.apk"
 APK_DEBUG = vm.ROOT / "app/build/outputs/apk/debug/app-debug.apk"
