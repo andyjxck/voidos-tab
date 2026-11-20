@@ -293,7 +293,7 @@ private fun AlarmOptions(a: Alarm, pickSound: Boolean, setPick: (Boolean) -> Uni
 
     Label("Gradual volume", Modifier.padding(start = 4.dp, bottom = 8.dp))
     if (sound.cat == SoundCat.PROGRESSIVE) {
-        GroupBox { VText("BUILT IN", size = Type.caption, font = SansMedium, spacing = 1.5.sp, color = V.Muted) }
+        GroupBox { VText("BUILDS UP FROM QUIET TO LOUD", size = Type.caption, font = SansMedium, spacing = 1.5.sp, color = V.Muted) }
     } else {
         Segmented(rampChoices.map { it.second }, rampChoices.indexOfFirst { it.first == a.rampSec }.coerceAtLeast(0), Modifier.fillMaxWidth()) {
             set(a.copy(rampSec = rampChoices[it].first))

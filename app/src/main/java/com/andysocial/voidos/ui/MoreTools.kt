@@ -1,5 +1,7 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.platform.testTag
 import android.Manifest
 import android.content.Context
@@ -92,14 +94,15 @@ fun StopwatchPane() {
     LaunchedEffect(Stopwatch.running) { while (Stopwatch.running && isActive) { withFrameMillis { now = System.currentTimeMillis() } } }
     val t = Stopwatch.elapsed(now)
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Spacer(Modifier.weight(0.4f))
-        // 2.0.1: the stopwatch sits in the VoidOS octagon with the 60-tick ring sweeping its seconds
-        Box(Modifier.size(300.dp), contentAlignment = Alignment.Center) {
+        Spacer(Modifier.weight(0.15f))
+        // 2.0.1: the stopwatch sits in the VoidOS octagon with the 60-tick ring sweeping its seconds;
+        // the dial takes what room is left (up to 300dp) so the buttons and laps always fit
+        Box(Modifier.weight(1f, fill = false).heightIn(max = 300.dp).aspectRatio(1f, matchHeightConstraintsFirst = true), contentAlignment = Alignment.Center) {
             val secs = ((t / 1000L) % 60L).toInt(); val frac = (t % 1000L) / 1000f
             androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
                 octDialTicks(androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f), size.minDimension / 2.62f, if (t == 0L) -1 else secs, frac, V.Teal, bead = t > 0L)
             }
-            VText(stopwatchText(t), size = 44.sp, font = SansLight, color = V.White, spacing = (-0.5).sp, modifier = Modifier.testTag("stopwatch_time"))
+            FitText(stopwatchText(t), 44.sp, Modifier.fillMaxWidth(0.62f).testTag("stopwatch_time"), color = V.White, font = SansLight, align = Alignment.Center)
         }
         Gap(h = 20.dp)
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {

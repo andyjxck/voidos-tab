@@ -104,7 +104,7 @@ internal fun FitText(
                 val st = TextStyle(fontSize = s.sp, fontFamily = font, fontFeatureSettings = "tnum")
                 val fits = if (lines == 1) {
                     val r = m.measure(text, st, maxLines = 1, softWrap = false)
-                    (wPx == Constraints.Infinity || r.size.width <= wPx - 1) && (hPx == Constraints.Infinity || r.size.height <= hPx)
+                    (wPx == Constraints.Infinity || r.size.width <= wPx * 0.97f - 1) && (hPx == Constraints.Infinity || r.size.height <= hPx)
                 } else {
                     val r = m.measure(text, st, maxLines = lines, constraints = Constraints(maxWidth = if (wPx == Constraints.Infinity) Int.MAX_VALUE else wPx))
                     !r.hasVisualOverflow && (hPx == Constraints.Infinity || r.size.height <= hPx)

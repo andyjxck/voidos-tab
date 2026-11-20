@@ -97,6 +97,8 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     fun seed() {
         act = rule.activity
         com.andysocial.voidos.ui.Switcher.bootTime = { 0L }
+        com.andysocial.voidos.hub.StatusNav.hideAsk.value = null
+        com.andysocial.voidos.Alarms.ringing.value = null
         // the hub never idles (clocks tick every second), so time only moves when a test moves it
         rule.mainClock.autoAdvance = false
         fakeApps()
@@ -410,7 +412,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         // ringing, over VoidOS
         Alarms.ringing.value = Ringing(Alarms.get(1)!!, System.currentTimeMillis())
         show { Box(Modifier.fillMaxSize()) { Shell(store, act, Module.TOOLS); com.andysocial.voidos.ui.AlarmOverlay() } }
-        expect("Gym", "Snooze", "9 minutes", "Stop"); shot("05e_alarm_ringing")
+        expect("Gym", "Snooze", "9 min", "Stop"); shot("05e_alarm_ringing")
         Alarms.ringing.value = null
         Alarms.list.value.forEach { Alarms.remove(act, it.id) }
     }
@@ -681,7 +683,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
             assertTrue("[$tag] ${a.name} cell under the panel: cell $b panel $panel", clear)
         }
         // its buttons sit below the scrolling part, always in view
-        val btn = rule.onAllNodes(hasText("Notes", substring = true) and hasClickAction()).fetchSemanticsNodes().map { it.boundsInWindow }.filter { it.top >= panel.top && it.bottom <= panel.bottom + 1f }
+        val btn = rule.onAllNodes(hasText("Notes", substring = true, ignoreCase = true) and hasClickAction()).fetchSemanticsNodes().map { it.boundsInWindow }.filter { it.top >= panel.top && it.bottom <= panel.bottom + 1f }
         assertTrue("[$tag] Notes button inside the panel", btn.isNotEmpty())
     }
 
@@ -791,7 +793,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
             CcPart.ROTATE to listOf("Turn with the tablet", "Always portrait"),
             CcPart.BRIGHT to listOf("Brightness", "Auto", "Night Light"),
             CcPart.VOLUME to listOf("Media", "Alarms", "Notifications"),
-            CcPart.MEDIA to listOf("Nothing is playing"),
+            CcPart.MEDIA to listOf("Nothing playing"),
         ).forEachIndexed { i, (part, words) ->
             showCc(part)
             expect(*words.toTypedArray())
@@ -1525,7 +1527,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         expect("Lock", "Restart", "Power off"); shot("62_power_menu")
         assertTrue("[$tag] 62_power_menu: ${issuesOf("62_power_menu")}", issuesOf("62_power_menu").isEmpty())
         rule.onNodeWithContentDescription("Restart").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick); settle(400)
-        expect("Confirm?"); shot("62b_power_confirm")
+        expect("again to confirm"); shot("62b_power_confirm")
 
         // VoidOS's restarting screen (over Android's shutdown dialog) and the low battery warning
         show { com.andysocial.voidos.ui.PowerOffScreen(restart = true) }
@@ -1591,7 +1593,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         settle(600)
         run {
             val rail = rule.onAllNodesWithContentDescription("Apps drawer", useUnmergedTree = true).fetchSemanticsNodes().first().boundsInWindow
-            val words = rule.onAllNodesWithText("No data", useUnmergedTree = true).fetchSemanticsNodes().map { it.boundsInWindow }
+            val words = rule.onAllNodesWithText("No data", substring = true, ignoreCase = true, useUnmergedTree = true).fetchSemanticsNodes().map { it.boundsInWindow }
             assertTrue("[$tag] empty apps drawer says so inside its rail: $words, rail $rail", words.any { b -> b.left >= rail.left - 1f && b.right <= rail.right + 1f && b.top >= rail.top - 1f && b.bottom <= rail.bottom + 1f })
         }
         shot("18e_apps_drawer_empty"); assertDrawerShotClean("18e_apps_drawer_empty", listOf("No data"))

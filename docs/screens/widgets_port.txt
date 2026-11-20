@@ -1,1 +1,2 @@
 renders=272
+widget_sky_2.6x1.7   TEXT CUT  "HENLEY-IN-ARDEN" box=124 x 22 text=124 x 22 lines=1 (wider than its box, ellipsized)

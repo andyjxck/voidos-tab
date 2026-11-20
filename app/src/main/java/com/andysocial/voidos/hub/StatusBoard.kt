@@ -1,5 +1,6 @@
 package com.andysocial.voidos.hub
 
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.andysocial.voidos.ui.OctBtn
 import com.andysocial.voidos.ui.Pill
 import com.andysocial.voidos.ui.Chamfer
@@ -93,7 +94,9 @@ fun StatusBoard(store: Store, onGo: ((Module) -> Unit)?) {
     val openId by StatusNav.open
     val app = s?.app(openId)
     Box(Modifier.fillMaxSize()) {
-    Column(Modifier.fillMaxSize().testTag("status_board")) {
+    // while the hide card is up the board under it is out of reach, for touch and for TalkBack
+    val asking = StatusNav.hideAsk.value != null
+    Column(Modifier.fillMaxSize().testTag("status_board").then(if (asking) Modifier.clearAndSetSemantics { } else Modifier)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 PageTitle("Status", portrait)
