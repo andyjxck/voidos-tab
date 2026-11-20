@@ -398,8 +398,6 @@ class Store(private val ctx: Context) {
         }.getOrDefault(emptyList())
     }
 
-    /** 2.0 removed Music, world clocks and the Organise tools, so their widgets go too. */
-    private val RETIRED_WIDGETS = setOf("sound", "list", "calendar", "world")
 
     fun saveWidgets(list: List<FaceWidget>) {
         widgets = list
@@ -414,6 +412,7 @@ class Store(private val ctx: Context) {
     }
 
     fun addWidget(kind: String, ref: Long = 0L) {
+        if (kind in RETIRED_WIDGETS) return
         if (widgets.any { it.kind == kind && it.ref == ref }) return
         // new widgets go to the first free corner, then the middle of each side, so none lands on another or on the clock
         val slots = listOf(0f to 1f, 1f to 1f, 0f to 0f, 1f to 0.14f, 0f to 0.5f, 1f to 0.5f, 0.5f to 1f, 0.5f to 0f)
@@ -535,3 +534,9 @@ internal fun normDeg(d: Float): Float {
     if (Math.abs(a - q) < 4f) a = q
     return if (a == -180f) 180f else a
 }
+
+/**
+ * 2.0 removed Music, world clocks and the Organise tools, so their widgets go too. Top level, not a
+ * Store field: the widgets load while the Store is being built, before its later fields are set.
+ */
+internal val RETIRED_WIDGETS = setOf("sound", "list", "calendar", "world")

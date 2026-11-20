@@ -48,7 +48,7 @@ internal fun widgetSize(kind: String): Pair<Dp, Dp> = when (kind) {
     "note" -> 200.dp to 170.dp
     "hrev", "hdl" -> 190.dp to 150.dp
     "hstatus" -> 230.dp to 150.dp
-    "world", "forecast" -> 230.dp to 150.dp
+    "forecast" -> 230.dp to 150.dp
     "stopwatch", "focus" -> 190.dp to 110.dp
     else -> 150.dp to 150.dp
 }

@@ -265,9 +265,10 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     @Test fun faceWidgets() {
         store.saveWidgets(emptyList())
         if (store.notes.isEmpty()) store.saveNote(Note(77L, "Bins out Thursday", 1, 77L))
-        store.addWidget("sky"); store.addWidget("list"); store.addWidget("note", store.notes.first().id)
+        store.addWidget("sky"); store.addWidget("hrev"); store.addWidget("note", store.notes.first().id)
         show { Shell(store, act, Module.FACE) }
-        expect("Cheddar", "Bins out Thursday", store.city.uppercase()); shot("01b_face_widgets")
+        expect("Bins out Thursday", store.city.uppercase()); shot("01b_face_widgets")
+        assertTrue("[$tag] revenue widget", rule.onAllNodesWithText("Revenue today", substring = true, ignoreCase = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         store.saveWidgets(emptyList())
     }
 
@@ -1318,8 +1319,8 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     @Test fun system() {
         show { Shell(store, act, Module.SYSTEM) }
         shot("20_system_wifi")
-        listOf("Bluetooth", "Network", "Display & sound", "Notifications", "Do not disturb", "Battery", "Home & lock screen", "Date & time",
-            "Lock mode", "Storage", "System", "About").forEachIndexed { i, t ->
+        // 2.0: network, display and sound, the VoidOS options, the Hub, Dev Apps and About
+        listOf("Bluetooth", "Network", "Display & sound", "Drawers, standby & clock", "Lock mode", "Hub", "Dev Apps", "About").forEachIndexed { i, t ->
             tap(t)
             shot("%02d_system_%s".format(21 + i, t.lowercase().replace(Regex("[^a-z]+"), "_").trim('_')))
             // upright, a page opens over the list: go back to it
@@ -1394,7 +1395,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     @Test fun pinSettings() {
         PinGuard.reset(); store.resetPin()
         show { Shell(store, act, Module.SYSTEM) }
-        tap("Home & lock screen"); settle(800)
+        tap("Drawers, standby & clock"); settle(800)
         expect("Ask for PIN to unlock", "Change PIN")
         tap("Change")
         expect("Enter your current PIN")
@@ -1447,6 +1448,9 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
      * completely (nothing showing through) and keep every card or tile on one even grid.
      */
     @Test fun systemScreens() {
+        // 2.0: only Dev Apps launch, so these six are put on the Dev Apps list first
+        store.saveDevApps(listOf("com.bbc.sounds" to "BBC Sounds", "com.netflix.mediaclient" to "Netflix", "com.android.chrome" to "Chrome", "com.google.android.youtube" to "YouTube", "com.whatsapp" to "WhatsApp", "com.spotify.music" to "Spotify")
+            .joinToString("\n") { (p, n) -> com.andysocial.voidos.hub.DevApp(n, p).line() })
         listOf("com.bbc.sounds", "com.netflix.mediaclient", "com.android.chrome", "com.google.android.youtube", "com.whatsapp", "com.spotify.music").forEach { store.setAllowed(it, true); store.noteRecent(it) }
         com.andysocial.voidos.ui.AppsRepo.all(act, fresh = true)
         val sw = com.andysocial.voidos.ui.Switcher
@@ -1536,7 +1540,8 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         listOf("Milk", "Sourdough loaf", "Washing-up liquid", "Eggs", "Firelighters", "Lemons", "Coffee beans").forEach { store.addItem(it) }
         store.addWorldClock("New York", "America/New_York"); store.addWorldClock("Tokyo", "Asia/Tokyo"); store.addWorldClock("Sydney", "Australia/Sydney")
         com.andysocial.voidos.Now.playing.value = com.andysocial.voidos.Playing("com.spotify.music", "Spotify", "Mr. Brightside (Jacques Lu Cont Remix)", "The Killers", null, true, 60_000, 240_000, now, 1f)
-        val kinds = listOf("sky", "sound", "list", "battery", "calendar", "world", "stopwatch", "alarm", "forecast", "focus", "note")
+        // 2.0: the music, list, calendar and world-clock widgets are retired; the hub ones are new
+        val kinds = listOf("sky", "battery", "stopwatch", "alarm", "forecast", "focus", "note", "hstatus", "hrev", "hdl", "hcrash", "hup")
         val stretches = listOf(com.andysocial.voidos.WIDGET_MIN_SCALE, 1f, 1.7f, com.andysocial.voidos.WIDGET_MAX_SCALE)
         val cfg = act.resources.configuration
         val faceW = cfg.screenWidthDp * 0.95f; val faceH = cfg.screenHeightDp * 0.95f
