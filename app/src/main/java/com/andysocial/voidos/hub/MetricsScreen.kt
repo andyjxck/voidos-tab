@@ -1,5 +1,13 @@
 package com.andysocial.voidos.hub
 
+import com.andysocial.voidos.ui.PageHeader
+import com.andysocial.voidos.ui.SelectButton
+import com.andysocial.voidos.ui.PickSheet
+import com.andysocial.voidos.ui.PickTile
+import com.andysocial.voidos.ui.Grid
+import com.andysocial.voidos.ui.Glyph
+import com.andysocial.voidos.ui.G
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -57,26 +65,26 @@ fun MetricsScreen(store: Store) {
     val metric = Metric.of(store.hubMetric) ?: Metric.REVENUE
     val appId = store.hubApp.takeIf { it == Hub.ALL || s?.app(it) != null } ?: Hub.ALL
     val appName = if (appId == Hub.ALL) "All apps" else s?.app(appId)?.name ?: "All apps"
+    var picking by remember { mutableStateOf<String?>(null) }
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().testTag("metrics")) {
-        PageTitle(metric.label, portrait)
-        VText(listOf(appName, freshness(s)).filter { it.isNotBlank() }.joinToString(" · "), size = Type.caption, color = V.Muted, maxLines = 2)
-        Gap(h = 10.dp)
-        // the drawers choose, but the chips work too, for a book half or no drawers
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-            Metric.entries.forEach { m -> Chip(m.label, m == metric, V.Teal, Modifier.padding(end = 6.dp), glyph = HubDrawers.glyph(m)) { store.setHub(metric = m.name) } }
-        }
-        Gap(h = 6.dp)
-        if (s == null) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { NotConnected("Nothing linked yet") }; return@Column }
-        if (s.apps.isEmpty()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { NotConnected("No apps linked yet") }; return@Column }
-        // a metric no linked source provides: say which source would, rather than show zeros
-        if (Hub.total(s, metric) == null && !(metric == Metric.REVENUE && (s.payout != null || s.costs.isNotEmpty())) && !(metric == Metric.REVIEWS && s.reviews.isNotEmpty())) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { NotConnected("No ${metric.label.lowercase()} yet", how = "Link ${sourceFor(metric.label)} in Settings \u203a Hub") }
-            return@Column
-        }
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-            (listOf(Hub.ALL to "All apps") + s.apps.map { it.id to it.name }).forEach { (id, name) ->
-                Chip(name, id == appId, V.Teal, Modifier.padding(end = 6.dp)) { store.setHub(app = id) }
+        PageHeader(metric.label, portrait, sub = freshness(s))
+        Gap(h = Grid.m)
+        // 2.0.1: two quiet selectors instead of two long rows of pills; each opens a grid that always fits
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Grid.s)) {
+            SelectButton(metric.label, Modifier.weight(1f, fill = false), tag = "pick_metric",
+                leading = { Glyph(HubDrawers.glyph(metric), V.Teal, Modifier.size(18.dp)) }) { picking = "metric" }
+            if (s != null && s.apps.isNotEmpty()) {
+                val chosenApp = s.app(appId)
+                SelectButton(if (chosenApp == null) "All apps" else shortName(chosenApp.name), Modifier.weight(1f, fill = false), tag = "pick_app",
+                    leading = { if (chosenApp != null && chosenApp.kind == HubKind.APP) AppIcon(chosenApp, 24.dp) else Glyph(G.APPS, V.Teal, Modifier.size(18.dp)) }) { picking = "app" }
             }
+        }
+        Gap(h = Grid.l)
+        if (s == null || s.apps.isEmpty()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { NotConnected("NO DATA") }; return@Column }
+        if (Hub.total(s, metric) == null && !(metric == Metric.REVENUE && (s.payout != null || s.costs.isNotEmpty())) && !(metric == Metric.REVIEWS && s.reviews.isNotEmpty())) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { NotConnected("NO DATA") }
+            return@Column
         }
         Gap(h = 12.dp)
         Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())) {
@@ -98,6 +106,18 @@ fun MetricsScreen(store: Store) {
             Gap(h = 24.dp)
         }
     }
+    PickSheet(picking == "metric", "Metric", { picking = null }) {
+        Metric.entries.forEach { m ->
+            PickTile(m.label, m == metric, leading = { Glyph(HubDrawers.glyph(m), if (m == metric) V.Teal else V.Muted, Modifier.size(18.dp)) }) { store.setHub(metric = m.name); picking = null }
+        }
+    }
+    PickSheet(picking == "app", "App", { picking = null }) {
+        PickTile("All apps", appId == Hub.ALL, leading = { Glyph(G.APPS, V.Teal, Modifier.size(18.dp)) }) { store.setHub(app = Hub.ALL); picking = null }
+        s?.apps?.forEach { a ->
+            PickTile(shortName(a.name), a.id == appId, leading = { if (a.kind == HubKind.APP) AppIcon(a, 26.dp) else Glyph(G.WEB, V.Teal, Modifier.size(18.dp)) }) { store.setHub(app = a.id); picking = null }
+        }
+    }
+    }
 }
 
 @Composable
@@ -107,7 +127,7 @@ private fun BigNumber(m: Metric, v: MetricValue?, modifier: Modifier) {
         Canvas(Modifier.fillMaxSize().padding(10.dp)) { octagon(V.Teal.copy(alpha = 0.35f)) }
         Column(Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 22.dp), verticalArrangement = Arrangement.Center) {
             Label("Today")
-            if (v == null) VText("Nothing for this app yet", size = Type.title, color = V.Muted, maxLines = 2)
+            if (v == null) VText("\u2014", size = Type.display, color = V.Muted, maxLines = 1)
             else {
                 FitText(Hub.fmt(v.today, m, v.currency), 64.sp(), Modifier.fillMaxWidth().height(76.dp), color = V.White, font = SansLight)
                 VText("Last 7 days: " + Hub.fmt(v.week, m, v.currency), size = Type.body, color = V.Muted, maxLines = 1)
@@ -123,7 +143,7 @@ private fun Trend(m: Metric, v: MetricValue?, modifier: Modifier) {
     Column(modifier.height(200.dp).pane(Oct).padding(20.dp)) {
         Label("Last ${v?.series?.size ?: 0} days")
         Gap(h = 10.dp)
-        if (v == null || v.series.isEmpty()) VText("No history yet", size = Type.body, color = V.Muted)
+        if (v == null || v.series.isEmpty()) VText("\u2014", size = Type.title, color = V.Muted)
         else {
             TickBars(v.series, V.Teal, Modifier.fillMaxWidth().weight(1f))
             Gap(h = 6.dp)
@@ -141,7 +161,7 @@ private fun Ranking(s: HubSummary, m: Metric, modifier: Modifier) {
     Column(modifier.height(200.dp).pane(Oct).padding(20.dp)) {
         Label("By app")
         Gap(h = 8.dp)
-        if (rank.isEmpty()) VText("No app has this yet", size = Type.body, color = V.Muted)
+        if (rank.isEmpty()) VText("\u2014", size = Type.title, color = V.Muted)
         val top = rank.maxOfOrNull { it.second }?.takeIf { it > 0 } ?: 1.0
         Column(Modifier.verticalScroll(rememberScrollState())) {
             rank.forEach { (a, x) ->
@@ -164,7 +184,7 @@ private fun PayoutCard(p: Payout?, modifier: Modifier) {
     Column(modifier.pane(Oct).padding(20.dp)) {
         Label("App Store payout")
         Gap(h = 6.dp)
-        if (p == null || p.nextDate.isBlank()) { VText("Payouts not connected · set up in Settings › Hub", size = Type.body, color = V.Muted, maxLines = 2); return@Column }
+        if (p == null || p.nextDate.isBlank()) { VText("\u2014", size = Type.body, color = V.Muted, maxLines = 2); return@Column }
         Figure("Next payment ${p.nextDate}", p.estimate?.let { "about " + Hub.money(it, p.currency) } ?: "–", sub = p.lastAmount?.let { "Last: ${Hub.money(it, p.currency)} on ${p.lastDate}" } ?: "")
     }
 }
@@ -174,7 +194,7 @@ private fun CostsCard(costs: List<CostLine>, modifier: Modifier) {
     Column(modifier.pane(Oct).padding(20.dp)) {
         Label("Running costs")
         Gap(h = 6.dp)
-        if (costs.isEmpty()) VText("Costs not connected · set up in Settings › Hub", size = Type.body, color = V.Muted, maxLines = 2)
+        if (costs.isEmpty()) VText("\u2014", size = Type.body, color = V.Muted, maxLines = 2)
         costs.forEach { c ->
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -211,7 +231,7 @@ private fun SitesCard(s: HubSummary, modifier: Modifier) {
     Column(modifier.pane(Oct).padding(20.dp)) {
         Label("Sites")
         Gap(h = 6.dp)
-        if (s.sites.isEmpty()) VText("Uptime checks not connected · set up in Settings › Hub", size = Type.body, color = V.Muted, maxLines = 2)
+        if (s.sites.isEmpty()) VText("\u2014", size = Type.body, color = V.Muted, maxLines = 2)
         s.sites.forEach { c ->
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 StatusChip(siteStatus(c), text = if (c.up) "Up" else "Down")
@@ -237,7 +257,7 @@ private fun CrashList(s: HubSummary, appId: String, modifier: Modifier) {
     Column(modifier.pane(Oct).padding(20.dp)) {
         Label("Crash groups")
         Gap(h = 6.dp)
-        if (list.isEmpty()) VText(if (s.sources.any { it.key == "crashlytics" }) "No crashes. Nice." else "Crashlytics not connected · set up in Settings › Hub", size = Type.body, color = V.Muted, maxLines = 2)
+        if (list.isEmpty()) VText(if (s.sources.any { it.key == "crashlytics" }) "No crashes" else "\u2014", size = Type.body, color = V.Muted, maxLines = 2)
         list.forEach { (a, c) ->
             Column(Modifier.padding(vertical = 4.dp)) {
                 VText(c.title, size = Type.body, color = if (c.fresh) V.Coral else V.Text, maxLines = 1)
@@ -258,7 +278,7 @@ private fun ReviewsInbox(s: HubSummary, appId: String, store: Store, modifier: M
     Column(modifier.pane(Oct).padding(20.dp).testTag("reviews_inbox")) {
         Label("Reviews")
         Gap(h = 6.dp)
-        if (list.isEmpty()) VText("No reviews yet", size = Type.body, color = V.Muted)
+        if (list.isEmpty()) VText("No reviews", size = Type.body, color = V.Muted)
         list.forEach { r ->
             Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

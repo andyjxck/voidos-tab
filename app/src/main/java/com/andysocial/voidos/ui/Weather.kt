@@ -243,7 +243,7 @@ fun OfflineBadge(wx: Wx?, modifier: Modifier = Modifier) {
         Gap(w = 16.dp)
         Column(Modifier.weight(1f)) {
             VText("No Wi-Fi", size = Type.title2, font = SansMedium, color = V.White, maxLines = 1)
-            VText(if (wx == null) "No weather saved yet" else "Showing the weather from ${wxAge(wx.fetched)}", size = Type.body, color = V.Text, maxLines = 1)
+            VText(if (wx == null) "No data" else "From ${wxAge(wx.fetched)}", size = Type.body, color = V.Text, maxLines = 1)
         }
     }
 }

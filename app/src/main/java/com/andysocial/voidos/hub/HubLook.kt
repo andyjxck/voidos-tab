@@ -29,6 +29,11 @@ import com.andysocial.voidos.ui.VText
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import androidx.compose.foundation.background
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.sp
+import com.andysocial.voidos.ui.Grid
+import com.andysocial.voidos.ui.Radius
 
 /*
  * The Void Hub look: a blend of VoidOS's first face and today's.
@@ -135,37 +140,17 @@ fun StatusChip(s: HubStatus, modifier: Modifier = Modifier, text: String = s.lab
  * The empty state every hub surface uses until real data exists: "Nothing linked yet" over
  * "Link App Store Connect in Settings › Hub". [what] names what's missing; [how] the next step.
  */
+/**
+ * The one empty state on the tablet: a short dash line and "No data", nothing else. Setup help
+ * lives in docs/hub-setup.md, never on the screen.
+ */
 @Composable
-fun NotConnected(what: String, modifier: Modifier = Modifier, glyphSize: Dp = 40.dp, how: String = linkHint(what)) {
-    Column(modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Glyph(G.HUB, V.Tick, Modifier.size(glyphSize))
-        Gap(h = 10.dp)
-        VText(what, size = Type.headline, font = SansMedium, color = V.Text, maxLines = 2,
+fun NotConnected(what: String = "No data", modifier: Modifier = Modifier, glyphSize: Dp = 40.dp) {
+    Column(modifier.padding(Grid.l).testTag("empty_state"), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(width = (glyphSize.value * 0.6f).dp, height = 2.dp).background(V.Tick, Radius.Chip))
+        Gap(h = Grid.m)
+        VText(what, size = Type.label, font = SansMedium, color = V.Muted, maxLines = 1, spacing = 1.2.sp,
             align = androidx.compose.ui.text.style.TextAlign.Center)
-        Gap(h = 4.dp)
-        VText(how, size = Type.body, color = V.Muted, maxLines = 3,
-            align = androidx.compose.ui.text.style.TextAlign.Center)
-    }
-}
-
-/** The next step under an empty state: the server first, then the source that feeds it. */
-fun linkHint(what: String): String = when {
-    !HubRepo.connected -> "Link your hub server in Settings \u203a Hub"
-    else -> "Link ${sourceFor(what)} in Settings \u203a Hub"
-}
-
-/** Which source fills a screen, for its empty state. */
-fun sourceFor(what: String): String {
-    val w = what.lowercase()
-    return when {
-        "crash" in w -> "Crashlytics"
-        "ad" in w || "ecpm" in w || "impression" in w -> "AdMob"
-        "user" in w -> "Firebase Analytics"
-        "uptime" in w || "site" in w -> "a site"
-        "bounce" in w || "email" in w -> "Brevo"
-        "repo" in w || "github" in w || "commit" in w -> "GitHub"
-        "cost" in w || "spend" in w -> "a cost source"
-        else -> "App Store Connect"
     }
 }
 
@@ -198,8 +183,7 @@ fun HubWidget(kind: String, wide: Boolean, iw: Float, ih: Float) {
         Gap(h = 4.dp)
         val v0 = metric?.let { m -> s?.let { Hub.total(it, m) } }
         if (s == null || s.apps.isEmpty() || (metric != null && v0 == null)) {
-            VText(if (s == null) "Not linked yet" else "No data yet", size = Type.body, color = V.Text, font = SansMedium, maxLines = 1)
-            if (ih > 70f) VText(if (s == null) "Settings \u203a Hub" else "Link ${sourceFor(label)}", size = Type.caption, color = V.Muted, maxLines = 2)
+            VText("\u2014", size = Type.title2, color = V.Muted, font = SansMedium, maxLines = 1)
             return@Column
         }
         if (metric == null) {

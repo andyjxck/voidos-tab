@@ -579,7 +579,7 @@ fun BatteryUseList() {
     val u = use
     when {
         u == null -> Note("Adding it up...")
-        u.isEmpty() -> Note("Android hasn't counted any yet, or VoidOS needs root for this.")
+        u.isEmpty() -> Note("No data")
         else -> {
             val total = u.sumOf { it.mah }.coerceAtLeast(0.01)
             u.take(12).forEach { a ->

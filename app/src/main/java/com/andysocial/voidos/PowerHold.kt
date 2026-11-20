@@ -63,7 +63,6 @@ class PowerHoldActivity : Activity() {
         } else {
             // VoidOS's service isn't running: Android's own dialog comes back for the next hold
             Thread { Su.run(PowerHold.giveBackCommands(null).joinToString("; ")) }.start()
-            Toast.makeText(this, "Hold power again for the power menu", Toast.LENGTH_SHORT).show()
         }
         finish()
         @Suppress("DEPRECATION")

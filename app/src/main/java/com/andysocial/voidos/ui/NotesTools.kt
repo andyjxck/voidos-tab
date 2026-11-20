@@ -151,7 +151,7 @@ internal fun InkBar(
             onPanel(if (panel == InkPanel.BRUSH) InkPanel.NONE else InkPanel.BRUSH)
         }
         InkGap()
-        InkTool(R.drawable.vi_ink_clear, if (clearArmed) "Tap again to clear the page" else "Clear page", enabled = canClear, warn = clearArmed, onClick = onClear)
+        InkTool(R.drawable.vi_ink_clear, if (clearArmed) "Clear?" else "Clear page", enabled = canClear, warn = clearArmed, onClick = onClear)
     }
 }
 

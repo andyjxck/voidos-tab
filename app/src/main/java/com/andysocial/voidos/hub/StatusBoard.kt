@@ -1,5 +1,10 @@
 package com.andysocial.voidos.hub
 
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.runtime.remember
+import com.andysocial.voidos.ui.Grid
+import com.andysocial.voidos.ui.Radius
+import com.andysocial.voidos.ui.Glyph
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -67,6 +72,8 @@ import kotlin.math.roundToInt
 /** Which app's panel is open on the status board (null: none). Set from the drawers too. */
 object StatusNav {
     val open = mutableStateOf<String?>(null)
+    /** 2.0.1: the app a long-press asked to hide. */
+    val hideAsk = mutableStateOf<String?>(null)
 }
 
 /**
@@ -82,6 +89,7 @@ fun StatusBoard(store: Store, onGo: ((Module) -> Unit)?) {
     val s = HubRepo.summary
     val openId by StatusNav.open
     val app = s?.app(openId)
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().testTag("status_board")) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -92,12 +100,12 @@ fun StatusBoard(store: Store, onGo: ((Module) -> Unit)?) {
                 HubStatus.FINE -> "All fine"
                 HubStatus.ATTENTION -> "${s.apps.count { it.glow == HubStatus.ATTENTION }} need a look"
                 HubStatus.ERRORS -> "${s.apps.count { it.glow == HubStatus.ERRORS }} with errors"
-                HubStatus.UNKNOWN -> "No data yet"
+                HubStatus.UNKNOWN -> "No data"
             })
         }
         Gap(h = 8.dp)
         if (s == null || s.apps.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { NotConnected(if (s == null) "Nothing linked yet" else "No apps linked yet") }
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { NotConnected("NO DATA") }
             return@Column
         }
         // clipped to its own box: the rings can never ride up over the title
@@ -137,28 +145,53 @@ fun StatusBoard(store: Store, onGo: ((Module) -> Unit)?) {
             }
         }
     }
+    HideAsk(s)
+    }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun StatusCell(a: HubApp, chosen: Boolean, sizePx: Float, modifier: Modifier, onTap: () -> Unit) {
     val d = LocalDensity.current
     val size = with(d) { sizePx.toDp() }
     val col = HubLook.colour(a.glow)
     Box(
-        modifier.size(size).clip(CircleShape).clickable(onClick = onTap)
+        modifier.size(size).clip(CircleShape)
+            .combinedClickable(onClick = onTap, onLongClick = { StatusNav.hideAsk.value = a.id })
             .semantics { contentDescription = "${a.name}, ${a.glow.label}" }.testTag("cell_${a.id}"),
         contentAlignment = Alignment.Center,
     ) {
+        // the old face's 60-tick ring is the status: teal fine, amber a look, coral errors
         TickRing(col, Modifier.fillMaxSize(), glow = chosen || a.glow == HubStatus.ERRORS)
-        Box(
-            Modifier.size(size * 0.66f).then(if (chosen) Modifier.background(col.copy(alpha = 0.18f), CircleShape) else Modifier).glass(CircleShape, 0.75f),
-            contentAlignment = Alignment.Center,
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 6.dp)) {
-                VText(a.initials, size = (size.value * 0.2f).coerceIn(14f, 30f).sp, font = SansMedium, color = V.White, maxLines = 1)
-                // a long name wraps onto a second line before it shrinks, so small rings never cut it
-                FitText(a.name, (size.value * 0.085f).coerceIn(9f, 13f).sp, Modifier.fillMaxWidth(), color = V.Muted, font = SansMedium,
-                    align = Alignment.Center, min = 7.sp, lines = 2)
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.size(size * 0.70f), verticalArrangement = Arrangement.Center) {
+            if (a.kind == HubKind.APP) AppIcon(a, size * 0.40f)
+            else Box(Modifier.size(size * 0.40f).glass(Radius.Card, 0.75f), contentAlignment = Alignment.Center) { Glyph(G.WEB, col, Modifier.size(size * 0.2f)) }
+            Gap(h = (size.value * 0.04f).coerceIn(3f, 8f).dp)
+            FitText(shortName(a.name), (size.value * 0.078f).coerceIn(9f, 12.5f).sp, Modifier.fillMaxWidth(), color = if (chosen) V.White else V.Text, font = SansMedium,
+                align = Alignment.Center, min = 7.sp, lines = 1)
+        }
+    }
+}
+
+/** The board's label: the name before its store subtitle ("Fit Void: Gym Workout Tracker" reads "Fit Void"). */
+fun shortName(n: String): String = n.substringBefore(':').substringBefore(" - ").substringBefore(" \u2013 ").trim().ifEmpty { n }
+
+/** Long-press an app: one small chamfered card, Hide or keep it. Hidden apps come back from Settings › Hidden apps. */
+@Composable
+fun HideAsk(s: HubSummary?) {
+    val id by StatusNav.hideAsk
+    val a = s?.app(id) ?: return
+    Box(Modifier.fillMaxSize().background(V.Bg.copy(alpha = 0.55f)).clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) { StatusNav.hideAsk.value = null }, contentAlignment = Alignment.Center) {
+        Column(Modifier.width(300.dp).pane(Oct).padding(Grid.xl).testTag("hide_ask"), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (a.kind == HubKind.APP) AppIcon(a, 64.dp)
+            Gap(h = Grid.m)
+            VText(shortName(a.name), size = Type.title, font = SansMedium, color = V.White, maxLines = 1)
+            Gap(h = Grid.xl)
+            Row(horizontalArrangement = Arrangement.spacedBy(Grid.s)) {
+                VButton("Cancel", Modifier.weight(1f)) { StatusNav.hideAsk.value = null }
+                VButton("Hide", Modifier.weight(1f), accent = V.Coral) {
+                    HubRepo.hide(a.id); if (StatusNav.open.value == a.id) StatusNav.open.value = null; StatusNav.hideAsk.value = null
+                }
             }
         }
     }
@@ -170,8 +203,9 @@ fun AppPanel(a: HubApp, s: HubSummary, store: Store, onGo: ((Module) -> Unit)?, 
     val ctx = LocalContext.current
     Column(modifier.pane(Oct).padding(20.dp).testTag("app_panel")) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            if (a.kind == HubKind.APP) { AppIcon(a, 52.dp); Gap(w = Grid.m) }
             Column(Modifier.weight(1f)) {
-                FitText(a.name, Type.title2, Modifier.fillMaxWidth(), color = V.White, font = SansMedium)
+                FitText(shortName(a.name), Type.title2, Modifier.fillMaxWidth(), color = V.White, font = SansMedium)
                 StatusChip(a.glow, text = a.statusNote.ifBlank { a.glow.label })
             }
             RoundIcon(G.CLOSE, "Close panel", size = 38.dp) { StatusNav.open.value = null }
@@ -180,7 +214,7 @@ fun AppPanel(a: HubApp, s: HubSummary, store: Store, onGo: ((Module) -> Unit)?, 
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             // today's numbers, two to a row, the old face's label-over-number
             val figs = panelFigures(a)
-            if (figs.isEmpty()) NotConnected(if (a.kind == HubKind.SITE) "No site checks yet" else "No numbers yet", Modifier.fillMaxWidth(), 28.dp, how = if (a.kind == HubKind.SITE) "Your server checks it on its next refresh" else "Link App Store Connect in Settings \u203a Hub")
+            if (figs.isEmpty()) NotConnected("NO DATA", Modifier.fillMaxWidth(), 28.dp)
             figs.chunked(2).forEach { row ->
                 Row(Modifier.fillMaxWidth()) {
                     row.forEach { (m, v) ->

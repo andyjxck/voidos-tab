@@ -156,7 +156,7 @@ fun PowerMenu(onLock: () -> Unit, onRestart: () -> Unit, onPowerOff: () -> Unit,
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 VText(if (confirm == null) "Power" else "$confirm?", size = 26.sp, font = SansLight, color = V.White)
                 Box(Modifier.height(6.dp))
-                VText(if (confirm == null) "Tap outside to cancel" else "Tap again to confirm", size = Type.label, color = V.Muted)
+                VText(if (confirm == null) "" else "Confirm?", size = Type.label, color = V.Muted)
                 Box(Modifier.height(32.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                     PowerButton("Lock", G.LOCK, false, 88.dp) { onLock() }

@@ -2,6 +2,7 @@ package com.andysocial.voidos.hub
 
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 import com.andysocial.voidos.ui.G
 import com.andysocial.voidos.ui.Glyph
@@ -28,13 +29,14 @@ object HubDrawers {
 
     /** "All apps" first, then the store apps, then the sites. Empty until the hub has a summary. */
     /** What the right drawer says before anything is linked, the same words as the other empty states. */
-    fun emptyText(s: HubSummary?): String = if (s == null) "Nothing linked yet" else "No apps linked yet"
+    fun emptyText(s: HubSummary?): String = "No data"
 
     fun appItems(s: HubSummary?): List<WheelItem> {
         if (s == null || s.apps.isEmpty()) return emptyList()
         return listOf(item(Hub.ALL, "All apps", G.APPS, V.Text)) +
-            s.apps.sortedBy { if (it.kind == HubKind.APP) 0 else 1 }.map {
-                item(it.id, it.name, if (it.kind == HubKind.SITE) G.WEB else G.STORE, HubLook.colour(it.glow).takeIf { c -> c != V.Tick } ?: V.Text)
+            s.apps.sortedBy { if (it.kind == HubKind.APP) 0 else 1 }.map { a ->
+                if (a.kind == HubKind.APP) WheelItem(a.id, a.name) { m: Modifier, _: Color -> AppIcon(a, 34.dp, m) }
+                else item(a.id, a.name, G.WEB, HubLook.colour(a.glow).takeIf { c -> c != V.Tick } ?: V.Text)
             }
     }
 

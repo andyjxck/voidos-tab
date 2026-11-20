@@ -346,7 +346,7 @@ fun HoneycombApps(store: Store, apps: List<AppEntry>, onOpen: (AppEntry) -> Unit
                 Box(Modifier.fillMaxSize().padding(top = 12.dp), contentAlignment = Alignment.TopCenter) {
                     Box(
                         Modifier.droplet(RoundedCornerShape(50), if (overHome) V.Teal else V.Purple, if (overHome) 2f else 1f).padding(horizontal = 24.dp, vertical = 14.dp),
-                    ) { VText(if (overHome) "Let go to open beside the clock" else "Drag here to open beside the clock", size = Type.headline, color = androidx.compose.ui.graphics.Color.White) }
+                    ) { VText(if (overHome) "Open beside the clock" else "Beside the clock", size = Type.headline, color = androidx.compose.ui.graphics.Color.White) }
                 }
                 Box(
                     Modifier.offset { IntOffset((dragX.floatValue - cell / 2).roundToInt(), (dragY.floatValue - cell / 2).roundToInt()) }.size(cellNow)

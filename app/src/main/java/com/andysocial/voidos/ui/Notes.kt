@@ -180,7 +180,7 @@ private fun NoteList(
                 VText(if (query.isBlank()) "No notes yet" else "No matches", size = Type.headline, color = V.Muted)
                 if (query.isBlank()) {
                     Gap(h = 8.dp)
-                    VText("Tap the pencil to write one, or the pen to sketch.", size = Type.label, color = V.Tick, align = TextAlign.Center)
+                    VText("", size = Type.label, color = V.Tick, align = TextAlign.Center)
                 }
             }
             return@Column

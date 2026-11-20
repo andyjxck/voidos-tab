@@ -278,9 +278,10 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
             go(Module.FACE, animate = false)
         },
         canDrop = { _, _ -> true },
-        // hold-and-pull-down closes Android apps; hub rows aren't apps, so it's off here and lives in the
-        // recent apps under Control Centre
-        onCloseApp = null,
+        // 2.0.1: hold a hub app's row and pull down to hide it from the tablet (Settings › Hidden apps brings it back)
+        onCloseApp = { id -> com.andysocial.voidos.hub.HubRepo.hide(id) },
+        canClose = { id -> id != com.andysocial.voidos.hub.Hub.ALL },
+        closeLabel = "Hide",
         // anything over the screens (lock, ringing timer, control centre, the way out, the ambient clock) keeps the edges
         enabled = edgeOff(escape, control, ambient, LockState.locked.value && store.voidLock).isEmpty() && fullTool.value == null,
     )

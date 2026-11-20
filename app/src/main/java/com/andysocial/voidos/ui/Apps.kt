@@ -358,7 +358,7 @@ fun AppsScreen(store: Store) {
                         VText(if (q.isNotEmpty()) "No app matches \"$q\"" else "No apps chosen yet", size = Type.title, font = SansMedium, color = V.Text)
                         if (q.isEmpty()) {
                             Gap(h = 8.dp)
-                            VText("Tap Manage to pick the apps that appear here.", size = Type.body, color = V.Muted)
+                            VText("No apps", size = Type.body, color = V.Muted)
                         }
                     }
                 } else if (q.isEmpty()) {

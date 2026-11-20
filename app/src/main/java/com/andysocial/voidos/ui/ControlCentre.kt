@@ -838,7 +838,7 @@ private fun ColumnScope.WifiPanel(st: CcState) {
     }
 
     PanelHead(G.WIFI, "Wi-Fi", if (!st.wifi) "Off" else st.ssid?.let { "Connected to $it" } ?: "Not connected", st.wifi, V.Teal) { st.switchWifi(!st.wifi) }
-    if (!st.wifi) { VText("Wi-Fi is off. Tap the button to turn it on.", size = Type.body, color = V.Muted, modifier = Modifier.padding(start = 4.dp)); return }
+    if (!st.wifi) { VText("Wi-Fi off", size = Type.body, color = V.Muted, modifier = Modifier.padding(start = 4.dp)); return }
 
     Section(if (scanning && nets.isEmpty()) "Looking for networks…" else "Networks")
     if (!scanning && nets.isEmpty()) VText("No networks found nearby.", size = Type.body, color = V.Muted, modifier = Modifier.padding(start = 4.dp))
@@ -948,7 +948,7 @@ private fun ColumnScope.BtPanel(st: CcState) {
     }
 
     PanelHead(G.BT, "Bluetooth", if (!st.bt) "Off" else devs.firstOrNull { it.connected }?.let { "Connected to ${it.name}" } ?: "On", st.bt, BtBlue) { st.switchBt(!st.bt) }
-    if (!st.bt) { VText("Bluetooth is off. Tap the button to turn it on.", size = Type.body, color = V.Muted, modifier = Modifier.padding(start = 4.dp)); return }
+    if (!st.bt) { VText("Bluetooth off", size = Type.body, color = V.Muted, modifier = Modifier.padding(start = 4.dp)); return }
     err?.let { VText(it, size = Type.caption, color = V.Coral, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)) }
 
     Section("My devices")
@@ -1126,7 +1126,7 @@ private fun ColumnScope.MediaPanel() {
         Glyph(G.MEDIA, V.Muted, Modifier.size(40.dp).align(Alignment.CenterHorizontally))
         Spacer(Modifier.height(12.dp))
         VText("Nothing is playing", size = Type.title, font = SansMedium, color = V.Text, modifier = Modifier.align(Alignment.CenterHorizontally))
-        VText("Start music or a video in any app and you can control it from here.", size = Type.label, color = V.Muted,
+        VText("Nothing playing", size = Type.label, color = V.Muted,
             align = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 8.dp).align(Alignment.CenterHorizontally))
         return
     }

@@ -155,6 +155,8 @@ fun EdgeDrawers(
     /** Hold an app's row, then pull down: the app is closed completely (AppKill). Null switches it off. */
     onCloseApp: ((key: String) -> Unit)? = null,
     canClose: (key: String) -> Boolean = { true },
+    /** 2.0.1: the one word beside a held row (Close for apps, Hide for hub apps), coral once the pull is far enough. */
+    closeLabel: String = "Close",
 ) {
     var side by remember { mutableStateOf<Edge?>(null) }
     var sticky by remember { mutableStateOf(false) }
@@ -348,15 +350,15 @@ fun EdgeDrawers(
                 val hy = lay.centre(hi, scroll.floatValue)
                 Box(
                     Modifier.offset {
-                        val x = if (open == Edge.LEFT) gap + railW + px(Grid.m.value) else w - gap - railW - px(Grid.m.value) - px(150f)
+                        val x = if (open == Edge.LEFT) gap + railW + px(Grid.m.value) else w - gap - railW - px(Grid.m.value) - px(96f)
                         IntOffset(x.roundToInt(), (hy - px(17f)).roundToInt())
                     }
-                        .size(width = 150.dp, height = 34.dp)
+                        .size(width = 96.dp, height = 34.dp)
                         .liquidGlass(Chamfer(Radius.control), GlassLook(smoke = 0.8f, depth = 1f, shine = 1.1f), still = true)
-                        .semantics { contentDescription = if (ready) "Let go to close" else "Pull down to close" },
+                        .semantics { contentDescription = closeLabel },
                     contentAlignment = Alignment.Center,
                 ) {
-                    FitText(if (ready) "Let go to close" else "Pull down to close", Type.label, Modifier.padding(horizontal = Grid.m).fillMaxWidth().height(20.dp), color = if (ready) V.Coral else V.Text, font = SansMedium, align = Alignment.Center)
+                    FitText(closeLabel.uppercase(), Type.label, Modifier.padding(horizontal = Grid.m).fillMaxWidth().height(20.dp), color = if (ready) V.Coral else V.Text, font = SansMedium, align = Alignment.Center)
                 }
             }
             if (sticky) {
