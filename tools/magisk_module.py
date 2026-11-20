@@ -242,8 +242,8 @@ def build(out: Path):
 
 # ---------------------------------------------------------------- system app
 
-SYS_VERSION = "1.4"
-SYS_VERSION_CODE = 5
+SYS_VERSION = "1.5"
+SYS_VERSION_CODE = 6
 PACKAGE = "com.andysocial.voidos"
 APK_RELEASE = vm.ROOT / "app/build/outputs/apk/release/app-release.apk"
 APK_DEBUG = vm.ROOT / "app/build/outputs/apk/debug/app-debug.apk"
@@ -329,6 +329,21 @@ case "$CUR" in
   *) settings put secure enabled_accessibility_services "$CUR:$S" ;;
 esac
 settings put secure accessibility_enabled 1
+# 2.0.1: the VoidOS keyboard is the keyboard
+IME=$P/.keyboard.VoidKeyboardService
+ime enable $IME 2>/dev/null
+ime set $IME 2>/dev/null
+settings put secure default_input_method $IME
+# 2.0.1: Android's own surfaces in VoidOS's colours: dark everywhere (the theme overlay turns the
+# dark palette into VoidOS navy and teal), no heads-up banners over VoidOS (its notification
+# listener shows them), no "isn't responding" or crash dialogs
+cmd uimode night yes 2>/dev/null
+settings put global heads_up_notifications_enabled 0
+settings put global hide_error_dialogs 1
+settings put secure show_first_crash_dialog_dev_option 0 2>/dev/null
+settings put global show_first_crash_dialog 0 2>/dev/null
+cmd overlay enable com.andysocial.voidos.theme 2>/dev/null
+cmd overlay enable com.andysocial.voidos.theme.sysui 2>/dev/null
 # no "Viewing full screen" or accessibility shortcut dialogs
 settings put secure accessibility_shortcut_dialog_shown 1
 settings put secure immersive_mode_confirmations confirmed
@@ -376,6 +391,71 @@ OVERLAY_VALUES = """<?xml version="1.0" encoding="utf-8"?>
 """
 
 
+# 2.0.1: the VoidOS theme for what's left of Android. Two static overlays signed with VoidOS's key:
+# one on the framework (the DeviceDefault dark palette, accent, dialog and button corners, which
+# every stock dialog, the share sheet, permission prompts and Android Settings draw from), and one
+# on SystemUI (the notification shade, quick settings, low-battery and USB dialogs, volume). A
+# resource name a build doesn't have is simply ignored, so the same overlay is safe on any Android 10.
+THEME_COLOURS = {
+    # VoidOS navy, glass and teal (Theme.kt)
+    "background_device_default_dark": "#FF0B1424",
+    "background_floating_device_default_dark": "#FF13203A",
+    "background_material_dark": "#FF0B1424",
+    "background_floating_material_dark": "#FF13203A",
+    "primary_device_default_dark": "#FF0B1424",
+    "primary_dark_device_default_dark": "#FF0B1424",
+    "primary_device_default_settings": "#FF0B1424",
+    "primary_dark_device_default_settings": "#FF0B1424",
+    "primary_material_dark": "#FF0B1424",
+    "primary_dark_material_dark": "#FF0B1424",
+    "accent_device_default_dark": "#FF52D4DC",
+    "accent_device_default_light": "#FF2AA9B2",
+    "accent_device_default_700": "#FF2AA9B2",
+    "accent_device_default_50": "#FF7FE2E8",
+    "accent_material_dark": "#FF52D4DC",
+    "accent_material_light": "#FF2AA9B2",
+    "material_deep_teal_200": "#FF52D4DC",
+    "material_deep_teal_500": "#FF2AA9B2",
+    "notification_material_background_color": "#FF13203A",
+    "notification_default_color_dark": "#FFE9F1F7",
+    "notification_default_color_light": "#FF52D4DC",
+    "notification_action_list_background_color": "#FF0F1A2E",
+    "button_material_dark": "#FF1B2A45",
+    "switch_thumb_material_dark": "#FFE9F1F7",
+    "foreground_material_dark": "#FFE9F1F7",
+    "primary_text_default_material_dark": "#FFE9F1F7",
+    "secondary_text_default_material_dark": "#B3C4D2E0",
+}
+THEME_DIMENS = {"config_dialogCornerRadius": "10dp", "config_buttonCornerRadius": "6dp", "config_progressBarCornerRadius": "6dp", "toast_y_offset": "48dp"}
+SYSUI_COLOURS = {
+    "notification_material_background_color": "#FF13203A",
+    "notification_material_background_dimmed_color": "#CC13203A",
+    "notification_shade_background_color": "#FF0B1424",
+    "qs_background_dark": "#FF0B1424",
+    "qs_detail_background": "#FF13203A",
+    "qs_tile_background": "#FF1B2A45",
+    "notification_divider_color": "#1FFFFFFF",
+    "volume_dialog_background_color": "#FF13203A",
+    "keyguard_avatar_frame_color": "#FF52D4DC",
+}
+SYSUI_DIMENS = {"notification_corner_radius": "10dp", "qs_tile_background_corner_radius": "8dp", "volume_dialog_panel_radius": "10dp"}
+
+
+def theme_overlay_xml(colours, dimens):
+    rows = [f'    <color name="{k}">{v}</color>' for k, v in colours.items()] + [f'    <dimen name="{k}">{v}</dimen>' for k, v in dimens.items()]
+    return '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n' + "\n".join(rows) + "\n</resources>\n"
+
+
+def theme_overlay_manifest(pkg, target):
+    return f"""<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="{pkg}" android:versionCode="1" android:versionName="1.0">
+    <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="28" />
+    <overlay android:targetPackage="{target}" android:isStatic="true" android:priority="998" />
+    <application android:hasCode="false" />
+</manifest>
+"""
+
+
 def _sdk():
     lp = vm.ROOT / "local.properties"
     for l in lp.read_text().splitlines():
@@ -386,6 +466,11 @@ def _sdk():
 
 def build_nobar_overlay() -> bytes:
     """The framework overlay APK (config_showNavigationBar=false), signed with VoidOS's fixed key."""
+    return build_overlay(OVERLAY_MANIFEST, {"bools.xml": OVERLAY_VALUES})
+
+
+def build_overlay(manifest: str, values: dict) -> bytes:
+    """A static resource overlay APK from a manifest and res/values files, signed with VoidOS's key."""
     import tempfile
     sdk = _sdk()
     bt = sorted(sdk.glob("build-tools/*"))[-1]
@@ -393,8 +478,9 @@ def build_nobar_overlay() -> bytes:
     with tempfile.TemporaryDirectory() as t:
         t = Path(t)
         (t / "res/values").mkdir(parents=True)
-        (t / "res/values/bools.xml").write_text(OVERLAY_VALUES)
-        (t / "AndroidManifest.xml").write_text(OVERLAY_MANIFEST)
+        for name, xml in values.items():
+            (t / "res/values" / name).write_text(xml)
+        (t / "AndroidManifest.xml").write_text(manifest)
         subprocess.run([str(bt / "aapt2"), "compile", "--dir", str(t / "res"), "-o", str(t / "res.zip")], check=True)
         subprocess.run([str(bt / "aapt2"), "link", "-I", str(jar), "--manifest", str(t / "AndroidManifest.xml"), "-o", str(t / "u.apk"), str(t / "res.zip")], check=True)
         subprocess.run([str(bt / "zipalign"), "-f", "4", str(t / "u.apk"), str(t / "a.apk")], check=True)
@@ -444,6 +530,18 @@ def allowlist(perms):
     return xml, need
 
 
+FONT_MAP = {
+    "Roboto-Thin.ttf": "manrope_thin.ttf",
+    "Roboto-Light.ttf": "manrope_light.ttf",
+    "Roboto-Regular.ttf": "manrope_regular.ttf",
+    "Roboto-Medium.ttf": "manrope_semibold.ttf",
+    "Roboto-Bold.ttf": "manrope_semibold.ttf",
+    "Roboto-Black.ttf": "manrope_semibold.ttf",
+    "RobotoCondensed-Regular.ttf": "manrope_regular.ttf",
+    "RobotoCondensed-Bold.ttf": "manrope_semibold.ttf",
+}
+
+
 def build_system(out: Path, apk: Path = APK):
     if not apk.exists():
         sys.exit(f"{apk} is missing: run ./gradlew assembleRelease first")
@@ -465,6 +563,15 @@ def build_system(out: Path, apk: Path = APK):
         z.writestr("service.sh", SYS_SERVICE)
         z.writestr("uninstall.sh", SYS_UNINSTALL)
         z.writestr("system/vendor/overlay/VoidOSNoBar/VoidOSNoBar.apk", build_nobar_overlay())
+        # 2.0.1: VoidOS's colours and corners on the framework and SystemUI
+        z.writestr("system/vendor/overlay/VoidOSTheme/VoidOSTheme.apk",
+                   build_overlay(theme_overlay_manifest("com.andysocial.voidos.theme", "android"), {"theme.xml": theme_overlay_xml(THEME_COLOURS, THEME_DIMENS)}))
+        z.writestr("system/vendor/overlay/VoidOSThemeSysUI/VoidOSThemeSysUI.apk",
+                   build_overlay(theme_overlay_manifest("com.andysocial.voidos.theme.sysui", "com.android.systemui"), {"theme.xml": theme_overlay_xml(SYSUI_COLOURS, SYSUI_DIMENS)}))
+        # 2.0.1: Manrope as Android's font, magic-mounted over Roboto's upright weights (italics stay Roboto)
+        fonts = vm.ROOT / "app/src/main/res/font"
+        for target, src in FONT_MAP.items():
+            z.writestr(f"system/fonts/{target}", (fonts / src).read_bytes())
         # a system app's native code is not unpacked from its APK: ship it beside it
         for name, data in libs.items():
             _, abi, so = name.split("/", 2)
