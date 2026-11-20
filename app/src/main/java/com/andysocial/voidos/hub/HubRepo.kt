@@ -174,6 +174,8 @@ object HubRepo {
         val c = URL("$base/summary" + if (ask) "?wake=1" else "").openConnection() as HttpURLConnection
         c.connectTimeout = 8000; c.readTimeout = 45_000
         c.setRequestProperty("Authorization", "Bearer ${token.orEmpty()}")
+        // the sites you listed in Settings › Hub; the server checks these unless its own config lists some
+        sitesHeader(manualSites)?.let { c.setRequestProperty("X-Hub-Sites", it) }
         c.setRequestProperty("Accept", "application/json")
         try {
             if (c.responseCode == 401 || c.responseCode == 403) throw SecurityException("token")
@@ -214,6 +216,13 @@ object HubRepo {
                 done(r.exceptionOrNull()?.let { "Couldn't send the reply" })
             }
         }
+    }
+
+    /** The sites with an address, as one header value: name|url pairs joined by tabs, URL-encoded. */
+    internal fun sitesHeader(sites: List<Pair<String, String>>): String? {
+        val ok = sites.filter { (n, u) -> n.isNotBlank() && (u.startsWith("https://") || u.startsWith("http://")) }
+        if (ok.isEmpty()) return null
+        return java.net.URLEncoder.encode(ok.joinToString("\t") { (n, u) -> "${n.replace("|", " ").replace("\t", " ")}|$u" }, "UTF-8")
     }
 
     // ---- sites list: "name|url" lines

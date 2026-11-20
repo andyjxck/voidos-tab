@@ -17,8 +17,23 @@ function sameToken(given, want) {
   return crypto.timingSafeEqual(a, b);
 }
 
+/** "name|url" pairs joined by tabs, URL-encoded; only http(s) addresses, at most 10. */
+function parseSitesHeader(v) {
+  if (!v) return [];
+  let text;
+  try { text = decodeURIComponent(String(v).replace(/\+/g, ' ')); } catch (_) { return []; }
+  return text.split('\t').map((x) => {
+    const i = x.indexOf('|');
+    if (i < 1) return null;
+    const name = x.slice(0, i).trim().slice(0, 60); const url = x.slice(i + 1).trim();
+    try { const u = new URL(url); if (u.protocol !== 'https:' && u.protocol !== 'http:') return null; } catch (_) { return null; }
+    return { name, url };
+  }).filter(Boolean).slice(0, 10);
+}
+
 /** Handle one request. Returns { status, body }. */
 async function handle({ method, path, query, headers, body }, { store, sources, cfg, now, deps }) {
+  headers = headers || {};
   const auth = String(headers.authorization || headers.Authorization || '');
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   if (!cfg.hubToken) return { status: 503, body: { error: 'HUB_TOKEN is not set on the server' } };
@@ -26,6 +41,9 @@ async function handle({ method, path, query, headers, body }, { store, sources, 
   const p = String(path || '').replace(/\/+$/, '').split('/').pop();
 
   if (method === 'GET' && p === 'summary') {
+    // the tablet's own site list counts when the server's config lists none
+    const tabletSites = parseSitesHeader(headers['x-hub-sites'] || headers['X-Hub-Sites']);
+    if (tabletSites.length && !(cfg.sites && cfg.sites.length)) cfg = { ...cfg, sites: tabletSites };
     let summary = await store.getSummary();
     if (query && (query.wake === '1' || !summary)) {
       try {
@@ -61,4 +79,4 @@ async function handle({ method, path, query, headers, body }, { store, sources, 
   return { status: 404, body: { error: 'not found' } };
 }
 
-module.exports = { handle, sameToken };
+module.exports = { handle, sameToken, parseSitesHeader };

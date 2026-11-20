@@ -268,3 +268,16 @@ test('server: token, wake refresh at most every 10 minutes, reply', async () => 
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, `${JSON.stringify(sum, null, 2)}\n`);
 });
+
+test('the tablet\'s site list reaches the checks when the config has none', async () => {
+  const hdr = encodeURIComponent('Staff Hub|https://tws-rota.co.uk\tBad|javascript:alert(1)\tWhite Swan|https://whiteswan.example/');
+  assert.deepStrictEqual(server.parseSitesHeader(hdr).map((s) => s.name), ['Staff Hub', 'White Swan']);
+  assert.deepStrictEqual(server.parseSitesHeader('%E0%A4%A'), []);
+  const f = fakeFetch([[/tws-rota|whiteswan/, () => ({ status: 200, text: 'ok' })]]);
+  const cfg = buildConfig({}, { HUB_TOKEN: 't' });
+  const store = memStore();
+  const r = await server.handle({ method: 'GET', path: '/summary', query: {}, headers: { authorization: 'Bearer t', 'x-hub-sites': hdr } },
+    { store, sources: allSources, cfg, now: NOW, deps: { fetch: f, sslDaysLeft: async () => 90, domainDaysLeft: async () => 300 } });
+  assert.deepStrictEqual(r.body.apps.map((a) => a.name), ['Staff Hub', 'White Swan']);
+  assert.ok(r.body.apps.every((a) => a.status === 'fine'));
+});

@@ -80,7 +80,7 @@ fun HubSettings() {
         Gap(h = 6.dp)
         VField(url, { url = it; saved = null }, Modifier.fillMaxWidth(), placeholder = "https://europe-west2-<project>.cloudfunctions.net/hub")
         Gap(h = 8.dp)
-        VField(token, { token = it; saved = null }, Modifier.fillMaxWidth(), placeholder = if (HubRepo.hasToken) "Token saved · type to replace" else "Device token (HUB_DEVICE_TOKEN)")
+        VField(token, { token = it; saved = null }, Modifier.fillMaxWidth(), placeholder = if (HubRepo.hasToken) "Token saved · type to replace" else "Device token (HUB_TOKEN)")
         Gap(h = 8.dp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             VButton("Save", filled = true, enabled = url.isNotBlank()) {
