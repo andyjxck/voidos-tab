@@ -280,10 +280,7 @@ private fun Dial(store: Store, now: Long, onOpen: (Module) -> Unit, scale: Float
             below = {
                 Spacer(Modifier.height(10.dp))
                 val px = timePx / 400f
-                // other places first, side by side, then what's running: timers, the stopwatch, the next alarm
-                val zone = java.util.TimeZone.getDefault()
-                val away = store.worldClocks.filter { (_, z) -> java.util.TimeZone.getTimeZone(z).getOffset(now) != zone.getOffset(now) }.take(2)
-                if (away.isNotEmpty()) { WorldTimes(away, now, store.use24h, px, onOpen); Spacer(Modifier.height(with(d) { (14 * px).toDp() })) }
+                // what's running: the stopwatch, then the next alarm (2.0 has no world clocks, so none show here)
                 val sw = Stopwatch.running || Stopwatch.elapsed(now) > 0L
                 if (running.isNotEmpty() || sw) {
                     Row(horizontalArrangement = Arrangement.spacedBy(with(d) { (10 * px).toDp() }), verticalAlignment = Alignment.CenterVertically) {
@@ -358,24 +355,6 @@ private fun StopwatchPill(now: Long, px: Float, onOpen: (Module) -> Unit) {
         Glyph(G.STOPWATCH, if (Stopwatch.running) V.Teal else V.Muted, Modifier.size(with(d) { (26 * px).toDp() }))
         Gap(w = 10.dp)
         VText(stopwatchText(Stopwatch.elapsed(now)).substringBefore('.'), size = fs, color = V.White, font = SansLight, maxLines = 1)
-    }
-}
-
-/** Up to two other places from World clock, side by side under the time: the place, then its time. */
-@Composable
-private fun WorldTimes(clocks: List<Pair<String, String>>, now: Long, use24h: Boolean, px: Float, onOpen: (Module) -> Unit) {
-    val d = LocalDensity.current
-    Row(horizontalArrangement = Arrangement.spacedBy(with(d) { (44 * px).toDp() }), verticalAlignment = Alignment.Top, modifier = Modifier.testTag("world_times")) {
-        clocks.forEach { (name, zone) ->
-            val f = SimpleDateFormat(if (use24h) "HH:mm" else "h:mm a", Locale.UK).apply { timeZone = java.util.TimeZone.getTimeZone(zone) }
-            Column(
-                Modifier.clip(RoundedCornerShape(24.dp)).tap { onOpen(Module.TOOLS) }.padding(horizontal = 10.dp, vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                VText(name.take(16), size = with(d) { (20 * px).toSp() }, color = V.Muted, maxLines = 1)
-                VText(f.format(Date(now)), size = with(d) { (40 * px).toSp() }, color = V.White, font = SansLight, maxLines = 1)
-            }
-        }
     }
 }
 

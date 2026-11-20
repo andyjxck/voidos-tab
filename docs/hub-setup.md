@@ -2,11 +2,12 @@
 
 The tablet never holds a store or API key. A small server (two Firebase Cloud Functions in
 `functions/`) pulls every number, writes one summary to Firestore, and the tablet reads that one
-summary with its own device token. Until the server is set up, Settings › Hub › Data can stay on
-**Demo data**, and every screen works with made-up numbers.
+summary with its own device token. The app holds no made-up numbers: until the server is set up,
+every hub screen says **Nothing linked yet** and the standby ring stays plain.
 
-Each source is optional. A source with no key shows **Not connected – set up in Settings › Hub** on
-the tablet, and the rest carry on. If a source fails later, the tablet keeps its last good numbers
+Each source is optional. A source with no key shows **Not connected** in Settings › Hub › Sources,
+and a metric it would feed names it (for example "No crashes yet · Link Crashlytics in
+Settings › Hub"). The rest carry on. If a source fails later, the tablet keeps its last good numbers
 and shows when they were last updated.
 
 ## 1. Pick the Firebase project
@@ -211,10 +212,8 @@ You should get JSON with `"apps"` and `"sources"`. Each source says `connected` 
 
 ## 7. The tablet
 
-Settings › Hub:
-
-1. **Data**: My server.
-2. **Your hub server**: the hub URL from step 5, and the HUB_TOKEN from step 2. Save.
+Settings › Hub › **Your hub server**: the hub URL from step 5, and the HUB_TOKEN from step 2. Save.
+The Status line then shows "updated X ago", or the last error in words.
 
 The tablet refreshes when the screen comes on (the server skips it if it refreshed under ten
 minutes ago) and the server refreshes every hour on its own.

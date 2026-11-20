@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasSetTextAction
@@ -1505,7 +1506,9 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         CcSource.reset()
 
         // power menu
-        show { Box(Modifier.fillMaxSize()) { Shell(store, act, Module.FACE); com.andysocial.voidos.ui.PowerMenu({}, {}, {}, {}) } }
+        // on the tablet the menu is its own window over a dimmed screen (VoidKeys), so Home's text
+        // behind it is not on the menu's page: keep it out of the overlap audit here too
+        show { Box(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize().clearAndSetSemantics { }) { Shell(store, act, Module.FACE) }; com.andysocial.voidos.ui.PowerMenu({}, {}, {}, {}) } }
         settle(800)
         expect("Lock", "Restart", "Power off"); shot("62_power_menu")
         assertTrue("[$tag] 62_power_menu: ${issuesOf("62_power_menu")}", issuesOf("62_power_menu").isEmpty())
