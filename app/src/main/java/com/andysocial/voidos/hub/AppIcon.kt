@@ -27,7 +27,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import com.andysocial.voidos.ui.VText
+import com.andysocial.voidos.ui.SansMedium
 import com.andysocial.voidos.ui.Sans
 import com.andysocial.voidos.ui.V
 import kotlinx.coroutines.Dispatchers
@@ -94,7 +95,7 @@ fun AppIcon(app: HubApp, size: Dp, modifier: Modifier = Modifier) {
         Image(i, app.name, modifier.size(size).clip(shape), contentScale = ContentScale.Crop)
     } else {
         Box(modifier.size(size).clip(shape).background(Color(0x1FFFFFFF)), contentAlignment = Alignment.Center) {
-            Text(AppIcons.initials(app.name), color = V.Text.copy(alpha = 0.8f), fontFamily = Sans, fontWeight = FontWeight.SemiBold, fontSize = (size.value * 0.34f).sp)
+            VText(AppIcons.initials(app.name), size = (size.value * 0.34f).sp, color = V.Text.copy(alpha = 0.8f), font = SansMedium, maxLines = 1)
         }
     }
 }

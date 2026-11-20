@@ -159,6 +159,16 @@ class Store(private val ctx: Context) {
     /** How Android app icons are drawn: "colour" (as shipped), "void" (VoidOS glyph or tinted) or "letter". */
     // 1.14: glass app icons are the new default; a saved "void" from before moves over once
     var iconStyle by mutableStateOf("glass"); private set // 2.0.1: always the glass icons
+    /** Apps whose notifications are switched off (VoidOS clears them and Android stops them). */
+    var mutedApps by mutableStateOf(p.getStringSet("mutedApps", emptySet())!!.toSet().also { VoidListener.muted = it }); private set
+    /** Lying face down also turns Do Not Disturb on until it's picked up. */
+    var faceDownQuiet by mutableStateOf(p.getBoolean("faceDownQuiet", false)); private set
+    /** The resting clock glows when there are unread notifications. */
+    var notifyLight by mutableStateOf(p.getBoolean("notifyLight", true)); private set
+    fun setMuted(pkg: String, muted: Boolean) {
+        mutedApps = if (muted) mutedApps + pkg else mutedApps - pkg
+        VoidListener.muted = mutedApps
+        p.edit().putStringSet("mutedApps", mutedApps).apply()
     }
 
     /** The VoidOS PIN as "pbkdf2$<rounds>$<salt hex>$<hash hex>"; empty means still the starting code. */
