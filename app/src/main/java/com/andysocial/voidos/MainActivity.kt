@@ -46,7 +46,7 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(Unit) {
                 snapshotFlow { VoidApp.releaseSignal.value }.collect { if (it > 0) leaveLockTask() }
             }
-            VoidRoot(store, this)
+            QuietHaptics { VoidRoot(store, this) }
         }
     }
 

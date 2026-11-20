@@ -165,7 +165,7 @@ private fun PinKey(k: String, size: Dp, dim: Boolean, onTap: () -> Unit) {
                 else Modifier.liquidGlass(CircleShape, GlassLook(smoke = 0.5f - 0.3f * lit, depth = 0.4f, shine = 0.9f + 0.6f * lit, magnify = 1.18f + 0.2f * lit, edge = 0.35f))
             )
             .pointerInput(dim) {
-                detectTapGestures(onPress = { down = true; view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP); tryAwaitRelease(); down = false }, onTap = { onTap() })
+                detectTapGestures(onPress = { down = true; com.andysocial.voidos.Haptics.tick(view); tryAwaitRelease(); down = false }, onTap = { onTap() })
             },
         contentAlignment = Alignment.Center,
     ) {

@@ -222,10 +222,11 @@ fun FilesPane(store: Store, pickOnly: Boolean = false, onSend: (List<File>) -> U
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FileRow(g: G, name: String, sub: String?, on: Boolean, sel: Boolean, onClick: () -> Unit, onLong: (() -> Unit)? = null) {
+    val view = androidx.compose.ui.platform.LocalView.current
     Row(
         Modifier.fillMaxWidth().padding(horizontal = Grid.s).clip(Radius.Card)
             .background(if (sel) V.Teal.copy(alpha = 0.16f) else if (on) Color.White.copy(alpha = 0.08f) else Color.Transparent)
-            .combinedClickable(onClick = onClick, onLongClick = onLong).padding(horizontal = Grid.m, vertical = Grid.m),
+            .combinedClickable(onClick = onClick, onLongClick = onLong?.let { l -> { com.andysocial.voidos.Haptics.press(view); l() } }).padding(horizontal = Grid.m, vertical = Grid.m),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Glyph(g, if (g == G.FOLDER) V.Teal else V.Muted, Modifier.size(24.dp))

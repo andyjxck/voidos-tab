@@ -54,7 +54,8 @@ object BootOrient {
     fun watch(c: Context) {
         val app = c.applicationContext
         val dm = app.getSystemService(DisplayManager::class.java) ?: return
-        val settle = Runnable { sync(app, rotation(app), false) }
+        // once VoidOS has started shutting down, the turn to portrait shutdown makes is not the way the tablet is held
+        val settle = Runnable { if (pinned >= 0) return@Runnable; val r = rotation(app); settled = r; sync(app, r, false) }
         dm.registerDisplayListener(object : DisplayManager.DisplayListener {
             override fun onDisplayAdded(id: Int) {}
             override fun onDisplayRemoved(id: Int) {}
@@ -93,14 +94,34 @@ object BootOrient {
         if (!p.waitFor(timeoutS, TimeUnit.SECONDS)) { p.destroy(); -2 } else p.exitValue()
     }.getOrDefault(-1)
 
-    /** Android is shutting down: the next boot plays the way the tablet is now. */
+    /**
+     * The rotation the tablet was held at when VoidOS started shutting down, or -1. By the time
+     * Android's shutdown broadcast arrives, MediaTek's shutdown code has already turned the screen
+     * to portrait for its animation, so asking then would always say portrait.
+     */
+    @Volatile var pinned = -1
+        private set
+    /** The rotation the screen last settled at (before any turn shutdown makes), or -1. */
+    @Volatile var settled = -1
+        private set
+
+    fun pin(rotation: Int) { pinned = rotation }
+
+    /** Android is shutting down: the next boot plays the way the tablet was held. */
     class ShutdownReceiver : BroadcastReceiver() {
         override fun onReceive(c: Context, i: Intent) {
             if (i.action != Intent.ACTION_SHUTDOWN) return
             val pr = goAsync()
             Thread {
-                try { sync(c, rotation(c), bootOnly = true, wait = true) } finally { pr.finish() }
+                try { sync(c, bootRotation(pinned, settled, rotation(c)), bootOnly = true, wait = true) } finally { pr.finish() }
             }.start()
         }
     }
+}
+
+/** Pure: which rotation the next boot should play in: as held when VoidOS began shutting down, else as last settled. */
+internal fun bootRotation(pinned: Int, settled: Int, now: Int): Int = when {
+    pinned >= 0 -> pinned
+    settled >= 0 -> settled
+    else -> now
 }

@@ -2,6 +2,9 @@ package com.andysocial.voidos.ui
 
 import android.media.AudioManager
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -236,8 +239,10 @@ private val keep = MutableInteractionSource::class
  */
 @Composable
 fun PowerOffScreen(restart: Boolean) {
+    val t = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { t.animateTo(POWER_SHOW_MS + POWER_FADE_MS.toFloat(), tween((POWER_SHOW_MS + POWER_FADE_MS).toInt(), easing = LinearEasing)) }
     Box(Modifier.fillMaxSize().background(V.Bg).semantics { contentDescription = if (restart) "Restarting" else "Powering off" }, contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.graphicsLayer { alpha = powerOffAlpha(t.value) }, horizontalAlignment = Alignment.CenterHorizontally) {
             androidx.compose.foundation.Canvas(Modifier.size(260.dp, 90.dp)) {
                 drawVoidWord(androidx.compose.ui.geometry.Offset(size.width / 2, size.height / 2), size.width, alpha = 0.9f)
             }
@@ -247,6 +252,19 @@ fun PowerOffScreen(restart: Boolean) {
             VText(if (restart) "Back in a minute" else "See you soon", size = Type.caption, color = V.Muted)
         }
     }
+}
+
+/** The powering off screen's words show this long (ms), quickly faded in... */
+internal const val POWER_IN_MS = 180L
+internal const val POWER_SHOW_MS = 950L
+/** ...then fade out to plain dark over this long, before shutdown turns the screen. */
+internal const val POWER_FADE_MS = 350L
+
+/** Pure: how visible the powering off screen's words are [ms] after it went up. */
+internal fun powerOffAlpha(ms: Float): Float = when {
+    ms < POWER_IN_MS -> ms / POWER_IN_MS
+    ms < POWER_SHOW_MS -> 1f
+    else -> (1f - (ms - POWER_SHOW_MS) / POWER_FADE_MS).coerceIn(0f, 1f)
 }
 
 /** Pure: the battery levels VoidOS warns at, on the way down and not charging. */

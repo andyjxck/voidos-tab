@@ -1,5 +1,7 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.ui.platform.testTag
+
 import android.content.Context
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
@@ -70,6 +72,10 @@ internal fun honeycomb(n: Int): List<Offset> {
 /** Up to this many apps sit as one still, centred cluster; more become the pannable lens comb. */
 internal const val HONEY_COMPACT = 12
 
+/** The smallest and largest a honeycomb cell may be: about 7 across a portrait page at the smallest. */
+internal val HONEY_MIN_CELL = 84.dp
+internal val HONEY_MAX_CELL = 196.dp
+
 /**
  * The rows of a small honeycomb of [n] cells, top to bottom, picked to sit well in a
  * viewport [aspect] (width / height) wide. Neighbouring rows differ by one cell, so each
@@ -118,38 +124,121 @@ internal fun honeyCluster(n: Int, aspect: Float): List<Offset> {
 }
 
 /**
- * How much bigger than normal a small cluster's cells are drawn so it fills a good part of
- * a [w] x [h] viewport: never smaller than normal, never more than 1.5 times.
+ * The cells of a honeycomb laid out in [rows] (counts top to bottom), centred on the middle, in
+ * units of one cell's spacing. Each row is centred under the last; when a row's count would put it
+ * straight under the row above (same odd/even), it slides half a cell so it still packs into hexagons.
  */
-internal fun honeyFit(cells: List<Offset>, cell: Float, w: Float, h: Float): Float {
-    if (cells.isEmpty() || cell <= 0f) return 1f
-    val spanW = (cells.maxOf { it.x } - cells.minOf { it.x } + 1f) * cell
-    val spanH = (cells.maxOf { it.y } - cells.minOf { it.y } + 1f) * cell
-    return minOf(w * 0.62f / spanW, h * 0.62f / spanH).coerceIn(1f, 1.5f)
+internal fun honeyCells(rows: List<Int>): List<Offset> {
+    val dy = sqrt(3f) / 2f
+    val top = -(rows.size - 1) * dy / 2f
+    val out = ArrayList<Offset>(rows.sum())
+    var prevHalf = false
+    rows.forEachIndexed { r, count ->
+        var start = -(count - 1) / 2f
+        val half = count % 2 == 0
+        if (r > 0 && half == prevHalf) start -= 0.5f
+        prevHalf = if (r > 0 && half == prevHalf) !half else half
+        for (i in 0 until count) out.add(Offset(start + i, top + r * dy))
+    }
+    // a slid row leaves the whole comb half a cell off centre; centre it again
+    val cx = if (out.isEmpty()) 0f else (out.maxOf { it.x } + out.minOf { it.x }) / 2f
+    return if (abs(cx) < 0.001f) out else out.map { Offset(it.x - cx, it.y) }
 }
 
-/** How large an icon is at [d] from the middle of a viewport of half-size [half]: full size in the middle, shrinking to nothing past the edge. */
-internal fun honeyScale(d: Float, half: Float): Float {
-    val f = (d / half).coerceAtLeast(0f)
-    return when {
-        f < 0.55f -> 1f
-        f > 1.15f -> 0f
-        else -> (1f - (f - 0.55f) / 0.6f).let { it * it * (3 - 2 * it) }
+/** Rows of [cols] and [cols] - 1 in turn, the honeycomb's own brick pattern, holding [n] cells. */
+internal fun honeyBrick(n: Int, cols: Int): List<Int> {
+    val rows = ArrayList<Int>()
+    var left = n
+    var r = 0
+    while (left > 0) {
+        val c = if (cols <= 1) 1 else if (r % 2 == 0) cols else cols - 1
+        rows.add(minOf(c, left)); left -= c; r++
     }
+    return rows
+}
+
+/** How many cells wide and tall a set of [cells] is, edge to edge. */
+internal fun honeySpan(cells: List<Offset>): Pair<Float, Float> =
+    if (cells.isEmpty()) 0f to 0f
+    else (cells.maxOf { it.x } - cells.minOf { it.x } + 1f) to (cells.maxOf { it.y } - cells.minOf { it.y } + 1f)
+
+/**
+ * Where the apps sit: [cells] in units of one cell, [cell] the spacing in px, and [overflow] how many
+ * px of comb are hidden above and below together (0 when it all fits, which is the usual case).
+ */
+internal data class HoneyLayout(val cells: List<Offset>, val rows: List<Int>, val cell: Float, val overflow: Float)
+
+/** The share of the page the comb may cover, so it never touches the edges. */
+internal const val HONEY_FILL_W = 0.94f
+internal const val HONEY_FILL_H = 0.90f
+
+/**
+ * Lays [n] apps out to fill a [w] x [h] px page. Every honeycomb shape that could hold them is tried:
+ * the tidy small clusters ([honeyRows]) and brick rows of every width. The one whose cells come out
+ * biggest wins, so a wide landscape page gets wide rows and a tall portrait page gets more rows,
+ * instead of one round clump in the middle with empty sides. Cells are kept between [minCell] and
+ * [maxCell] px; when even [minCell] won't fit them all, the rows fill the width and the comb pans
+ * up and down.
+ */
+internal fun honeyLayout(n: Int, w: Float, h: Float, minCell: Float, maxCell: Float): HoneyLayout {
+    if (n <= 0 || w <= 0f || h <= 0f) return HoneyLayout(emptyList(), emptyList(), maxCell.coerceAtLeast(1f), 0f)
+    val aw = w * HONEY_FILL_W; val ah = h * HONEY_FILL_H
+    fun fit(cells: List<Offset>): Float { val (sw, sh) = honeySpan(cells); return minOf(aw / sw, ah / sh) }
+    data class Cand(val rows: List<Int>, val cells: List<Offset>, val size: Float, val tidy: Boolean)
+    val cands = ArrayList<Cand>()
+    if (n <= HONEY_COMPACT) {
+        val rows = honeyRows(n, w / h)
+        val cells = honeyCells(rows)
+        cands.add(Cand(rows, cells, fit(cells), true))
+    }
+    for (cols in 1..minOf(n, 24)) {
+        val rows = honeyBrick(n, cols)
+        val cells = honeyCells(rows)
+        cands.add(Cand(rows, cells, fit(cells), false))
+    }
+    val top = cands.maxOf { minOf(it.size, maxCell) }
+    if (top >= minCell) {
+        // among the shapes within a few percent of the biggest, take a tidy cluster, then the fewest
+        // half-empty rows, then the most even, mirror-image shape
+        val near = cands.filter { minOf(it.size, maxCell) >= top * 0.97f }
+        val pick = near.minWith(compareBy<Cand>({ !it.tidy }, { it.rows.size > 1 && it.rows.last() < it.rows.max() - 1 },
+            { if (it.rows == it.rows.reversed()) 0 else 1 }, { -minOf(it.size, maxCell) }))
+        return HoneyLayout(pick.cells, pick.rows, minOf(pick.size, maxCell), 0f)
+    }
+    // too many to fit: the widest brick whose cells are still at least minCell, filling the width
+    val cols = (1..minOf(n, 24)).lastOrNull { c -> aw / honeySpan(honeyCells(honeyBrick(n, c))).first >= minCell } ?: 1
+    val rows = honeyBrick(n, cols)
+    val cells = honeyCells(rows)
+    val cell = minOf(aw / honeySpan(cells).first, maxCell)
+    val contentH = honeySpan(cells).second * cell
+    return HoneyLayout(cells, rows, cell, (contentH - ah).coerceAtLeast(0f))
+}
+
+/** Icons are this share of their cell; the rest is the gap between them. */
+internal const val HONEY_ICON = 0.84f
+
+/**
+ * How large an icon is when the comb pans: full size anywhere it's wholly on the page, easing
+ * smaller only as it slides past the top or bottom edge. [y] is the icon's centre from the middle,
+ * [halfH] half the page's height, [cell] the spacing.
+ */
+internal fun honeyEdgeScale(y: Float, halfH: Float, cell: Float): Float {
+    val inside = halfH - abs(y)   // how far the centre is inside the edge
+    val f = ((inside + cell * 0.5f) / cell).coerceIn(0f, 1f)
+    return f * f * (3 - 2 * f)
 }
 
 /**
- * Apps as a honeycomb, like a watch's app view: round icons packed in hexagons, full size in
- * the middle and shrinking towards the edges. Drag to pan (it glides and springs back inside
- * the comb), tap to open. Press, hold and drag an app up to the Home drop at the top to open
- * it beside the clock in split view.
+ * Apps as a honeycomb: round icons packed in hexagons, laid out to fill the page in either
+ * orientation ([honeyLayout]): the icon size, the gaps and the rows all follow the page's size and
+ * shape and how many apps there are. Tap to open. Press, hold and drag an app up to the Home drop at
+ * the top to open it beside the clock in split view. When there are too many to fit at a usable size,
+ * the comb pans up and down, easing icons smaller as they pass the top or bottom edge.
+ * [bottomInset] keeps the comb clear of the starred-apps dock.
  */
 @Composable
-fun HoneycombApps(store: Store, apps: List<AppEntry>, onOpen: (AppEntry) -> Unit, onSplit: (AppEntry) -> Unit) {
+fun HoneycombApps(store: Store, apps: List<AppEntry>, onOpen: (AppEntry) -> Unit, onSplit: (AppEntry) -> Unit, bottomInset: androidx.compose.ui.unit.Dp = 0.dp) {
     val density = LocalDensity.current
-    val cellDp = 112.dp
-    val iconDp = 92.dp
-    val baseCell = with(density) { cellDp.toPx() }
     val px = remember { Animatable(0f) }
     val py = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
@@ -158,30 +247,26 @@ fun HoneycombApps(store: Store, apps: List<AppEntry>, onOpen: (AppEntry) -> Unit
     val dragY = remember { mutableFloatStateOf(0f) }
     var overHome by remember { mutableStateOf(false) }
 
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+    BoxWithConstraints(Modifier.fillMaxSize().testTag("honeycomb")) {
         val w = constraints.maxWidth.toFloat()
         val h = constraints.maxHeight.toFloat()
-        val half = minOf(w, h) / 2f
-        // a few apps: a still, centred cluster in true hexagons, drawn larger so it fills the
-        // page with intent. Many: the watch-style comb you pan, shrinking towards the edges.
-        val compact = apps.size <= HONEY_COMPACT
-        val aspect = if (h > 0f) w / h else 1f
-        val cells = remember(apps.size, compact, (aspect * 10).roundToInt()) { if (compact) honeyCluster(apps.size, aspect) else honeycomb(apps.size) }
-        val k = if (compact) honeyFit(cells, baseCell, w, h) else 1f
-        val cell = baseCell * k
-        val cellNow = cellDp * k
-        val iconNow = iconDp * k
-        val maxR = remember(cells) { cells.maxOfOrNull { hypot(it.x, it.y) } ?: 0f }
-        val limit = if (compact) 0f else (maxR * cell - half * 0.4f).coerceAtLeast(0f)
-        LaunchedEffect(compact, apps.size) { if (compact) { px.snapTo(0f); py.snapTo(0f) } }
-        val spanX = (cells.maxOfOrNull { abs(it.x) } ?: 0f) * cell + cell / 2f
+        val inset = with(density) { bottomInset.toPx() }.coerceIn(0f, h * 0.3f)
+        val hh = h - inset            // the part of the page the comb fills
+        val minCell = with(density) { HONEY_MIN_CELL.toPx() }
+        val maxCell = with(density) { HONEY_MAX_CELL.toPx() }
+        val lay = remember(apps.size, w.roundToInt(), hh.roundToInt(), minCell, maxCell) { honeyLayout(apps.size, w, hh, minCell, maxCell) }
+        val cells = lay.cells
+        val cell = lay.cell
+        val cellNow = with(density) { cell.toDp() }
+        val iconNow = cellNow * HONEY_ICON
+        val panning = lay.overflow > 0f
+        // pans up and down only, and only when the comb is taller than the page
+        val limit = lay.overflow / 2f
+        val half = hh / 2f
+        LaunchedEffect(lay) { px.snapTo(0f); if (!panning) py.snapTo(0f) else py.snapTo(py.value.coerceIn(-limit, limit)) }
+        val spanX = honeySpan(cells).first * cell / 2f
         fun clampBack() = scope.launch {
-            val d = hypot(px.value, py.value)
-            if (d > limit) {
-                val k = if (d == 0f) 0f else limit / d
-                launch { px.animateTo(px.value * k, spring(0.8f, 300f)) }
-                launch { py.animateTo(py.value * k, spring(0.8f, 300f)) }
-            }
+            if (abs(py.value) > limit) launch { py.animateTo(py.value.coerceIn(-limit, limit), spring(0.8f, 300f)) }
         }
         Box(
             Modifier.fillMaxSize().pointerInput(limit) {
@@ -207,18 +292,16 @@ fun HoneycombApps(store: Store, apps: List<AppEntry>, onOpen: (AppEntry) -> Unit
                             ch.consume()
                             vt.addPosition(ch.uptimeMillis, ch.position)
                             // rubber band past the comb's edge
-                            val over = (hypot(px.value, py.value) - limit).coerceAtLeast(0f)
+                            val over = (abs(py.value) - limit).coerceAtLeast(0f)
                             val damp = 1f / (1f + over / (cell * 0.8f))
-                            scope.launch { px.snapTo(px.value + dlt.x * damp); py.snapTo(py.value + dlt.y * damp) }
+                            scope.launch { py.snapTo(py.value + dlt.y * damp) }
                         }
                     }
                     if (moved && dragging == null) {
                         val v = vt.calculateVelocity()
                         scope.launch {
-                            val tx = px.value + v.x * 0.18f; val ty = py.value + v.y * 0.18f
-                            val d = hypot(tx, ty); val k = if (d > limit && d > 0f) limit / d else 1f
-                            launch { px.animateTo(tx * k, spring(0.85f, 120f), v.x) }
-                            launch { py.animateTo(ty * k, spring(0.85f, 120f), v.y) }
+                            val ty = (py.value + v.y * 0.18f).coerceIn(-limit, limit)
+                            launch { py.animateTo(ty, spring(0.85f, 120f), v.y) }
                         }
                     }
                 }
@@ -228,16 +311,15 @@ fun HoneycombApps(store: Store, apps: List<AppEntry>, onOpen: (AppEntry) -> Unit
                 val c = cells[i]
                 Box(
                     Modifier
-                        .semantics { contentDescription = app.label }
                         .offset {
-                            IntOffset((w / 2 + c.x * cell + px.value - cell / 2).roundToInt(), (h / 2 + c.y * cell + py.value - cell / 2).roundToInt())
+                            IntOffset((w / 2 + c.x * cell + px.value - cell / 2).roundToInt(), (half + c.y * cell + py.value - cell / 2).roundToInt())
                         }
                         .size(cellNow)
                         .graphicsLayer {
                             val x = c.x * cell + px.value; val y = c.y * cell + py.value
-                            val s = if (compact) 1f else honeyScale(hypot(x, y * (half / (h / 2f))), half)
-                            // icons drift slightly towards the middle as they shrink, closing the comb up like a lens
-                            translationX = -x * (1f - s) * 0.18f; translationY = -y * (1f - s) * 0.18f
+                            val s = if (!panning) 1f else honeyEdgeScale(y, half, cell)
+                            // icons drift slightly towards the middle as they shrink past the edge
+                            translationY = -y * (1f - s) * 0.12f
                             scaleX = s; scaleY = s
                             alpha = if (dragging == app) 0.25f else s.coerceIn(0f, 1f)
                         }
@@ -247,7 +329,7 @@ fun HoneycombApps(store: Store, apps: List<AppEntry>, onOpen: (AppEntry) -> Unit
                                 onDragStart = { o ->
                                     dragging = app
                                     dragX.floatValue = w / 2 + c.x * cell + px.value - cell / 2 + o.x
-                                    dragY.floatValue = h / 2 + c.y * cell + py.value - cell / 2 + o.y
+                                    dragY.floatValue = half + c.y * cell + py.value - cell / 2 + o.y
                                 },
                                 onDrag = { ch, d -> ch.consume(); dragX.floatValue += d.x; dragY.floatValue += d.y; overHome = dragY.floatValue < h * 0.16f },
                                 onDragEnd = { val a = dragging; dragging = null; if (overHome && a != null) onSplit(a); overHome = false },

@@ -35,7 +35,7 @@ class AlarmActivity : ComponentActivity() {
         setContent {
             LaunchedEffect(Unit) { snapshotFlow { Alarms.ringing.value }.collect { if (it == null) finish() } }
             Alarms.ringing.value?.let { r ->
-                AlarmRingScreen(r, onSnooze = { AlarmService.snooze(this) }, onStop = { AlarmService.dismiss(this) })
+                QuietHaptics { AlarmRingScreen(r, onSnooze = { AlarmService.snooze(this) }, onStop = { AlarmService.dismiss(this) }) }
             }
         }
     }

@@ -85,6 +85,9 @@ DRAIN = 24                #        the air goes out,
 OUTRO = SETTLE + DRAIN + 2  #      and it holds on the still frame
 FADE = 6                  # frames the flat still dot takes to turn into the glass dot (and back)
 # shutdown timing (part0 6.0 s; it was 1.9 s up to module 3.1)
+SHUT_FADE = 10            # 0.33 s: the logo fades up out of the dark, where VoidOS's
+                          # powering off screen left it (the screen turns to portrait
+                          # in between, while it's dark, so the turn can't be seen)
 SHUT_HOLD = 6             # 0.2 s on the still logo
 SHUT_BREATH = 24          # 0.8 s: a slow last breath in
 SHUT_COLLAPSE = 126       # 4.2 s: folding in on itself
@@ -462,7 +465,7 @@ def boot_frame(rot, part, f):
     return Image.blend(plain, glass, show) if show > 0 else plain
 
 
-SHUT_PARTS = (("part0", SHUT_HOLD + SHUT_BREATH + SHUT_COLLAPSE + SHUT_SETTLE), ("part1", EMBER))
+SHUT_PARTS = (("part0", SHUT_FADE + SHUT_HOLD + SHUT_BREATH + SHUT_COLLAPSE + SHUT_SETTLE), ("part1", EMBER))
 SHUT_SECONDS = SHUT_PARTS[0][1] / FPS     # what screenoff.sh waits for (tools/magisk_module.py)
 
 
@@ -477,6 +480,9 @@ def shutdown_frame(rot, part, f):
     w, h = view_size(rot)
     if part == "part1":
         return render(w, h, fade=0, spark=ember(f / EMBER))
+    if f < SHUT_FADE:
+        return render(w, h, fade=ease_io(f / SHUT_FADE))
+    f -= SHUT_FADE
     if f < SHUT_HOLD:
         return render(w, h)
     f -= SHUT_HOLD
@@ -609,6 +615,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=str(vm.ROOT / "root"))
     ap.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2) - 1))
+    ap.add_argument("--only", choices=("boot", "shutdown"), help="render just one of the two animations")
     a = ap.parse_args()
     w, h = PANEL
     out = Path(a.out)
@@ -627,6 +634,12 @@ def main():
         for rot in ROTATIONS:
             d = out if rot == 0 else out / f"orient/{rot}"
             keep = rot in (0, 90)
+            if a.only == "shutdown":
+                counts, frames = write_anim(d / "shutdownanimation.zip", "shutdown", rot, pool, keep=(rot == 0))
+                print("shutdown", rot, counts, f"{(d / 'shutdownanimation.zip').stat().st_size / 1e6:.1f} MB")
+                if rot == 0:
+                    contact_sheet(frames, out / "preview/shutdown_sheet.png")
+                continue
             counts, frames = write_anim(d / "bootanimation.zip", "boot", rot, pool, keep)
             print("boot", rot, counts, f"{(d / 'bootanimation.zip').stat().st_size / 1e6:.1f} MB")
             if keep:
@@ -634,6 +647,8 @@ def main():
                 contact_sheet(frames, out / f"preview/boot_sheet_{tag}.png")
                 seq = frames["part0"] + frames["part1"] * 2 + frames["part2"]
                 video(seq, out / f"preview/boot_{tag}.mp4", out / f"preview/boot_{tag}.gif")
+            if a.only == "boot":
+                continue
             counts, frames = write_anim(d / "shutdownanimation.zip", "shutdown", rot, pool, keep=(rot == 0))
             print("shutdown", rot, counts, f"{(d / 'shutdownanimation.zip').stat().st_size / 1e6:.1f} MB")
             if rot == 0:

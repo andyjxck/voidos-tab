@@ -366,6 +366,8 @@ fun AppsScreen(store: Store) {
                             store, open,
                             onOpen = { app -> launchApp(ctx, store, app.pkg) },
                             onSplit = { app -> Split.open(ctx, store, app.pkg) },
+                            // the starred dock floats over the bottom; keep the comb above it
+                            bottomInset = if (favs.isNotEmpty()) 96.dp else 0.dp,
                         )
                     }
                 } else {
@@ -405,10 +407,11 @@ fun AppsScreen(store: Store) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AppTile(app: AppEntry, store: Store, starred: Boolean) {
+    val view = androidx.compose.ui.platform.LocalView.current
     val ctx = LocalContext.current
     Column(
         Modifier.fillMaxWidth().squish().clip(RoundedCornerShape(Radius.card))
-            .combinedClickable(onClick = { launchApp(ctx, store, app.pkg) }, onLongClick = { store.toggleFav(app.pkg) })
+            .combinedClickable(onClick = { launchApp(ctx, store, app.pkg) }, onLongClick = { com.andysocial.voidos.Haptics.press(view); store.toggleFav(app.pkg) })
             .padding(vertical = 8.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -433,6 +436,7 @@ private fun AppTile(app: AppEntry, store: Store, starred: Boolean) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Dock(apps: List<AppEntry>, store: Store, modifier: Modifier) {
+    val view = androidx.compose.ui.platform.LocalView.current
     val ctx = LocalContext.current
     val shape = RoundedCornerShape(Radius.panel)
     Row(
@@ -444,7 +448,7 @@ private fun Dock(apps: List<AppEntry>, store: Store, modifier: Modifier) {
             Box(
                 Modifier.size(64.dp).squish(0.88f).clip(RoundedCornerShape(Radius.control))
                     .semantics { contentDescription = app.label }
-                    .combinedClickable(onClick = { launchApp(ctx, store, app.pkg) }, onLongClick = { store.toggleFav(app.pkg) }),
+                    .combinedClickable(onClick = { launchApp(ctx, store, app.pkg) }, onLongClick = { com.andysocial.voidos.Haptics.press(view); store.toggleFav(app.pkg) }),
                 contentAlignment = Alignment.Center,
             ) { AppGlyph(app, store.iconStyle, 60.dp) }
         }

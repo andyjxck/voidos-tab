@@ -171,7 +171,7 @@ class Landscape(unittest.TestCase):
             s = zipfile.ZipFile(ROOT / f"orient/{rot}/shutdownanimation.zip")
             self.assertEqual(s.read("desc.txt").decode(), DESC_SHUT)
             sp = frames(s)
-            self.assertEqual(np.abs(seen(px(s, sp["part0"][0]), rot) - still_l).max(), 0)
+            self.assertEqual(np.abs(seen(px(s, sp["part0"][vb.SHUT_FADE]), rot) - still_l).max(), 0)
 
     def test_turns_the_right_way(self):
         # Display rotation 90 draws content turned clockwise on the panel
@@ -267,14 +267,21 @@ class Shutdown(unittest.TestCase):
         self.assertEqual({k: len(v) for k, v in p.items()}, dict(vb.SHUT_PARTS))
         self.assertGreaterEqual(len(p["part0"]) / vb.FPS, 5.0)   # slow: it was 1.9 s
         still = np.asarray(Image.open(STILL).convert("RGB")).astype(int)
-        self.assertEqual(np.abs(px(z, p["part0"][0]) - still).max(), 0)
         bg = np.array(vb.BG)
+        # it fades up out of the dark VoidOS's powering off screen leaves (the first frame is
+        # nearly the background, each frame a little brighter) onto the still logo
+        first = px(z, p["part0"][0])
+        self.assertLess(np.abs(first - bg).max(), 30)
+        light = [float(np.abs(px(z, p["part0"][i]) - bg).sum()) for i in range(vb.SHUT_FADE + 1)]
+        self.assertTrue(all(b >= a for a, b in zip(light, light[1:])), light)
+        self.assertEqual(np.abs(px(z, p["part0"][vb.SHUT_FADE]) - still).max(), 0)
         ink = [int((np.abs(px(z, n) - bg).sum(2) > 40).sum()) for n in p["part0"]]
-        k0 = vb.SHUT_HOLD + vb.SHUT_BREATH
+        k0 = vb.SHUT_FADE + vb.SHUT_HOLD + vb.SHUT_BREATH
+        full = ink[vb.SHUT_FADE]
         # folding in: much less ink half way through, only a small point at the end
-        self.assertLess(ink[k0 + vb.SHUT_COLLAPSE // 2], ink[0] * 0.6)
+        self.assertLess(ink[k0 + vb.SHUT_COLLAPSE // 2], full * 0.6)
         self.assertGreater(ink[-1], 0)
-        self.assertLess(ink[-1], ink[0] * 0.05)
+        self.assertLess(ink[-1], full * 0.05)
         # the ember never goes out on its own, and loops on from where part0 ends
         ember = [int((np.abs(px(z, n) - bg).sum(2) > 40).sum()) for n in p["part1"]]
         self.assertGreater(min(ember), 0)

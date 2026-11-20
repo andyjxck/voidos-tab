@@ -1,6 +1,5 @@
 package com.andysocial.voidos.ui
 
-import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -220,7 +219,7 @@ fun EdgeDrawers(
                 val it = itemsOf(e).getOrNull(sel.intValue) ?: return false
                 if (!cbCan(it.key, e == Edge.RIGHT)) return false
                 carry = it; carryApp = e == Edge.RIGHT
-                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                com.andysocial.voidos.Haptics.press(view)
                 EdgeSwipe.log("carrying ${it.label} out of the drawer")
             } else if (d < gap + railW) {
                 carry = null
@@ -376,7 +375,7 @@ fun EdgeDrawers(
                                 else awaitPointerEvent()
                                 if (ev == null) {
                                     armed = true; closing = holdKey; closePull.floatValue = 0f
-                                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                    com.andysocial.voidos.Haptics.press(view)
                                     EdgeSwipe.log("holding ${items.getOrNull(from)?.label}: pull down to close")
                                     continue
                                 }
@@ -465,7 +464,7 @@ fun EdgeDrawers(
                         scroll.floatValue = l.scrollFor(g.ly)
                         val i = l.indexAt(g.ly, scroll.floatValue)
                         if (i != sel.intValue) {
-                            if (sel.intValue >= 0) view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            if (sel.intValue >= 0) com.andysocial.voidos.Haptics.tick(view)
                             g.selAt = t
                             sel.intValue = i
                         }

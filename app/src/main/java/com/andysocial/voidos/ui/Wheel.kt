@@ -1,6 +1,5 @@
 package com.andysocial.voidos.ui
 
-import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -566,7 +565,7 @@ fun EdgeWheels(
                 if (!cbCan(it.key, e == Edge.RIGHT)) return false
                 carry = it; carryApp = e == Edge.RIGHT
                 mo.dragging = false
-                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                com.andysocial.voidos.Haptics.press(view)
                 EdgeSwipe.log("carrying ${it.label} out of the wheel")
             } else if (d < px(Geo.rOut)) {
                 carry = null
@@ -772,7 +771,7 @@ fun EdgeWheels(
                                 if (ev == null) {
                                     // held still long enough: armed
                                     armed = true; closing = holdKey; closePull.floatValue = 0f; mo.sel.intValue = from
-                                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                    com.andysocial.voidos.Haptics.press(view)
                                     EdgeSwipe.log("holding ${items.getOrNull(from)?.label}: swipe down to close")
                                     continue
                                 }
@@ -865,7 +864,7 @@ fun EdgeWheels(
                         mo.dragging = true
                         val i = indexAt(e, p)
                         if (i != mo.sel.intValue) {
-                            if (mo.sel.intValue >= 0) view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            if (mo.sel.intValue >= 0) com.andysocial.voidos.Haptics.tick(view)
                             g.selAt = t
                             mo.sel.intValue = i
                         }

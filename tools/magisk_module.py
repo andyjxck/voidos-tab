@@ -35,8 +35,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import voidmark as vm  # noqa: E402
 
-VERSION = "3.2"
-VERSION_CODE = 5
+VERSION = "3.3"
+VERSION_CODE = 6
 
 MODULE_PROP = f"""id=voidos_boot
 name=VoidOS boot and shutdown animation

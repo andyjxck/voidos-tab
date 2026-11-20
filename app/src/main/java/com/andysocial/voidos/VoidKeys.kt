@@ -197,7 +197,7 @@ class VoidKeysService : AccessibilityService(), LifecycleOwner, SavedStateRegist
     private fun compose(content: @androidx.compose.runtime.Composable () -> Unit): ComposeView = ComposeView(this).also { c ->
         c.setViewTreeLifecycleOwner(this)
         c.setViewTreeSavedStateRegistryOwner(this)
-        c.setContent { content() }
+        c.setContent { QuietHaptics(content) }
     }
 
     private fun showVol() {
@@ -231,12 +231,34 @@ class VoidKeysService : AccessibilityService(), LifecycleOwner, SavedStateRegist
     /**
      * VoidOS's restarting / powering off screen goes up first, above Android's grey shutdown
      * dialog, then Android shuts down properly (svc power, so apps still save their work).
+     *
+     * The hand-off to the shutdown animation: MediaTek's shutdown code turns the screen to
+     * portrait (freezeRotation(0), as the animation only draws in the panel's own way round) the
+     * moment shutdown starts. Doing that under a picture showed: the screen swung to portrait, a
+     * frame of the cover drawn at the old size sat in the top corner, then the animation started.
+     * So the cover is opaque (its window is never see-through, even mid-resize), keeps the
+     * animation's background colour in every size, and fades its words and logo out to plain dark
+     * BEFORE shutdown starts. The turn then happens on a dark screen, where it can't be seen, and
+     * the animation (module 3.3) fades its logo up out of the same dark. The animation for the way
+     * the tablet is held now is put in place first, and the boot animation is remembered from
+     * that too, as by then Android reports portrait.
      */
     fun goingDown(restart: Boolean) {
-        val v = compose { PowerOffScreen(restart) }
-        runCatching { wm.addView(v, params(touch = true, full = true)) }
-        main.postDelayed({ Thread { Su.run(if (restart) "svc power reboot || reboot" else "svc power shutdown || reboot -p") }.start() }, 450)
+        if (goingDownView != null) return
+        val held = BootOrient.rotation(this)
+        BootOrient.pin(held)
+        val v = compose { PowerOffScreen(restart) }.apply { setBackgroundColor(POWER_BG) }
+        val p = params(touch = true, full = true).apply {
+            format = PixelFormat.OPAQUE
+            rotationAnimation = WindowManager.LayoutParams.ROTATION_ANIMATION_JUMPCUT
+        }
+        runCatching { wm.addView(v, p) }.onSuccess { goingDownView = v }
+        // the shutdown animation for this way round, in place before it can start
+        Thread { BootOrient.sync(this, held, bootOnly = false, wait = true) }.start()
+        main.postDelayed({ Thread { Su.run(if (restart) "svc power reboot || reboot" else "svc power shutdown || reboot -p") }.start() }, POWER_HANDOFF_MS)
     }
+
+    private var goingDownView: View? = null
 
     // ---- low battery
 
@@ -321,6 +343,14 @@ class VoidKeysService : AccessibilityService(), LifecycleOwner, SavedStateRegist
         @Volatile var instance: VoidKeysService? = null
         val connected = mutableStateOf(false)
         const val VOL_HIDE_MS = 2200L
+        /** The shutdown animation's background (ui/Theme.kt V.Bg, tools/void_balloon.py BG). */
+        const val POWER_BG = 0xFF0B0B0D.toInt()
+        /**
+         * How long the powering off screen shows before shutdown starts: its words show, then fade
+         * out to plain dark (see [com.andysocial.voidos.ui.powerOffAlpha]), and only then does
+         * Android start shutting down and turn the screen.
+         */
+        const val POWER_HANDOFF_MS = 1500L
 
         /** Restart or power off from anywhere in VoidOS, behind VoidOS's own screen when the service is on. */
         fun restartOrOff(restart: Boolean) {

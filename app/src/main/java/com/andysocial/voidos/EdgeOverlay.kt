@@ -372,7 +372,7 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             c.setViewTreeSavedStateRegistryOwner(this)
             c.setContent {
                 CompositionLocalProvider(androidx.activity.compose.LocalOnBackPressedDispatcherOwner provides owner, LocalRoom provides Rooms.overlay) {
-                    OverlayControl(act)
+                    QuietHaptics { OverlayControl(act) }
                 }
             }
         }
@@ -498,7 +498,7 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         val v = wheel ?: ComposeView(this).also { cv ->
             cv.setViewTreeLifecycleOwner(this)
             cv.setViewTreeSavedStateRegistryOwner(this)
-            cv.setContent { OverlayWheels(onClosed = { main.post { hideWheel() } }) }
+            cv.setContent { QuietHaptics { OverlayWheels(onClosed = { main.post { hideWheel() } }) } }
             wheel = cv
         }
         runCatching { wm.addView(v, wheelParams()) }

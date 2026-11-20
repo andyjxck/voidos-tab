@@ -4,7 +4,6 @@ import com.andysocial.voidos.ui.HONEY_COMPACT
 import com.andysocial.voidos.ui.KGroup
 import com.andysocial.voidos.ui.Module
 import com.andysocial.voidos.ui.honeyCluster
-import com.andysocial.voidos.ui.honeyFit
 import com.andysocial.voidos.ui.honeyRows
 import com.andysocial.voidos.ui.wheelClosePull
 import org.junit.Assert.assertEquals
@@ -55,14 +54,6 @@ class FeedbackTwoTest {
         // five apps: two over three, as a small comb, not a broken ring
         assertEquals(listOf(2, 3), honeyRows(5, 1.6f).sorted())
         assertEquals(listOf(2, 3, 2), honeyRows(7, 1.6f))
-    }
-
-    @Test fun aFewAppsAreDrawnLarger() {
-        val five = honeyCluster(5, 1.6f)
-        val k = honeyFit(five, 140f, 1600f, 900f)
-        assertTrue("k=$k", k > 1f && k <= 1.5f)
-        // never smaller than normal
-        assertEquals(1f, honeyFit(honeyCluster(12, 1.6f), 140f, 300f, 300f), 0.001f)
     }
 
     @Test fun onlyAStraightPullDownCloses() {

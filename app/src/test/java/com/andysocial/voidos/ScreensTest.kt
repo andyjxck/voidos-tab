@@ -1,6 +1,7 @@
 package com.andysocial.voidos
 
 import kotlin.math.abs
+import kotlin.math.hypot
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -684,6 +685,83 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         store.setIconStyle("colour"); settle(); shot("15_apps_icons_colour")
         store.setIconStyle("void"); settle(); shot("15b_apps_icons_plain")
         store.setIconStyle("glass")
+    }
+
+    /** [n] more launchable apps, beyond [fakeApps], for the honeycomb's crowded cases. */
+    private fun moreFakeApps(n: Int): List<String> {
+        val spm = shadowOf(VoidApp.instance.packageManager)
+        val names = listOf("Calendar", "Camera", "Clock", "Contacts", "Drive", "Files", "Gmail", "Keep", "Maps", "Photos",
+            "Play Store", "Podcasts", "Settings", "Sheets", "Slides", "Docs", "Translate", "Weather", "Wallet", "Fit",
+            "News", "Meet", "Chat", "Lens", "Home", "Duo", "Earth", "Books", "Movies", "Recorder")
+        return (0 until n).map { i ->
+            val pkg = "com.test.honey$i"; val label = names[i % names.size]
+            val ai = ApplicationInfo().apply { packageName = pkg; name = label; nonLocalizedLabel = label; flags = ApplicationInfo.FLAG_INSTALLED; enabled = true }
+            spm.installPackage(PackageInfo().apply { packageName = pkg; applicationInfo = ai })
+            val ri = ResolveInfo().apply { activityInfo = ActivityInfo().apply { packageName = pkg; name = "$pkg.Main"; applicationInfo = ai; exported = true; enabled = true } }
+            spm.addResolveInfoForIntent(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage(pkg), ri)
+            spm.addResolveInfoForIntent(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), ri)
+            spm.addActivityIfNotPresent(ComponentName(pkg, "$pkg.Main"))
+            spm.addIntentFilterForActivity(ComponentName(pkg, "$pkg.Main"),
+                android.content.IntentFilter(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_LAUNCHER) })
+            pkg
+        }
+    }
+
+    /**
+     * 1.20.1: the honeycomb fills the page in either orientation. At 1, 3, 6, 12, 20 and 36 apps:
+     * every icon is on screen and none overlap, the comb is centred, and it covers most of the page
+     * one way or the other (no big empty sides), with icons that grow when there are fewer apps.
+     */
+    @Test fun appsCluster() {
+        val base = listOf("com.spotify.music", "com.google.android.youtube", "com.whatsapp", "com.android.chrome", "com.netflix.mediaclient", "com.bbc.sounds")
+        val before = store.allowed.toList()
+        val extra = moreFakeApps(30)
+        store.setIconStyle("glass")
+        try {
+        var lastIcon = Float.MAX_VALUE
+        listOf(1, 3, 6, 12, 20, 36).forEach { n ->
+            val pkgs = (base + extra).take(n)
+            chooseApps(*pkgs.toTypedArray())
+            show { Shell(store, act, Module.APPS) }
+            settle()
+            shot("12c_apps_cluster_$n")
+            val root = rule.onRoot(useUnmergedTree = true).fetchSemanticsNode()
+            val labels = pkgs.map { VoidApp.instance.packageManager.getApplicationInfo(it, 0).loadLabel(VoidApp.instance.packageManager).toString() }
+            // the comb's cells: the tappable boxes that carry an app's name (not the icon image inside)
+            val cells = rule.onAllNodes(hasClickAction(), useUnmergedTree = true).fetchSemanticsNodes()
+                .filter { it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription)?.firstOrNull() in labels }
+                .map { it.boundsInRoot }
+            assertEquals("[$tag] $n apps: every app has its cell", n, cells.size)
+            val l = cells.minOf { it.left }; val r = cells.maxOf { it.right }; val t = cells.minOf { it.top }; val b = cells.maxOf { it.bottom }
+            val w = root.size.width.toFloat(); val h = root.size.height.toFloat()
+            val page = rule.onNodeWithTag("honeycomb", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+            // on screen (36 apps may pan; even then the top and bottom rows are only eased past the edge)
+            assertTrue("[$tag] $n apps: comb off the sides ($l..$r of $w)", l >= -1f && r <= w + 1f)
+            if (n <= 20) assertTrue("[$tag] $n apps: comb off the top or bottom ($t..$b of $h)", t >= -1f && b <= h + 1f)
+            // centred left to right
+            assertTrue("[$tag] $n apps: comb not centred (${l} left, ${w - r} right)", abs((l - page.left) - (page.right - r)) <= cells.first().width * 0.6f)
+            // no two icons overlap
+            val icon = cells.first().width * com.andysocial.voidos.ui.HONEY_ICON
+            for (i in cells.indices) for (j in i + 1 until cells.size) {
+                val d = hypot(cells[i].center.x - cells[j].center.x, cells[i].center.y - cells[j].center.y)
+                assertTrue("[$tag] $n apps: icons $i and $j overlap", d >= icon - 1f)
+            }
+            // fills its part of the page one way or the other: the side it fills is at least 75% covered
+            val fill = maxOf((r - l) / page.width, (b - t) / page.height)
+            // (unless the icons are already as big as they go: a couple of apps don't stretch to fill a page)
+            val capped = cells.first().width >= with(rule.density) { com.andysocial.voidos.ui.HONEY_MAX_CELL.toPx() } - 2f
+            assertTrue("[$tag] $n apps: comb only fills ${(fill * 100).toInt()}% of the page", capped || fill >= 0.75f)
+            // fewer apps never get smaller icons than more apps
+            assertTrue("[$tag] $n apps: icons grew with more apps", cells.first().width <= lastIcon * 1.05f)
+            lastIcon = cells.first().width
+        }
+        assertTrue("[$tag] layout problems: $clipped", clipped.isEmpty())
+        } finally {
+            // leave the drawer as the other tests expect it
+            chooseApps(*before.toTypedArray())
+            val spm = shadowOf(VoidApp.instance.packageManager)
+            extra.forEach { runCatching { spm.removePackage(it) } }
+        }
     }
 
     @Test fun appsHidden() {
