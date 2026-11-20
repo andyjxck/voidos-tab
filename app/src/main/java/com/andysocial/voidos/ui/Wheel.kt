@@ -732,7 +732,7 @@ fun EdgeWheels(
                             .semantics { contentDescription = if (ready) "Let go to close" else "Swipe down to close" },
                         contentAlignment = Alignment.Center,
                     ) {
-                        VText(if (ready) "Let go to close" else "Swipe down to close", size = Type.label, color = if (ready) V.Coral else V.Text, maxLines = 1)
+                        VText(if (ready) "CLOSE" else "\u2193", size = Type.caption, font = SansMedium, spacing = 2.sp, color = if (ready) V.Coral else V.Text, maxLines = 1)
                     }
                 }
                 // the hub: a glass orb with the VoidOS mark on the tab wheel, the app grid on the other

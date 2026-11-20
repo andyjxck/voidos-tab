@@ -346,7 +346,7 @@ fun VoiceMemoPane() {
             contentAlignment = Alignment.Center,
         ) { Glyph(if (rec != null) G.RECORD else G.MIC, Color.White, Modifier.size(36.dp)) }
         Gap(h = 12.dp)
-        VText(if (rec != null) stopwatchText(now - started).substringBefore('.') else "Tap to record", size = Type.title, color = if (rec != null) V.White else V.Muted)
+        VText(if (rec != null) stopwatchText(now - started).substringBefore('.') else "\u2014", size = Type.title, color = if (rec != null) V.White else V.Muted)
         Gap(h = 20.dp)
         Column(Modifier.weight(1f).widthIn(max = 520.dp).fillMaxWidth().verticalScroll(rememberScrollState())) {
             files.forEach { f ->

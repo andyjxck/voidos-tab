@@ -137,10 +137,6 @@ fun StatusChip(s: HubStatus, modifier: Modifier = Modifier, text: String = s.lab
 }
 
 /**
- * The empty state every hub surface uses until real data exists: "Nothing linked yet" over
- * "Link App Store Connect in Settings › Hub". [what] names what's missing; [how] the next step.
- */
-/**
  * The one empty state on the tablet: a short dash line and "No data", nothing else. Setup help
  * lives in docs/hub-setup.md, never on the screen.
  */

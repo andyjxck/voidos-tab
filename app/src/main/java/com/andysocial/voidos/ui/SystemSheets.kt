@@ -207,6 +207,7 @@ fun KeyguardPad(store: Store, onPin: (String) -> Unit) {
             SystemScrim()
             val portrait = maxHeight > maxWidth
             val key = if (portrait) 80.dp else minOf(72.dp, maxHeight / 8.2f)
+            val dialLand = minOf(320.dp, maxHeight * 0.6f)
             val t = java.time.Instant.ofEpochMilli(now).atZone(java.time.ZoneId.systemDefault())
             val time = t.format(java.time.format.DateTimeFormatter.ofPattern(if (store.use24h) "HH:mm" else "h:mm"))
             val date = t.format(java.time.format.DateTimeFormatter.ofPattern("EEEE d MMMM"))
@@ -224,7 +225,7 @@ fun KeyguardPad(store: Store, onPin: (String) -> Unit) {
                 Box(Modifier.height(20.dp))
                 pad()
             } else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(72.dp)) {
-                VoidDial(now, store.use24h, Modifier.size(minOf(320.dp, maxHeight * 0.6f)).semantics { contentDescription = "$time, $date" }, seconds = false)
+                VoidDial(now, store.use24h, Modifier.size(dialLand).semantics { contentDescription = "$time, $date" }, seconds = false)
                 pad()
             }
         }

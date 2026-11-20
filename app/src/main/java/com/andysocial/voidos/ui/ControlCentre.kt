@@ -987,7 +987,7 @@ private fun ColumnScope.BtPanel(st: CcState) {
             onClick = { busy = d.address; scope.launch { val ok = withContext(Dispatchers.IO) { Radio.pair(d.address) }; if (!ok) { busy = null; err = "Couldn't pair with ${d.name}." } } },
             lead = { Glyph(kindGlyph(d.kind), V.Text, Modifier.size(22.dp)) },
             title = d.name,
-            sub = if (busy == d.address) "Pairing…" else "Tap to pair",
+            sub = if (busy == d.address) "Pairing…" else "",
         )
     }
 }

@@ -342,8 +342,13 @@ settings put global heads_up_notifications_enabled 0
 settings put global hide_error_dialogs 1
 settings put secure show_first_crash_dialog_dev_option 0 2>/dev/null
 settings put global show_first_crash_dialog 0 2>/dev/null
-cmd overlay enable com.andysocial.voidos.theme 2>/dev/null
-cmd overlay enable com.andysocial.voidos.theme.sysui 2>/dev/null
+# The theme overlays are static (android:isStatic, in /vendor/overlay), so Android 10 turns them on
+# itself at every boot and they can't be switched off by accident. The enables below are a belt-and-
+# braces no-op for them, and the state goes to a file so it can be checked over adb.
+for O in com.andysocial.voidos.nobar com.andysocial.voidos.theme com.andysocial.voidos.theme.sysui; do
+  cmd overlay enable --user 0 $O 2>/dev/null
+done
+cmd overlay list 2>/dev/null | grep -A0 -i voidos > /data/local/tmp/voidos_overlays.txt 2>/dev/null
 # no "Viewing full screen" or accessibility shortcut dialogs
 settings put secure accessibility_shortcut_dialog_shown 1
 settings put secure immersive_mode_confirmations confirmed
