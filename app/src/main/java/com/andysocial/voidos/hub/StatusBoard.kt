@@ -86,7 +86,7 @@ fun StatusBoard(store: Store, onGo: ((Module) -> Unit)?) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 PageTitle("Status", portrait)
-                if (s != null) VText(freshness(s), size = Type.caption, color = V.Muted, maxLines = 1)
+                if (s != null) VText(freshness(s), size = Type.caption, color = V.Muted, maxLines = 2)
             }
             if (s != null) StatusChip(s.overall, text = when (s.overall) {
                 HubStatus.FINE -> "All fine"

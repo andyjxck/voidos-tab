@@ -59,7 +59,7 @@ fun MetricsScreen(store: Store) {
     val appName = if (appId == Hub.ALL) "All apps" else s?.app(appId)?.name ?: "All apps"
     Column(Modifier.fillMaxSize().testTag("metrics")) {
         PageTitle(metric.label, portrait)
-        VText(listOf(appName, freshness(s)).filter { it.isNotBlank() }.joinToString(" · "), size = Type.caption, color = V.Muted, maxLines = 1)
+        VText(listOf(appName, freshness(s)).filter { it.isNotBlank() }.joinToString(" · "), size = Type.caption, color = V.Muted, maxLines = 2)
         Gap(h = 10.dp)
         // the drawers choose, but the chips work too, for a book half or no drawers
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {

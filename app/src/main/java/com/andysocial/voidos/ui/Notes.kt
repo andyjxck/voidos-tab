@@ -216,7 +216,7 @@ private fun NoteRow(n: Note, selected: Boolean, first: Boolean, last: Boolean, o
         if (!first) Spacer(Modifier.height(4.dp))
         Row(Modifier.padding(start = 16.dp, end = 14.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                VText(title, size = Type.headline, font = SansMedium, color = V.White, maxLines = 1)
+                VText(title, size = Type.headline, font = SansMedium, color = V.White, maxLines = 2)
                 Gap(h = 4.dp)
                 Row {
                     VText(shortWhen(n.updated), size = Type.label, color = V.Text.copy(alpha = 0.75f), maxLines = 1)

@@ -102,7 +102,7 @@ fun HubSettings() {
                     StatusChip(when { st == null || !st.connected -> HubStatus.UNKNOWN; st.ok -> HubStatus.FINE; else -> HubStatus.ERRORS }, text = "")
                     Column(Modifier.weight(1f)) {
                         VText(what.substringBefore(" · "), size = Type.body, color = V.Text, maxLines = 1)
-                        VText(what.substringAfter(" · "), size = Type.caption, color = V.Muted, maxLines = 1)
+                        VText(what.substringAfter(" · "), size = Type.caption, color = V.Muted, maxLines = 2)
                     }
                     VText(when {
                         st == null || !st.connected -> "Not connected"

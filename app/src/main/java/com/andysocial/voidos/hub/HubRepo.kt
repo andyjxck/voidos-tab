@@ -71,7 +71,11 @@ object HubRepo {
     }
 
     /** For tests only: show this summary without touching disk or network. */
-    internal fun preview(s: HubSummary?, server: String = "", token: Boolean = false) { summary = s; serverUrl = server; hasToken = token }
+    /** For tests only: show this summary without touching disk or network (it counts as just refreshed). */
+    internal fun preview(s: HubSummary?, server: String = "", token: Boolean = false) {
+        summary = s; serverUrl = server; hasToken = token
+        error = null; busy = false; wakeLines = emptyList(); lastRefresh = System.currentTimeMillis()
+    }
 
     fun setServer(ctx: Context, url: String, token: String?) {
         init(ctx)
