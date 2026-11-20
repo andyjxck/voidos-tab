@@ -121,6 +121,28 @@ class HubModelTest {
         assertFalse(src.ok); assertEquals("HTTP 401", src.error)
     }
 
+    /** The contract: the summary the aggregator's own tests produce (functions/test) parses into what the screens need. */
+    @Test fun parsesTheAggregatorsOwnSummary() {
+        val f = listOf("../functions/test/fixtures/summary-sample.json", "functions/test/fixtures/summary-sample.json").map { java.io.File(it) }.first { it.exists() }
+        val s = Hub.parse(f.readText())
+        assertEquals(listOf("Button Panic", "Voided"), s.apps.map { it.name })
+        val v = s.app("asc:111")!!
+        assertEquals(HubStatus.ATTENTION, v.glow)
+        assertEquals("Waiting for review", v.review!!.label)
+        assertEquals("https://is1.mzstatic.com/voided.png", v.icon)
+        assertEquals(7.0, v.metrics[Metric.DOWNLOADS]!!.today!!, 1e-9)
+        assertEquals(7, v.metrics[Metric.DOWNLOADS]!!.series.size)
+        assertEquals("Thanks Kev!", v.latestReview!!.reply)
+        assertTrue(s.reviews.any { it.id == "r2" && it.appId == "asc:111" })
+        assertTrue(s.payout!!.nextDate.isNotBlank())
+        val asc = s.sources.first { it.key == "appstore" }
+        assertTrue(asc.connected && asc.ok)
+        assertFalse(s.sources.first { it.key == "admob" }.connected)
+        // every source key the server sends is one Settings › Hub knows (the Apple renewal is a cost line only)
+        val known = com.andysocial.voidos.hub.HUB_SOURCES.map { it.first }.toSet() + "apple"
+        s.sources.forEach { assertTrue("unknown source ${it.key}", it.key in known) }
+    }
+
     @Test fun homeWidgetsSurviveARestart() {
         val ctx = RuntimeEnvironment.getApplication()
         val s = Store(ctx)

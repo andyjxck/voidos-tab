@@ -1,0 +1,4 @@
+node_modules/
+.runtimeconfig.json
+*.p8
+.secret.local

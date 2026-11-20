@@ -1,0 +1,219 @@
+{
+  "updatedAt": 1795183860000,
+  "apps": [
+    {
+      "id": "asc:222",
+      "metrics": {
+        "downloads": {
+          "today": 1,
+          "week": 1,
+          "series": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        "revenue": {
+          "today": 0.7,
+          "week": 0.7,
+          "series": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0.7
+          ],
+          "currency": "GBP"
+        }
+      },
+      "name": "Button Panic",
+      "kind": "app",
+      "platform": "ios",
+      "bundleId": "com.andysocial.buttonpanic",
+      "appleId": "222",
+      "consoleUrl": "https://appstoreconnect.apple.com/apps/222/distribution",
+      "url": "https://apps.apple.com/app/id222",
+      "review": {
+        "state": "READY_FOR_SALE",
+        "version": "2.0",
+        "since": 1793527200000
+      },
+      "status": "fine"
+    },
+    {
+      "id": "asc:111",
+      "metrics": {
+        "rating": {
+          "today": 4.6
+        },
+        "downloads": {
+          "today": 7,
+          "week": 11,
+          "series": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            4,
+            7
+          ]
+        },
+        "revenue": {
+          "today": 2.4,
+          "week": 2.4,
+          "series": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            2.4
+          ],
+          "currency": "GBP"
+        },
+        "reviews": {
+          "today": 1,
+          "week": 2
+        }
+      },
+      "name": "Voided",
+      "kind": "app",
+      "platform": "ios",
+      "bundleId": "com.andysocial.voided",
+      "appleId": "111",
+      "consoleUrl": "https://appstoreconnect.apple.com/apps/111/distribution",
+      "url": "https://apps.apple.com/app/id111",
+      "icon": "https://is1.mzstatic.com/voided.png",
+      "review": {
+        "state": "WAITING_FOR_REVIEW",
+        "version": "1.4",
+        "since": 1794996000000
+      },
+      "latestReview": {
+        "id": "r1",
+        "appId": "asc:111",
+        "rating": 5,
+        "title": "Great",
+        "body": "Love the rift",
+        "author": "kev",
+        "territory": "GBR",
+        "at": 1795165200000,
+        "reply": "Thanks Kev!"
+      },
+      "status": "attention",
+      "statusNote": "Waiting on App Store review"
+    }
+  ],
+  "sources": {
+    "appstore": {
+      "label": "App Store Connect",
+      "connected": true,
+      "ok": true,
+      "at": 1795183860000,
+      "error": ""
+    },
+    "admob": {
+      "label": "AdMob",
+      "connected": false,
+      "ok": false,
+      "at": 0,
+      "error": ""
+    },
+    "firebase": {
+      "label": "Firebase Analytics",
+      "connected": false,
+      "ok": false,
+      "at": 0,
+      "error": ""
+    },
+    "crashlytics": {
+      "label": "Crashlytics",
+      "connected": false,
+      "ok": false,
+      "at": 0,
+      "error": ""
+    },
+    "sites": {
+      "label": "Uptime checks",
+      "connected": false,
+      "ok": false,
+      "at": 0,
+      "error": ""
+    },
+    "brevo": {
+      "label": "Brevo",
+      "connected": false,
+      "ok": false,
+      "at": 0,
+      "error": ""
+    },
+    "github": {
+      "label": "GitHub",
+      "connected": false,
+      "ok": false,
+      "at": 0,
+      "error": ""
+    },
+    "billing": {
+      "label": "Google Cloud billing",
+      "connected": false,
+      "ok": false,
+      "at": 0,
+      "error": ""
+    },
+    "elevenlabs": {
+      "label": "ElevenLabs",
+      "connected": false,
+      "ok": false,
+      "at": 0,
+      "error": ""
+    },
+    "apple": {
+      "label": "Apple Developer renewal",
+      "connected": false,
+      "ok": false,
+      "at": 0,
+      "error": ""
+    }
+  },
+  "reviews": [
+    {
+      "id": "r1",
+      "appId": "asc:111",
+      "rating": 5,
+      "title": "Great",
+      "body": "Love the rift",
+      "author": "kev",
+      "territory": "GBR",
+      "at": 1795165200000,
+      "reply": "Thanks Kev!"
+    },
+    {
+      "id": "r2",
+      "appId": "asc:111",
+      "rating": 2,
+      "title": "Hard",
+      "body": "Round 20!",
+      "author": "sam",
+      "territory": "USA",
+      "at": 1795078800000,
+      "reply": "Thanks Sam"
+    }
+  ],
+  "costs": [],
+  "repos": [],
+  "sites": [],
+  "payout": {
+    "nextDate": "2026-12-03",
+    "estimate": 13.29,
+    "currency": "GBP"
+  }
+}
