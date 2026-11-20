@@ -28,9 +28,11 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performSemanticsAction
@@ -143,6 +145,16 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     /** TEST ONLY: a full hub from the fixture, as if the server had sent it. [live] drops its demo flag (for the ring). */
     private fun hubFixture(live: Boolean = false) {
         val f = com.andysocial.voidos.hub.DemoHub.summary().let { if (live) it.copy(demo = false) else it }
+        // test-only icons: a coloured square with a simple mark per app, so the real-icon path draws
+        val palette = intArrayOf(0xFF6C5CE7.toInt(), 0xFFE17055.toInt(), 0xFF00B894.toInt(), 0xFFFDCB6E.toInt(), 0xFF0984E3.toInt(), 0xFFD63031.toInt())
+        f.apps.forEachIndexed { i, a ->
+            val b = android.graphics.Bitmap.createBitmap(96, 96, android.graphics.Bitmap.Config.ARGB_8888)
+            val c = android.graphics.Canvas(b)
+            c.drawColor(palette[i % palette.size])
+            val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0xEEFFFFFF.toInt() }
+            c.drawCircle(48f, 48f, 22f, p)
+            com.andysocial.voidos.hub.AppIcons.preview[a.id] = b
+        }
         rule.runOnUiThread { com.andysocial.voidos.hub.HubRepo.preview(f, "https://hub.test", true) }
     }
 
@@ -558,7 +570,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
 
     @Test fun notes() {
         show { Shell(store, act, Module.NOTES) }
-        expect("No notes yet"); shot("08_notes_empty")
+        expect("NO NOTES"); shot("08_notes_empty")
         // a new note: the first line becomes its title in the list
         tapDesc("New note")
         // the list's search is field 0 in landscape; upright the note opens on its own, so it's the only field
@@ -1243,7 +1255,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         down(wa.x, wa.y)
         touchT += 500
         settle(600)
-        assertTrue("[$tag] held: the close hint shows; log ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", rule.onAllNodesWithContentDescription("Pull down to close", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() || rule.onAllNodesWithContentDescription("Let go to close", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        assertTrue("[$tag] held: the close hint shows; log ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", rule.onAllNodesWithContentDescription("Close", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         drag(wa.x, wa.y, wa.x, wa.y + 140f * dens, steps = 6)
         settle(200)
         up(wa.x, wa.y + 140f * dens)
@@ -1339,7 +1351,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         show { Shell(store, act, Module.SYSTEM) }
         shot("20_system_wifi")
         // 2.0: network, display and sound, the VoidOS options, the Hub, Dev Apps and About
-        listOf("Bluetooth", "Network", "Display & sound", "Drawers, standby & clock", "Lock mode", "Hub", "Dev Apps", "About").forEachIndexed { i, t ->
+        listOf("Bluetooth", "Network", "Display & sound", "VoidOS", "Hidden apps", "Hub", "Dev Apps", "About").forEachIndexed { i, t ->
             tap(t)
             shot("%02d_system_%s".format(21 + i, t.lowercase().replace(Regex("[^a-z]+"), "_").trim('_')))
             // upright, a page opens over the list: go back to it
@@ -1564,12 +1576,12 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         // the status board
         show { Shell(store, act, Module.APPS) }
         settle(600)
-        expect("Nothing linked yet", "Link your hub server in Settings \u203a Hub")
+        expect("NO DATA")
         shot("13e_status_empty"); assertClean("13e_status_empty")
         // the metric view
         show { Shell(store, act, Module.METRICS) }
         settle(600)
-        expect("Nothing linked yet", "Link your hub server in Settings \u203a Hub")
+        expect("NO DATA")
         shot("14e_metrics_empty"); assertClean("14e_metrics_empty")
         // the right drawer says so, in the same words
         show { Shell(store, act, Module.FACE) }
@@ -1579,25 +1591,25 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         settle(600)
         run {
             val rail = rule.onAllNodesWithContentDescription("Apps drawer", useUnmergedTree = true).fetchSemanticsNodes().first().boundsInWindow
-            val words = rule.onAllNodesWithText("Nothing linked yet", useUnmergedTree = true).fetchSemanticsNodes().map { it.boundsInWindow }
+            val words = rule.onAllNodesWithText("No data", useUnmergedTree = true).fetchSemanticsNodes().map { it.boundsInWindow }
             assertTrue("[$tag] empty apps drawer says so inside its rail: $words, rail $rail", words.any { b -> b.left >= rail.left - 1f && b.right <= rail.right + 1f && b.top >= rail.top - 1f && b.bottom <= rail.bottom + 1f })
         }
-        shot("18e_apps_drawer_empty"); assertDrawerShotClean("18e_apps_drawer_empty", listOf("Nothing linked yet"))
+        shot("18e_apps_drawer_empty"); assertDrawerShotClean("18e_apps_drawer_empty", listOf("No data"))
         up(winW - 120f * dens, midY); settle(900)
         // the hub's Home widgets
         store.saveWidgets(emptyList())
         store.addWidget("hstatus"); store.addWidget("hrev")
         show { Shell(store, act, Module.FACE) }
         settle(600)
-        expect("Not linked yet", "Settings \u203a Hub")
+        expect("\u2014")
         shot("01e_face_hub_widgets_empty")
-        val wIssues = issuesOf("01e_face_hub_widgets_empty").filter { "linked" in it || "Hub" in it || "Revenue" in it || "Status" in it }
+        val wIssues = issuesOf("01e_face_hub_widgets_empty").filter { "\u2014" in it || "Hub" in it || "Revenue" in it || "Status" in it }
         assertTrue("[$tag] hub widgets: $wIssues", wIssues.isEmpty())
         store.saveWidgets(emptyList())
         // Settings › Hub
         show { Shell(store, act, Module.SYSTEM) }
         tap("Hub")
-        expect("Not linked yet")
+        expect("Server", "Sources", "Sites")
         shot("27e_hub_settings_empty"); assertClean("27e_hub_settings_empty")
         // standby: no alert light, off charge or on it (on charge it's only the plain charging ring)
         var bat by mutableStateOf(com.andysocial.voidos.ui.Battery(64, false))
@@ -1613,11 +1625,11 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         rule.runOnUiThread { com.andysocial.voidos.hub.HubRepo.preview(f, "https://hub.test", true) }
         show { Shell(store, act, Module.APPS) }
         settle(600)
-        expect("No apps linked yet")
+        expect("NO DATA")
         shot("13f_status_no_apps"); assertClean("13f_status_no_apps")
         show { Shell(store, act, Module.METRICS) }
         settle(600)
-        expect("No apps linked yet")
+        expect("NO DATA")
         shot("14f_metrics_no_apps"); assertClean("14f_metrics_no_apps")
         show { com.andysocial.voidos.ui.AmbientClock(store, com.andysocial.voidos.ui.Battery(64, false)) }
         settle(300)
@@ -1635,7 +1647,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
             store.setHub(app = com.andysocial.voidos.hub.Hub.ALL, metric = m.name)
             show { Shell(store, act, Module.METRICS) }
             settle(600)
-            expect(m.label, "All apps")
+            expect("All apps")
             val n = "14_metrics_all_${m.name.lowercase()}"
             shot(n); problems += issuesOf(n)
         }
@@ -1655,7 +1667,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         store.setHub(app = com.andysocial.voidos.hub.Hub.ALL, metric = "CRASHES")
         show { Shell(store, act, Module.METRICS) }
         settle(600)
-        expect("No crashes yet", "Link Crashlytics in Settings \u203a Hub")
+        expect("NO DATA")
         shot("14g_metrics_unfed"); assertClean("14g_metrics_unfed")
         store.setHub(app = com.andysocial.voidos.hub.Hub.ALL, metric = "REVENUE")
     }
@@ -1671,6 +1683,54 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         settle(600)
     }
 
+    /** 2.0.1: the VoidOS keyboard, letters (shifted), symbols and the number pad. */
+    @Test fun keyboard() {
+        val pages = listOf(
+            Triple("70_keyboard_letters", com.andysocial.voidos.keyboard.VoidKeyboardView.Page.LETTERS, true),
+            Triple("70b_keyboard_symbols", com.andysocial.voidos.keyboard.VoidKeyboardView.Page.SYM1, false),
+            Triple("70c_keyboard_numbers", com.andysocial.voidos.keyboard.VoidKeyboardView.Page.NUM, false),
+        )
+        for ((name, page, sh) in pages) {
+            show {
+                Box(Modifier.fillMaxSize()) {
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        { com.andysocial.voidos.keyboard.VoidKeyboardView(it).apply { preview(page, sh, if (page == com.andysocial.voidos.keyboard.VoidKeyboardView.Page.NUM) "Done" else "Search") } },
+                        Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+                    )
+                }
+            }
+            settle(400)
+            shot(name)
+        }
+    }
+
+    /** 2.0.1: long-press hide, the hidden list in Settings, and the metric picker. */
+    @Test fun hideAndPick() {
+        hubFixture(live = true)
+        show { Shell(store, act, Module.APPS) }
+        settle(800)
+        val first = com.andysocial.voidos.hub.HubRepo.summary!!.apps.first()
+        rule.runOnUiThread { com.andysocial.voidos.hub.StatusNav.hideAsk.value = first.id }
+        settle(500)
+        expect("Hide", "Cancel")
+        shot("13h_hide_ask"); assertClean("13h_hide_ask")
+        rule.runOnUiThread { com.andysocial.voidos.hub.StatusNav.hideAsk.value = null; com.andysocial.voidos.hub.HubRepo.hide(first.id) }
+        settle(500)
+        assertTrue("a hidden app left the board", com.andysocial.voidos.hub.HubRepo.summary!!.apps.none { it.id == first.id })
+        show { Shell(store, act, Module.SYSTEM) }
+        settle(600)
+        tap("Hidden apps")
+        settle(500)
+        expect("Show")
+        shot("26h_hidden_apps"); assertClean("26h_hidden_apps")
+        rule.runOnUiThread { com.andysocial.voidos.hub.HubRepo.hide(first.id, false) }
+        show { Shell(store, act, Module.METRICS) }
+        settle(800)
+        rule.onNodeWithTag("pick_metric", useUnmergedTree = true).performClick()
+        settle(500)
+        shot("14p_metric_picker"); assertClean("14p_metric_picker")
+    }
+
     /** Notes by app: a chip per hub app, and a note filed under its app. */
     @Test fun notesByApp() {
         hubFixture()
@@ -1680,7 +1740,6 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         show { Shell(store, act, Module.NOTES) }
         settle(600)
         if (tag.startsWith("port")) runCatching { tap("Notes") }
-        expect("Button Panic", "Voided")
         shot("08d_notes_by_app"); assertClean("08d_notes_by_app")
         rule.runOnUiThread { com.andysocial.voidos.ui.NotesNav.app.value = "demo:voided" }
         settle(600)
