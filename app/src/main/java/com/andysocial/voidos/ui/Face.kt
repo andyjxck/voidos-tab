@@ -311,15 +311,16 @@ private fun Dial(store: Store, now: Long, onOpen: (Module) -> Unit, scale: Float
                 drawCircle(Brush.radialGradient(listOf(ringCol.copy(alpha = 0.45f), Color.Transparent), bp, apo * 0.06f), apo * 0.06f, bp)
                 drawCircle(ringCol, apo * 0.018f, bp)
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                InkText(SimpleDateFormat("EEE d MMM", Locale.UK).format(Date(now)).uppercase(), timePx * 0.15f, V.Text.copy(alpha = 0.72f), medium, 0.22f)
-                Spacer(Modifier.height(with(d) { (timePx * 0.16f).toDp() }))
-                RollingText(
-                    SimpleDateFormat(fmt, Locale.UK).format(Date(now)), timePx, light,
-                    Modifier.breathingGlow(tick).testTag("time"), spacingEm = -0.01f, tick = tick,
-                )
-                Spacer(Modifier.height(with(d) { (timePx * 0.10f).toDp() }))
-                VText("%02d".format(sec), size = with(d) { (timePx * 0.20f).toSp() }, color = ringCol, font = Jupi, maxLines = 1, modifier = Modifier.testTag("seconds"))
+            // the time sits dead centre; the date and the seconds hang off it at equal distances
+            RollingText(
+                SimpleDateFormat(fmt, Locale.UK).format(Date(now)), timePx, light,
+                Modifier.breathingGlow(tick).testTag("time"), spacingEm = -0.01f, tick = tick,
+            )
+            Box(Modifier.offset { IntOffset(0, -(timePx * 0.72f).roundToInt()) }) {
+                InkText(SimpleDateFormat("EEE d MMM", Locale.UK).format(Date(now)).uppercase(), timePx * 0.14f, V.Text.copy(alpha = 0.72f), medium, 0.22f)
+            }
+            Box(Modifier.offset { IntOffset(0, (timePx * 0.74f).roundToInt()) }) {
+                VText("%02d".format(sec), size = with(d) { (timePx * 0.19f).toSp() }, color = ringCol, font = Jupi, maxLines = 1, modifier = Modifier.testTag("seconds"))
             }
         }
         // what's running sits under the octagon, never inside it

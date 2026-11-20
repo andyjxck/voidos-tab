@@ -50,10 +50,13 @@ import androidx.compose.ui.unit.sp
 /** The small caps header every card wears: a coloured dot, then the label in spaced capitals. */
 @Composable
 fun DotLabel(text: String, dot: Color = V.Teal, modifier: Modifier = Modifier, color: Color = V.Muted) {
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(6.dp).background(dot, CircleShape))
-        Box(Modifier.size(Grid.s))
-        VText(text.uppercase(), size = Type.caption, color = color, font = SansMedium, spacing = 1.6.sp, maxLines = 1)
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
+    // on the smallest widgets the name gets the room, the dot steps aside
+    val roomy = maxWidth > 96.dp
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (roomy) { Box(Modifier.size(6.dp).background(dot, CircleShape)); Box(Modifier.size(Grid.s)) }
+        FitText(text.uppercase(), Type.caption, Modifier.weight(1f, fill = false), color = color, font = SansMedium, min = 7.sp, lines = 1)
+    }
     }
 }
 

@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -67,7 +68,8 @@ fun MetricsScreen(store: Store) {
     val appName = if (appId == Hub.ALL) "All apps" else s?.app(appId)?.name ?: "All apps"
     var picking by remember { mutableStateOf<String?>(null) }
     Box(Modifier.fillMaxSize()) {
-    Column(Modifier.fillMaxSize().testTag("metrics")) {
+    // under an open picker the page is only a dimmed backdrop, not something to read or tap
+    Column(Modifier.fillMaxSize().then(if (picking != null) Modifier.clearAndSetSemantics { } else Modifier).testTag("metrics")) {
         PageHeader(metric.label, portrait, sub = freshness(s))
         Gap(h = Grid.m)
         // 2.0.1: two quiet selectors instead of two long rows of pills; each opens a grid that always fits

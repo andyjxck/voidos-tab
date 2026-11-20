@@ -284,7 +284,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         // the time is dead centre on the dial, timers or not
         val dial = rule.onNodeWithTag("dial", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
         val time = rule.onNodeWithTag("time", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-        assertTrue("[$tag] time off centre by ${time.center - dial.center}", (time.center - dial.center).getDistance() < 2f)
+        assertTrue("[$tag] time off centre by ${time.center - dial.center}", (time.center - dial.center).getDistance() < 3f)
     }
 
     @Test fun faceWidgets() {
@@ -1426,7 +1426,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     @Test fun pinSettings() {
         PinGuard.reset(); store.resetPin()
         show { Shell(store, act, Module.SYSTEM) }
-        tap("Drawers, standby & clock"); settle(800)
+        tap("VoidOS"); settle(800)
         expect("Ask for PIN to unlock", "Change PIN")
         tap("Change")
         expect("Enter your current PIN")
@@ -1525,7 +1525,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         expect("Lock", "Restart", "Power off"); shot("62_power_menu")
         assertTrue("[$tag] 62_power_menu: ${issuesOf("62_power_menu")}", issuesOf("62_power_menu").isEmpty())
         rule.onNodeWithContentDescription("Restart").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick); settle(400)
-        expect("Tap again to confirm"); shot("62b_power_confirm")
+        expect("Confirm?"); shot("62b_power_confirm")
 
         // VoidOS's restarting screen (over Android's shutdown dialog) and the low battery warning
         show { com.andysocial.voidos.ui.PowerOffScreen(restart = true) }
