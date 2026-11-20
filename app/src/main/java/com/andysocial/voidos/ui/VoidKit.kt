@@ -53,7 +53,7 @@ fun DotLabel(text: String, dot: Color = V.Teal, modifier: Modifier = Modifier, c
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(6.dp).background(dot, CircleShape))
         Box(Modifier.size(Grid.s))
-        VText(text.uppercase(), size = 11.sp, color = color, font = SansMedium, spacing = 1.6.sp, maxLines = 1)
+        VText(text.uppercase(), size = Type.caption, color = color, font = SansMedium, spacing = 1.6.sp, maxLines = 1)
     }
 }
 

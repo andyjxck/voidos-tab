@@ -44,6 +44,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
@@ -246,53 +247,97 @@ private fun InkText(text: String, sizePx: Float, color: Color, face: Typeface, s
 }
 
 /**
- * The clock: the date, then the time as large as the space allows in a thin
- * face, then any running timers. Nothing around it.
+ * 2.0.1, the merged face: the old VoidOS octagon and its 60-tick ring around the time, on the
+ * current calm background. The octagon is a sheet of liquid glass with a thin teal rim; the
+ * ticks run round it (longer at the quarters), lit amber up to the current second, with a
+ * small amber bead riding the ring. The ring is also the hub's status: teal when every app
+ * is fine, amber when one wants a look, coral on errors. Inside: the date in small caps, the
+ * time in Manrope Light, and the seconds in the old squared numerals, small and amber.
  */
 @Composable
 private fun Dial(store: Store, now: Long, onOpen: (Module) -> Unit, scale: Float, modifier: Modifier) {
     val fmt = if (store.use24h) "HH:mm" else "h:mm"
     val timers by KTimers.list
     val running = timers.filter { it.running }.sortedBy { it.endAt }
-    val thin = rememberFace("sans-serif-thin")
-    val regular = rememberFace("sans-serif")
+    val light = rememberFace("sans-serif-light")
+    val medium = rememberFace("sans-serif-medium")
     val d = LocalDensity.current
     val tick = rememberTicker()
+    val cal = java.util.Calendar.getInstance().apply { timeInMillis = now }
+    val sec = cal.get(java.util.Calendar.SECOND)
+    val ms = (now % 1000L).toFloat() / 1000f
+    val status = com.andysocial.voidos.hub.HubRepo.summary?.takeIf { it.apps.isNotEmpty() }?.overall
+    val ringCol = when (status) {
+        com.andysocial.voidos.hub.HubStatus.ERRORS -> V.Coral
+        com.andysocial.voidos.hub.HubStatus.ATTENTION -> V.Amber
+        com.andysocial.voidos.hub.HubStatus.FINE -> V.Teal
+        else -> V.Amber
+    }
     BoxWithConstraints(modifier.testTag("dial")) {
         val w = with(d) { maxWidth.toPx() }
         val h = with(d) { maxHeight.toPx() }
-        // the time takes about two thirds of the width, or less when the screen is short
-        val timePx = clockPx(w, h) * scale
-        val gap = with(d) { (timePx * 0.10f).toDp() }
-        CentredStack(
-            gap = gap,
-            above = {
-                InkText(SimpleDateFormat("EEEE d MMMM", Locale.UK).format(Date(now)), timePx * 0.115f, V.Text.copy(alpha = 0.78f), regular, 0.01f)
-            },
-            centre = {
-                // no AM/PM: the time alone, as big as it can be. Digits roll when they change,
-                // a light glides across them, and a soft glow breathes behind
-                RollingText(
-                    SimpleDateFormat(fmt, Locale.UK).format(Date(now)), timePx, thin,
-                    Modifier.breathingGlow(tick).testTag("time"), spacingEm = -0.02f, tick = tick,
-                )
-            },
-            below = {
-                Spacer(Modifier.height(10.dp))
-                val px = timePx / 400f
-                // what's running: the stopwatch, then the next alarm (2.0 has no world clocks, so none show here)
-                val sw = Stopwatch.running || Stopwatch.elapsed(now) > 0L
-                if (running.isNotEmpty() || sw) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(with(d) { (10 * px).toDp() }), verticalAlignment = Alignment.CenterVertically) {
-                        if (running.isNotEmpty()) TimerPills(running, now, px, onOpen)
-                        if (sw) StopwatchPill(now, px, onOpen)
-                    }
+        val base = clockPx(w, h) * scale
+        // the octagon's half-height (apothem); the time is sized to sit inside it with air around
+        val apo = base * 0.80f
+        val timePx = apo * 0.56f
+        val sideDp = with(d) { (apo * 2.62f).toDp() }
+        Box(Modifier.align(Alignment.Center).size(sideDp), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.fillMaxSize().testTag("tick_ring")) {
+                val c = Offset(size.width / 2f, size.height / 2f)
+                val oct = apo                            // the glass octagon
+                val ringIn = apo * 1.10f                 // ticks start just outside it
+                // glass: a faint fill and two rims, the outer one catching the light along the cuts
+                drawPath(octPath(c, oct), Color.White.copy(alpha = 0.045f))
+                drawPath(octPath(c, oct), Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.30f), V.Teal.copy(alpha = 0.22f), Color.White.copy(alpha = 0.08f)), c.y - oct, c.y + oct),
+                    style = Stroke(width = apo * 0.012f))
+                drawPath(octPath(c, oct * 0.955f), V.Teal.copy(alpha = 0.10f), style = Stroke(width = apo * 0.006f))
+                // the 60 ticks, following the octagon (not a circle)
+                for (i in 0 until 60) {
+                    val t = i / 60.0 * 2 * PI - PI / 2
+                    val quarter = i % 15 == 0
+                    val major = i % 5 == 0
+                    val r0 = octRadius(ringIn, t)
+                    val len = apo * when { quarter -> 0.11f; major -> 0.075f; else -> 0.045f }
+                    val lit = i <= sec
+                    val col = if (lit) ringCol.copy(alpha = if (quarter) 1f else 0.85f) else Color.White.copy(alpha = if (quarter) 0.34f else if (major) 0.22f else 0.12f)
+                    val dx = cos(t).toFloat(); val dy = sin(t).toFloat()
+                    drawLine(col, Offset(c.x + dx * r0, c.y + dy * r0), Offset(c.x + dx * (r0 + len), c.y + dy * (r0 + len)),
+                        apo * when { quarter -> 0.018f; major -> 0.013f; else -> 0.008f }, StrokeCap.Round)
                 }
-                // the alarm widget already shows it: don't say it twice under the time
-                if (store.widgets.none { it.kind == "alarm" })
-                    NextAlarm(now, store.use24h, px, top = running.isNotEmpty() || sw, onOpen)
-            },
-        )
+                // the bead glides between seconds, on the ring's outer edge
+                val bt = (sec + ms) / 60.0 * 2 * PI - PI / 2
+                val br = octRadius(ringIn, bt) + apo * 0.15f
+                val bp = Offset(c.x + cos(bt).toFloat() * br, c.y + sin(bt).toFloat() * br)
+                drawCircle(Brush.radialGradient(listOf(ringCol.copy(alpha = 0.45f), Color.Transparent), bp, apo * 0.06f), apo * 0.06f, bp)
+                drawCircle(ringCol, apo * 0.018f, bp)
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                InkText(SimpleDateFormat("EEE d MMM", Locale.UK).format(Date(now)).uppercase(), timePx * 0.15f, V.Text.copy(alpha = 0.72f), medium, 0.22f)
+                Spacer(Modifier.height(with(d) { (timePx * 0.16f).toDp() }))
+                RollingText(
+                    SimpleDateFormat(fmt, Locale.UK).format(Date(now)), timePx, light,
+                    Modifier.breathingGlow(tick).testTag("time"), spacingEm = -0.01f, tick = tick,
+                )
+                Spacer(Modifier.height(with(d) { (timePx * 0.10f).toDp() }))
+                VText("%02d".format(sec), size = with(d) { (timePx * 0.20f).toSp() }, color = ringCol, font = Jupi, maxLines = 1, modifier = Modifier.testTag("seconds"))
+            }
+        }
+        // what's running sits under the octagon, never inside it
+        Column(
+            Modifier.align(Alignment.Center).offset { IntOffset(0, (apo * 1.42f).roundToInt()) },
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            val px = timePx / 400f * 1.25f
+            val sw = Stopwatch.running || Stopwatch.elapsed(now) > 0L
+            if (running.isNotEmpty() || sw) {
+                Row(horizontalArrangement = Arrangement.spacedBy(with(d) { (10 * px).toDp() }), verticalAlignment = Alignment.CenterVertically) {
+                    if (running.isNotEmpty()) TimerPills(running, now, px, onOpen)
+                    if (sw) StopwatchPill(now, px, onOpen)
+                }
+            }
+            if (store.widgets.none { it.kind == "alarm" })
+                NextAlarm(now, store.use24h, px, top = running.isNotEmpty() || sw, onOpen)
+        }
     }
 }
 
@@ -446,11 +491,11 @@ internal fun clockPx(faceW: Float, faceH: Float) = minOf(faceW * 0.30f, faceH * 
 
 /** The box you can grab the clock by: the date, the time and the timer pills. */
 internal fun clockBoxOf(c: ClockPlace, faceW: Float, faceH: Float, basePx: Float) =
-    FaceBox(c.cx * faceW, c.cy * faceH, basePx * 2.6f * c.scale, basePx * 1.55f * c.scale, c.rot)
+    FaceBox(c.cx * faceW, c.cy * faceH, basePx * 2.2f * c.scale, basePx * 2.2f * c.scale, c.rot)
 
 /** Back from a live clock box to the place that gets saved. */
 internal fun placeOf(b: FaceBox, faceW: Float, faceH: Float, basePx: Float) =
-    ClockPlace(b.cx / faceW, b.cy / faceH, b.w / (basePx * 2.6f), b.rot)
+    ClockPlace(b.cx / faceW, b.cy / faceH, b.w / (basePx * 2.2f), b.rot)
 
 /** A saved widget as a box on the face, in pixels. */
 internal fun widgetBoxOf(wd: FaceWidget, baseW: Float, baseH: Float, faceW: Float, faceH: Float): FaceBox {

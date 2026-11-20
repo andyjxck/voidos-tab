@@ -165,10 +165,8 @@ private fun WidgetContent(store: Store, wd: FaceWidget, now: Long, fit: WFit) {
 
 @Composable
 private fun Head(text: String, modifier: Modifier = Modifier, dot: Color? = null) {
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        if (dot != null) { Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(dot)); Gap(w = 8.dp) }
-        Box(Modifier.weight(1f, fill = false)) { Label(text) }
-    }
+    // 2.0.1: the old face's widget header, a coloured dot and the name in spaced small caps
+    DotLabel(text, dot ?: V.Teal, modifier)
 }
 
 @Composable
@@ -249,12 +247,12 @@ private fun StopwatchWidget(now: Long, fit: WFit) {
     val text = stopwatchText(Stopwatch.elapsed(now)).substringBefore('.')
     val toggle = { if (Stopwatch.running) Stopwatch.stop() else Stopwatch.start() }
     if (fit.shape == WShape.TALL) Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.align(Alignment.Start)) { Label("Stopwatch") }
+        Box(Modifier.align(Alignment.Start)) { Head("Stopwatch") }
         FitText(text, 40.sp, Modifier.weight(1f).fillMaxWidth(), align = Alignment.Center)
         IconTap(if (Stopwatch.running) G.PAUSE else G.PLAY, V.White, size = 52.dp) { toggle() }
     }
     else Column(Modifier.fillMaxSize()) {
-        Label("Stopwatch")
+        Head("Stopwatch")
         Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             FitText(text, if (fit.shape == WShape.WIDE) 40.sp else Type.large, Modifier.weight(1f).fillMaxHeight())
             Gap(w = 8.dp)
@@ -273,12 +271,12 @@ private fun AlarmWidget(store: Store, now: Long, fit: WFit) {
         FitText(time ?: "None set", if (time == null) Type.headline else 44.sp, Modifier.weight(1f).fillMaxHeight(), color = if (time == null) V.Muted else V.White, font = if (time == null) Sans else SansLight)
         Gap(w = 12.dp)
         Column(Modifier.weight(0.8f), horizontalAlignment = Alignment.End) {
-            Label("Alarm")
+            Head("Alarm", dot = V.Amber)
             if (until != null) { Gap(h = 4.dp); FitText(until, Type.label, color = V.Muted, font = Sans, align = Alignment.CenterEnd) }
         }
     }
     else Column(Modifier.fillMaxSize(), horizontalAlignment = if (fit.shape == WShape.TALL) Alignment.CenterHorizontally else Alignment.Start) {
-        Box(Modifier.align(Alignment.Start)) { Label("Alarm") }
+        Box(Modifier.align(Alignment.Start)) { Head("Alarm", dot = V.Amber) }
         val a = if (fit.shape == WShape.TALL) Alignment.Center else Alignment.CenterStart
         FitText(time ?: "None set", if (time == null) Type.body else 36.sp, Modifier.weight(1f).fillMaxWidth(), color = if (time == null) V.Muted else V.White, font = if (time == null) Sans else SansLight, align = a)
         if (until != null) FitText(until, Type.caption, Modifier.fillMaxWidth(), color = V.Muted, font = Sans, align = a)
@@ -327,7 +325,7 @@ private fun FocusWidget(store: Store, fit: WFit) {
     val c = if (fm != null) V.Purple else V.Muted
     val name = fm?.name ?: "Off"
     if (fit.shape == WShape.TALL) Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.align(Alignment.Start)) { Label("Focus") }
+        Box(Modifier.align(Alignment.Start)) { Head("Focus") }
         Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Glyph(g, c, Modifier.size(min(fit.iw * 0.45f, 56f).dp))
             Gap(h = 8.dp)
@@ -335,7 +333,7 @@ private fun FocusWidget(store: Store, fit: WFit) {
         }
     }
     else Column(Modifier.fillMaxSize()) {
-        Label("Focus")
+        Head("Focus")
         Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Glyph(g, c, Modifier.size(28.dp))
             Gap(w = 8.dp)

@@ -67,3 +67,6 @@ val SansLight: FontFamily = face(com.andysocial.voidos.R.font.manrope_light)
 
 /** The big clock (Manrope ExtraLight). */
 val SansThin: FontFamily = face(com.andysocial.voidos.R.font.manrope_thin)
+
+/** Jupiteroid, the old VoidOS squared numerals (CC0): only the small seconds on the Home face. */
+val Jupi = androidx.compose.ui.text.font.FontFamily(androidx.compose.ui.text.font.Font(com.andysocial.voidos.R.font.jupiteroid))

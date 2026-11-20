@@ -95,7 +95,7 @@ fun VText(
 /** Small grey uppercase label, the watch's "STEPS" style. */
 @Composable
 fun Label(text: String, modifier: Modifier = Modifier, color: Color = V.Muted) =
-    VText(text.uppercase(), modifier, size = Type.caption, color = if (color == V.Muted || color == V.Tick) color else calm(color), font = SansMedium, spacing = 1.sp)
+    VText(text.uppercase(), modifier, size = Type.caption, color = if (color == V.Muted || color == V.Tick) color else calm(color), font = SansMedium, spacing = 1.6.sp, maxLines = 1)
 
 @Composable
 fun VPanel(

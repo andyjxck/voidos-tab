@@ -1,5 +1,8 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.mutableFloatStateOf
@@ -109,15 +112,15 @@ fun NotesScreen(store: Store) {
         else NoteList(store, query, { query = it }, null, { openId = it; drawing = false }, ::create, Modifier.fillMaxSize())
     } else {
         Row(Modifier.fillMaxSize()) {
-            NoteList(store, query, { query = it }, openId, { openId = it; drawing = false }, ::create, Modifier.width(330.dp).fillMaxHeight())
+            NotesAppRail(store, vertical = true, Modifier.fillMaxHeight())
+            Gap(w = Grid.l)
+            NoteList(store, query, { query = it }, openId, { openId = it; drawing = false }, ::create, Modifier.width(320.dp).fillMaxHeight())
             Gap(w = 28.dp)
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 if (exists) NotePage(store, openId, drawing, { drawing = it }, Modifier.fillMaxSize(), onBack = null,
                     onDeleted = { openId = store.notes.firstOrNull()?.id ?: 0L; drawing = false })
                 else Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                    Glyph(G.NOTES, V.Tick, Modifier.size(44.dp))
-                    Gap(h = 12.dp)
-                    VText("No note open", size = Type.headline, color = V.Muted)
+                    Glyph(G.NOTES, V.Tick.copy(alpha = 0.6f), Modifier.size(40.dp))
                 }
             }
         }
@@ -144,6 +147,48 @@ object NotesNav {
     }
 }
 
+/**
+ * 2.0.1: the per-app navigation. A slim column of real app icons down the left in landscape (a
+ * row across the top in portrait): All, General, then each hub app. The chosen one sits on a
+ * chamfered glass tile with a short yellow bar; a small count shows when it has notes.
+ */
+@Composable
+private fun NotesAppRail(store: Store, vertical: Boolean, modifier: Modifier) {
+    val appFilter = NotesNav.app.value
+    val hubApps = com.andysocial.voidos.hub.HubRepo.summary?.apps.orEmpty()
+    val entries = listOf(NotesNav.ALL to "All", "" to "General") + NotesNav.apps(store)
+    @Composable fun Cell(id: String, name: String) {
+        val chosen = appFilter == id
+        val n = if (id == NotesNav.ALL) store.notes.size else store.notes.count { it.app == id }
+        Box(
+            Modifier.size(52.dp).then(if (chosen) Modifier.glass(Radius.Control, 0.75f) else Modifier).clip(Radius.Control)
+                .clickable { NotesNav.app.value = id }.semantics { contentDescription = name }.testTag("notes_app_$id"),
+            contentAlignment = Alignment.Center,
+        ) {
+            val app = hubApps.firstOrNull { it.id == id }
+            when {
+                app != null && app.kind == com.andysocial.voidos.hub.HubKind.APP -> com.andysocial.voidos.hub.AppIcon(app, 34.dp, Modifier.graphicsLayer { alpha = if (chosen) 1f else 0.72f })
+                id == NotesNav.ALL -> Glyph(G.NOTES, if (chosen) V.White else V.Muted, Modifier.size(22.dp))
+                id == "" -> Glyph(G.COMPOSE, if (chosen) V.White else V.Muted, Modifier.size(20.dp))
+                else -> Glyph(G.WEB, if (chosen) V.White else V.Muted, Modifier.size(20.dp))
+            }
+            if (chosen) Box(
+                Modifier.align(if (vertical) Alignment.CenterStart else Alignment.BottomCenter)
+                    .size(if (vertical) 3.dp else 16.dp, if (vertical) 16.dp else 3.dp).background(V.Yellow, Radius.Chip),
+            )
+            if (n > 0 && !chosen) Box(Modifier.align(Alignment.TopEnd).padding(5.dp).size(6.dp).background(V.Yellow.copy(alpha = 0.8f), CircleShape))
+        }
+    }
+    if (vertical) Column(
+        modifier.width(64.dp).pane(Radius.Panel).padding(vertical = Grid.s).verticalScroll(rememberScrollState()).testTag("notes_rail"),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Grid.xs),
+    ) { entries.forEach { (id, name) -> Cell(id, name) } }
+    else Row(
+        modifier.pane(Radius.Card).padding(horizontal = Grid.s, vertical = Grid.xs).horizontalScroll(rememberScrollState()).testTag("notes_rail"),
+        horizontalArrangement = Arrangement.spacedBy(Grid.xs), verticalAlignment = Alignment.CenterVertically,
+    ) { entries.forEach { (id, name) -> Cell(id, name) } }
+}
+
 /** The list: title, count, search, app chips, then notes grouped by app (All) or by day, newest first. */
 @Composable
 private fun NoteList(
@@ -158,30 +203,25 @@ private fun NoteList(
         .filter { query.isBlank() || it.text.contains(query.trim(), ignoreCase = true) }
         .sortedByDescending { it.updated }
     Column(modifier) {
+        // the header: which app's notes, how many, and the two ways to start one
+        val title = when (appFilter) { NotesNav.ALL -> "All notes"; "" -> "General"; else -> apps.toMap()[appFilter]?.let { com.andysocial.voidos.hub.shortName(it) } ?: "Notes" }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Spacer(Modifier.weight(1f))
+            Column(Modifier.weight(1f)) {
+                DotLabel(title, V.Yellow)
+                Gap(h = Grid.xs)
+                VText("${shown.size}", size = Type.large, font = SansLight, color = V.White, maxLines = 1)
+            }
             RoundIcon(G.PEN, "Sketch") { onNew(true) }
-            Gap(w = 8.dp)
+            Gap(w = Grid.s)
             RoundIcon(G.COMPOSE, "New note", active = true) { onNew(false) }
         }
-        Gap(h = 16.dp)
+        if (portrait) { Gap(h = Grid.m); NotesAppRail(store, vertical = false, Modifier.fillMaxWidth()) }
+        Gap(h = Grid.m)
         SearchPill(query, onQuery)
-        Gap(h = 10.dp)
-        // 2.0: notes are organised by app. A chip per app (from the hub), plus General for the rest.
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-            (listOf(NotesNav.ALL to "All", "" to "General") + apps).forEach { (id, name) ->
-                val n = if (id == NotesNav.ALL) store.notes.size else store.notes.count { it.app == id }
-                Chip(if (n > 0) "$name  $n" else name, appFilter == id, V.Yellow, Modifier.padding(end = 6.dp)) { NotesNav.app.value = id }
-            }
-        }
         Gap(h = 4.dp)
         if (shown.isEmpty()) {
             Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                VText(if (query.isBlank()) "No notes yet" else "No matches", size = Type.headline, color = V.Muted)
-                if (query.isBlank()) {
-                    Gap(h = 8.dp)
-                    VText("", size = Type.label, color = V.Tick, align = TextAlign.Center)
-                }
+                com.andysocial.voidos.hub.NotConnected(if (query.isBlank()) "NO NOTES" else "NO MATCHES")
             }
             return@Column
         }
