@@ -3,7 +3,7 @@
   "private": true,
   "description": "VoidOS Void Hub aggregator: pulls the store, ads, crash, site and cost numbers into one summary for the tablet.",
   "main": "index.js",
-  "engines": { "node": "20" },
+  "engines": { "node": "22" },
   "scripts": {
     "test": "node --test test/*.test.js",
     "deploy": "firebase deploy --only functions"
