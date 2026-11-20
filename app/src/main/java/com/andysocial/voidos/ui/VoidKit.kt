@@ -1,5 +1,12 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.ui.semantics.text
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.layout.layout
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -52,10 +59,34 @@ import androidx.compose.ui.unit.sp
 fun DotLabel(text: String, dot: Color = V.Teal, modifier: Modifier = Modifier, color: Color = V.Muted) {
     androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
     // on the smallest widgets the name gets the room, the dot steps aside
-    val roomy = maxWidth > 96.dp
+    val roomy = maxWidth > 150.dp
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (roomy) { Box(Modifier.size(6.dp).background(dot, CircleShape)); Box(Modifier.size(Grid.s)) }
-        FitText(text.uppercase(), Type.caption, Modifier.weight(1f, fill = false), color = color, font = SansMedium, min = 7.sp, lines = 1)
+        // picks its size from the width it is really given at layout time (not from intrinsics),
+        // down to 6.5sp; a name that still can't fit drops to its first word ("HENLEY")
+        val up = text.uppercase()
+        val tm = androidx.compose.ui.text.rememberTextMeasurer()
+        val held = androidx.compose.runtime.remember { arrayOfNulls<androidx.compose.ui.text.TextLayoutResult>(1) }
+        Box(Modifier.weight(1f, fill = false)
+            .semantics { this.text = androidx.compose.ui.text.AnnotatedString(up) }
+            .layout { _, c ->
+                val maxW = if (c.hasBoundedWidth) c.maxWidth else Int.MAX_VALUE
+                fun st(v: Float) = androidx.compose.ui.text.TextStyle(color = color, fontSize = v.sp, fontFamily = SansMedium, letterSpacing = (v / 11f).sp)
+                var pick: androidx.compose.ui.text.TextLayoutResult? = null
+                for (cand in listOf(up, up.split(' ', '-', ',').first())) {
+                    var v = Type.caption.value
+                    while (v >= 6.5f) {
+                        val r = tm.measure(cand, st(v), maxLines = 1, softWrap = false)
+                        if (r.size.width <= maxW) { pick = r; break }
+                        v -= 0.5f
+                    }
+                    if (pick != null) break
+                }
+                val r = pick ?: tm.measure(up.split(' ', '-', ',').first(), st(6.5f), maxLines = 1, softWrap = false, constraints = androidx.compose.ui.unit.Constraints(maxWidth = maxW.coerceAtLeast(1)), overflow = androidx.compose.ui.text.style.TextOverflow.Clip)
+                held[0] = r
+                layout(r.size.width.coerceAtMost(maxW), r.size.height.coerceIn(c.minHeight, c.maxHeight)) {}
+            }
+            .drawBehind { held[0]?.let { drawText(it) } })
     }
     }
 }

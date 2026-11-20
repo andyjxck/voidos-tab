@@ -147,7 +147,7 @@ private fun VolumeSlider(audio: AudioManager, stream: Int, label: String, g: G, 
             Modifier.size(36.dp).clip(OctBtn).clickable { onGlyph() }.semantics { contentDescription = "All volumes" },
             contentAlignment = Alignment.Center,
         ) { Glyph(if (level <= min) G.VIBRATE.takeIf { stream == AudioManager.STREAM_RING } ?: g else g, V.Text, Modifier.size(20.dp)) }
-        VText(label.uppercase(), size = 10.sp, font = SansMedium, spacing = 1.5.sp, color = V.Muted, align = TextAlign.Center, maxLines = 1)
+        FitText(label.uppercase(), 10.sp, Modifier.fillMaxWidth(), color = V.Muted, font = SansMedium, min = 7.sp, align = Alignment.Center)
     }
 }
 

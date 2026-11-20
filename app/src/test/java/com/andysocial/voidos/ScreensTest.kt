@@ -1534,7 +1534,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         expect("Restarting"); shot("62c_restarting")
         show { Box(Modifier.fillMaxSize()) { Shell(store, act, Module.FACE); Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.TopCenter) { com.andysocial.voidos.ui.LowBatteryBanner(8) {} } } }
         settle(500)
-        expect("Battery low · 8%"); shot("66_low_battery")
+        expect("Battery low", "8%"); shot("66_low_battery")
 
         // volume sliders: the one the keys move, then all four
         val audio = act.getSystemService(android.media.AudioManager::class.java)

@@ -1,8 +1,5 @@
-[port] 05_tools_alarms: ok
-[port] 05b_alarm_edit: ok
-[port] 05c_alarm_sounds: ok
-[port] 05d_alarm_new: ok
-[port] 05e_alarm_ringing: ok
+[port] 13f_status_no_apps: ok
+[port] 14f_metrics_no_apps: ok
 [port] widget_sky_0.6x0.6: ok
 [port] widget_sky_0.6x1.0: ok
 [port] widget_sky_0.6x1.7: ok
@@ -17,8 +14,7 @@
 [port] widget_sky_1.7x2.6: ok
 [port] widget_sky_2.6x0.6: ok
 [port] widget_sky_2.6x1.0: ok
-[port] widget_sky_2.6x1.7: 1 issue(s)
-  TEXT CUT  "HENLEY-IN-ARDEN" box=124 x 22 text=124 x 22 lines=1 (wider than its box, ellipsized)
+[port] widget_sky_2.6x1.7: ok
 [port] widget_sky_2.6x2.6: ok
 [port] widget_battery_0.6x0.6: ok
 [port] widget_battery_0.6x1.0: ok
@@ -276,4 +272,9 @@
 [port] widget_hup_full_2.6x1.0: ok
 [port] widget_hup_full_2.6x1.7: ok
 [port] widget_hup_full_2.6x2.6: ok
-[port] 16_control_centre: ok
+[port] 13e_status_empty: ok
+[port] 14e_metrics_empty: ok
+[port] 18e_apps_drawer_empty: ok
+[port] 01e_face_hub_widgets_empty: ok
+[port] 27e_hub_settings_empty: ok
+[port] 60e_standby_unlinked: ok
