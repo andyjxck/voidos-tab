@@ -281,3 +281,23 @@ test('the tablet\'s site list reaches the checks when the config has none', asyn
   assert.deepStrictEqual(r.body.apps.map((a) => a.name), ['Staff Hub', 'White Swan']);
   assert.ok(r.body.apps.every((a) => a.status === 'fine'));
 });
+
+test('App Store Connect: no vendor number skips sales; an unsold app reads 0; build icon fallback; a day not posted yet is empty', async () => {
+  const routes = ascRoutes();
+  routes.unshift([/v1\/builds\?filter\[app\]=222/, () => ({ json: { data: [{ attributes: { iconAssetToken: { templateUrl: 'https://is1.mzstatic.com/bp/{w}x{h}bb.{f}' } } }] } })]);
+  routes.unshift([/salesReports.*reportDate\]=2026-11-19/, () => ({ status: 400, json: { errors: [{ detail: 'The report you requested is not available yet.' }] } })]);
+  const f = fakeFetch(routes);
+  const env = { ASC_KEY_ID: 'K', ASC_ISSUER_ID: 'I', ASC_PRIVATE_KEY: P8_PEM };
+  const none = await appstore.source.pull({ cfg: buildConfig({}, env), now: NOW, deps: { fetch: f }, apps: [] });
+  assert.ok(!none.metrics['asc:222'] || !none.metrics['asc:222'].downloads);
+  assert.strictEqual(none.apps.find((a) => a.id === 'asc:222').icon, 'https://is1.mzstatic.com/bp/512x512bb.png');
+  const d = await appstore.source.pull({ cfg: buildConfig({ appstore: { vendorNumber: '85000000' } }, env), now: NOW, deps: { fetch: f }, apps: [] });
+  assert.strictEqual(d.metrics['asc:222'].downloads.week, 0);
+  assert.strictEqual(d.metrics['asc:222'].downloads.today, 0);
+  assert.strictEqual(d.metrics['asc:111'].downloads.today, 4); // the 18th is the newest posted day
+});
+
+test('sales parsing copes with a BOM, padded headers and CRLF', () => {
+  const rows = appstore.parseSales('\uFEFFProvider\tApple Identifier \tUnits\tDeveloper Proceeds\tCurrency of Proceeds\tProduct Type Identifier\r\nAPPLE\t111\t3\t0.70\tgbp\t1F\r\n');
+  assert.deepStrictEqual(rows[0], { appleId: '111', units: 3, proceeds: 0.7, currency: 'GBP', type: '1F', parentId: '' });
+});

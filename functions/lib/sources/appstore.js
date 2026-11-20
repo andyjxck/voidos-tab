@@ -46,15 +46,26 @@ const source = {
         url: `https://apps.apple.com/app/id${a.id}`,
       };
       apps.push(app);
-      // the icon: the public App Store listing has it for live apps
-      try {
-        const look = await request('iTunes lookup', `https://itunes.apple.com/lookup?id=${a.id}&country=${c.country || 'gb'}`, { fetchImpl: f, timeoutMs: 8000 });
-        const r = look && look.results && look.results[0];
-        if (r) {
-          app.icon = r.artworkUrl512 || r.artworkUrl100 || '';
-          if (r.averageUserRating) metrics[id] = { ...(metrics[id] || {}), rating: { today: r.averageUserRating } };
-        }
-      } catch (_) { /* not live yet: the board shows initials */ }
+      // the icon: the public App Store listing has it for live apps (the home storefront first,
+      // then the US one for apps not sold here); apps not live yet use their newest build's icon
+      for (const country of [c.country || 'gb', 'us']) {
+        if (app.icon) break;
+        try {
+          const look = await request('iTunes lookup', `https://itunes.apple.com/lookup?id=${a.id}&country=${country}`, { fetchImpl: f, timeoutMs: 8000 });
+          const r = look && look.results && look.results[0];
+          if (r) {
+            app.icon = r.artworkUrl512 || r.artworkUrl100 || '';
+            if (r.averageUserRating) metrics[id] = { ...(metrics[id] || {}), rating: { today: r.averageUserRating } };
+          }
+        } catch (_) { /* try the next storefront */ }
+      }
+      if (!app.icon) {
+        try {
+          const b = await get(`/v1/builds?filter[app]=${a.id}&sort=-uploadedDate&limit=1&fields[builds]=iconAssetToken`);
+          const t = b && b.data && b.data[0] && b.data[0].attributes && b.data[0].attributes.iconAssetToken;
+          if (t && t.templateUrl) app.icon = t.templateUrl.replace('{w}', '512').replace('{h}', '512').replace('{f}', 'png');
+        } catch (_) { /* no build icon: the tablet falls back to initials */ }
+      }
       // review status of the newest version
       try {
         const v = await get(`/v1/apps/${a.id}/appStoreVersions?limit=1&fields[appStoreVersions]=versionString,appStoreState,appVersionState,createdDate`);
@@ -83,12 +94,17 @@ const source = {
     }));
 
     let payout;
-    if (c.vendorNumber) {
+    if (!c.vendorNumber) {
+      // Sales and Trends need the vendor number in hub/config (appstore.vendorNumber); without it
+      // the app list, icons and reviews still flow and the tablet shows no sales numbers
+      console.warn('App Store Connect: hub/config appstore.vendorNumber is not set, so sales reports are skipped');
+    } else {
       const skus = new Map(raw.map((a) => [a.attributes.sku, a.id]));
       const sales = await salesByApp(token, c, ctx, skus);
+      // every app gets its numbers once the reports came back, a zero row included: an app with
+      // no sales this week reads 0, not "no data"
       for (const app of apps) {
-        const s = sales.byApp.get(app.appleId);
-        if (!s) continue;
+        const s = sales.byApp.get(app.appleId) || emptySales(sales.home, sales.posted);
         metrics[app.id] = { ...(metrics[app.id] || {}), downloads: s.downloads, revenue: s.revenue };
       }
       payout = sales.payout;
@@ -104,7 +120,9 @@ const source = {
  */
 async function salesByApp(token, c, ctx, skus = new Map()) {
   const home = (c.currency || 'GBP').toUpperCase();
-  const days = lastDays(8, ctx.now - DAY).slice(1); // the 7 days up to yesterday
+  // Apple's daily reports are Pacific-time days, posted the next morning: take the 7 days up to
+  // yesterday in Los Angeles. A day not posted yet comes back empty and the newest posted one is "today".
+  const days = lastDays(7, pacificMidnightUtc(ctx.now) - DAY);
   const byApp = new Map();
   const rates = await fxRates(home, ctx.deps.fetch);
   const reports = await Promise.all(days.map(async (d) => {
@@ -113,7 +131,8 @@ async function salesByApp(token, c, ctx, skus = new Map()) {
       const gz = await request('App Store sales', `${API}/v1/salesReports?${q}`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/a-gzip' }, raw: true, fetchImpl: ctx.deps.fetch });
       return parseSales(zlib.gunzipSync(gz).toString('utf8'));
     } catch (e) {
-      if (e.status === 404) return []; // no sales that day, or not posted yet
+      if (e.status === 404) return []; // no sales that day
+      if (e.status === 410 || (e.status === 400 && /not (yet )?available|no sales|future|too (recent|early)/i.test(e.message))) return []; // not posted yet
       throw e;
     }
   }));
@@ -136,17 +155,28 @@ async function salesByApp(token, c, ctx, skus = new Map()) {
       s[k].today = posted >= 0 ? s[k].series[posted] : 0;
     }
   }
-  return { byApp, payout: payoutEstimate(byApp, home, ctx.now, c) };
+  return { byApp, home, posted, payout: payoutEstimate(byApp, home, ctx.now, c) };
+}
+
+function emptySales(home, posted) {
+  const z = () => Array(7).fill(0);
+  return { downloads: { series: z(), week: 0, today: 0 }, revenue: { series: z(), week: 0, today: 0, currency: home } };
+}
+
+/** The UTC instant of today's midnight in Los Angeles, as a ms timestamp of that calendar date at 00:00 UTC. */
+function pacificMidnightUtc(now) {
+  const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(now));
+  return Date.parse(`${p}T00:00:00Z`);
 }
 
 function parseSales(tsv) {
-  const lines = tsv.split(/\r?\n/).filter(Boolean);
+  const lines = tsv.replace(/^\uFEFF/, '').split(/\r?\n/).filter((l) => l.trim());
   if (!lines.length) return [];
-  const head = lines[0].split('\t');
+  const head = lines[0].split('\t').map((h) => h.trim());
   const col = (n) => head.indexOf(n);
   const ix = { id: col('Apple Identifier'), units: col('Units'), proceeds: col('Developer Proceeds'), cur: col('Currency of Proceeds'), type: col('Product Type Identifier'), parent: col('Parent Identifier') };
   return lines.slice(1).map((l) => {
-    const f = l.split('\t');
+    const f = l.split('\t').map((x) => x.trim());
     return {
       appleId: f[ix.id], units: Number(f[ix.units]) || 0, proceeds: Number(f[ix.proceeds]) || 0,
       currency: (f[ix.cur] || '').toUpperCase(), type: f[ix.type], parentId: ix.parent >= 0 ? f[ix.parent] || '' : '',
@@ -195,4 +225,4 @@ async function reply(cfg, { reviewId, text }, deps = {}) {
   return request('App Store Connect', `${API}/v1/customerReviewResponses`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body, fetchImpl: deps.fetch });
 }
 
-module.exports = { source, reply, parseSales, payoutEstimate, DOWNLOAD_TYPES };
+module.exports = { source, reply, parseSales, payoutEstimate, pacificMidnightUtc, DOWNLOAD_TYPES };
