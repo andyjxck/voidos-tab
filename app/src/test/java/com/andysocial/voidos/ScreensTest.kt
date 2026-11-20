@@ -359,51 +359,12 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
 
     @Test fun tools() {
         show { Shell(store, act, Module.TOOLS) }
-        expect("Timers", "Laundry", "Call Maya", "Start"); shot("02_tools_timers")
-        // the old cooking presets and the focus timers are gone
-        listOf("Pasta", "Eggs", "Deep work", "Focus", "Kitchen").forEach { gone ->
-            val left = rule.onAllNodesWithText(gone, substring = true, ignoreCase = true, useUnmergedTree = true).fetchSemanticsNodes()
-            assertTrue("[$tag] \"$gone\" should be gone from Tools", left.isEmpty())
+        // 2.0: the Time page keeps only alarms and the stopwatch
+        expect("Alarms", "Stopwatch"); shot("02_time_alarms")
+        listOf("Timers", "World", "Organise", "Convert", "Level", "Torch", "Calculator", "Magnifier").forEach { gone ->
+            assertTrue("[$tag] \"$gone\" should be gone from Time", rule.onAllNodesWithText(gone, useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
         }
-        // Tools keeps Time and Organise on one glass bar; Camera and Utilities are pages of their own
-        expect("Time", "Organise", "Stopwatch", "World")
-        listOf("QR scan", "Magnifier", "Convert", "Level").forEach { gone ->
-            assertTrue("[$tag] \"$gone\" should have moved off Tools", rule.onAllNodesWithText(gone, useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
-        }
-        tap("Organise"); tap("List"); expect("Sourdough loaf", "Cheddar"); shot("06_tools_list")
-    }
-
-    @Test fun utilitiesPage() {
-        show { Shell(store, act, Module.UTILITIES) }
-        expect("Convert", "Level", "Sound", "Torch")
-        tap("Convert"); expect("Kilograms", "Pounds"); shot("03_tools_convert")
-        tap("Temperature"); expect("Gas mark"); shot("04_tools_convert_temperature")
-        // cast, sending files, FM radio and the ring light are gone
-        listOf("Cast", "Send files", "FM radio", "Ring light").forEach { gone ->
-            val left = rule.onAllNodesWithText(gone, useUnmergedTree = true).fetchSemanticsNodes()
-            assertTrue("[$tag] \"$gone\" should be gone from Tools", left.isEmpty())
-        }
-    }
-
-    @Test fun newTools() {
-        show { Shell(store, act, Module.TOOLS) }
-        tap("Organise"); tap("Files"); expect("Tablet"); shot("06b_tools_files")
-    }
-
-    @Test fun cameraPage() {
-        show { Shell(store, act, Module.CAMERA) }
-        expect("QR scan", "Doc scan", "Magnifier", "Mirror"); shot("06e_camera_page")
-        tap("Doc scan"); shot("06c_tools_docscan")
-    }
-
-    @Test fun torchFull() {
-        show { Shell(store, act, Module.UTILITIES) }
-        tap("Torch"); settle(400)
-        // the torch takes the whole screen, with one button to close it
-        assertTrue("[$tag] torch fills the screen", rule.onAllNodesWithTag("full_tool").fetchSemanticsNodes().isNotEmpty())
-        shot("06d_tools_torch_full")
-        rule.onNodeWithContentDescription("Close Torch").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick); settle(600)
-        assertTrue("[$tag] torch closed", rule.onAllNodesWithTag("full_tool").fetchSemanticsNodes().isEmpty())
+        tap("Stopwatch"); shot("02b_time_stopwatch")
     }
 
     @Test fun alarms() {
@@ -653,20 +614,6 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         assertEquals(1, store.notes.size)
     }
 
-    @Test fun sound() {
-        show { Shell(store, act, Module.MEDIA) }
-        expect("Not playing", "Brown noise"); shot("09_media")
-        val old = rule.onAllNodesWithText("On this tablet", substring = true, ignoreCase = true, useUnmergedTree = true).fetchSemanticsNodes()
-        assertTrue("[$tag] the separate On this tablet section should be gone", old.isEmpty())
-        // the same controls whatever plays
-        listOf("Play", "Previous", "Next", "Back 10 seconds", "Forward 10 seconds").forEach {
-            assertTrue("[$tag] control $it missing", rule.onAllNodesWithContentDescription(it, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
-        }
-        // your files are in a sidebar behind Files
-        tapDesc("Files"); settle(500); expect("Your music"); shot("09b_media_files")
-        tapDesc("Close files"); settle(500)
-        rule.onAllNodesWithText("Your music").assertCountEquals(0)
-    }
 
     private fun chooseApps(vararg pkgs: String) {
         store.allowed.toList().forEach { store.setAllowed(it, false) }
@@ -1378,9 +1325,9 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         drag(x0, midY, x0 - winW * 0.6f, midY, steps = 12)
         up(x0 - winW * 0.6f, midY)
         settle(1200)
-        // no wheel came up; the pager moved on from Tools to the next screen, now Camera
+        // no drawer came up; the pager moved on from Time to the next screen, Weather
         rule.onAllNodesWithContentDescription("Open apps drawer", useUnmergedTree = true).assertCountEquals(0)
-        assertEquals(Module.CAMERA, com.andysocial.voidos.ui.ShellNow.module.value)
+        assertEquals(Module.WEATHER, com.andysocial.voidos.ui.ShellNow.module.value)
     }
 
     /** Nothing opens from the edges while the lock screen is up. */
@@ -1623,15 +1570,6 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         settle(500); shot("64b_pin_pad_wrong")
         com.andysocial.voidos.KeyguardState.wrong.intValue = 0
 
-        // the calculator: first on Utilities, and in either half of the book
-        show { Shell(store, act, Module.UTILITIES) }
-        expect("Calculator")
-        listOf("1", "2", "+", "3", "×", "4", "=").forEach { k ->
-            rule.onAllNodes(hasText(k) and hasClickAction()).onFirst()
-                .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick); settle(150)
-        }
-        expect("24"); shot("65_calculator")
-        assertTrue("[$tag] 65_calculator: ${issuesOf("65_calculator")}", issuesOf("65_calculator").isEmpty())
     }
 
     /**

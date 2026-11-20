@@ -23,12 +23,10 @@ class FeedbackTwoTest {
         assertTrue(TapSound.VOLUME > 0f)
     }
 
-    @Test fun cameraAndUtilitiesHaveTheirOwnPages() {
-        assertEquals(listOf(KGroup.TIME, KGroup.ORGANISE), KGroup.on(Module.TOOLS))
-        assertEquals(listOf(KGroup.CAMERA), KGroup.on(Module.CAMERA))
-        assertEquals(listOf(KGroup.UTILITIES), KGroup.on(Module.UTILITIES))
-        // every tool still lives on exactly one page
-        KGroup.entries.forEach { g -> assertTrue(g.page in listOf(Module.TOOLS, Module.CAMERA, Module.UTILITIES)) }
+    @Test fun timePageKeepsAlarmsAndStopwatch() {
+        // 2.0: Camera, Utilities and Organise are gone; Time is alarms and the stopwatch
+        assertEquals(listOf(KGroup.TIME), KGroup.on(Module.TOOLS))
+        KGroup.entries.forEach { g -> assertEquals(Module.TOOLS, g.page) }
         // the pager has a mood for every page
         assertEquals(Module.entries.size, com.andysocial.voidos.ui.Ambience.moods.size)
     }
