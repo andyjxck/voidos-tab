@@ -1,5 +1,15 @@
 package com.andysocial.voidos.hub
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import com.andysocial.voidos.ui.VCard
+import com.andysocial.voidos.ui.Grid
+import com.andysocial.voidos.ui.Radius
+import com.andysocial.voidos.ui.Glyph
+import com.andysocial.voidos.ui.G
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,24 +41,16 @@ import com.andysocial.voidos.ui.VText
 import com.andysocial.voidos.ui.pane
 import com.andysocial.voidos.ui.tap
 
-/** The data sources the aggregator knows, in setup order, with what each feeds. */
+/** The data sources the aggregator knows, in setup order. */
 val HUB_SOURCES = listOf(
-    "appstore" to "App Store Connect · apps, downloads, sales, payouts, review status, reviews",
-    "play" to "Google Play · apps and reviews, if you publish there",
-    "admob" to "AdMob · earnings, impressions, eCPM",
-    "firebase" to "Firebase Analytics · active users",
-    "crashlytics" to "Crashlytics (BigQuery export) · crashes",
-    "sites" to "Uptime, SSL and domain checks · your sites",
-    "brevo" to "Brevo · bounces and blocks",
-    "github" to "GitHub · latest commits and builds",
-    "billing" to "Google Cloud billing · spend",
-    "elevenlabs" to "ElevenLabs · credit balance",
+    "appstore" to "App Store Connect", "play" to "Google Play", "admob" to "AdMob", "firebase" to "Firebase",
+    "crashlytics" to "Crashlytics", "sites" to "Uptime", "brevo" to "Brevo", "github" to "GitHub",
+    "billing" to "Google Cloud", "elevenlabs" to "ElevenLabs",
 )
 
 /**
- * Settings › Hub. Whether the hub is linked, the server's address and
- * this tablet's token, the sites to check, and each source's state. Store and API keys are never
- * typed here: they go into the server's secrets (docs/hub-setup.md), so they never sit on the tablet.
+ * Settings › Hub, 2.0.1: three chamfered cards on the 4 dp grid. Server (address, token, refresh),
+ * Sources (a dot and a time for each), Sites. No explanations: setup lives in docs/hub-setup.md.
  */
 @Composable
 fun HubSettings() {
@@ -60,87 +62,95 @@ fun HubSettings() {
     var siteName by remember { mutableStateOf("") }
     var siteUrl by remember { mutableStateOf("") }
     val s = HubRepo.summary
-    Column(Modifier.fillMaxWidth().testTag("hub_settings")) {
-        VText("Your store and API keys stay on your own server, never on this tablet. The tablet only reads the one summary the server writes.",
-            size = Type.body, color = V.Muted)
-        Gap(h = 14.dp)
-        Label("Status")
-        Gap(h = 6.dp)
-        VText(when {
-            !HubRepo.connected -> "Not linked yet. Add your server and token below; docs/hub-setup.md has the steps."
-            HubRepo.error != null -> "Couldn't reach your server: ${HubRepo.error}"
-            else -> freshness(s).ifBlank { "Linked. Waiting for the first summary." }
-        }, size = Type.caption, color = if (HubRepo.connected && HubRepo.error != null) V.Coral else V.Muted, maxLines = 2)
-        Gap(h = 18.dp)
-
-        Label("Your hub server")
-        Gap(h = 6.dp)
-        VField(url, { url = it; saved = null }, Modifier.fillMaxWidth(), placeholder = "https://europe-west2-<project>.cloudfunctions.net/hub")
-        Gap(h = 8.dp)
-        VField(token, { token = it; saved = null }, Modifier.fillMaxWidth(), placeholder = if (HubRepo.hasToken) "Token saved · type to replace" else "Device token (HUB_TOKEN)")
-        Gap(h = 8.dp)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            VButton("Save", filled = true, enabled = url.isNotBlank()) {
-                if (!url.trim().startsWith("https://")) { saved = "The address must start with https://"; return@VButton }
-                HubRepo.setServer(ctx, url, token.takeIf { it.isNotBlank() }); token = ""; saved = "Saved"
+    val stateDot = when { !HubRepo.connected -> V.Tick; HubRepo.error != null -> V.Coral; else -> V.Teal }
+    Column(Modifier.fillMaxWidth().testTag("hub_settings"), verticalArrangement = Arrangement.spacedBy(Grid.l)) {
+        VCard("Server", dot = stateDot, trailing = {
+            VText(when {
+                !HubRepo.connected -> "Off"
+                HubRepo.error != null -> HubRepo.error ?: ""
+                else -> freshness(s).removePrefix("updated ").ifBlank { "Waiting" }
+            }, size = Type.caption, color = if (HubRepo.connected && HubRepo.error != null) V.Coral else V.Muted, maxLines = 1)
+        }) {
+            VField(url, { url = it; saved = null }, Modifier.fillMaxWidth(), placeholder = "Address")
+            Gap(h = Grid.s)
+            VField(token, { token = it; saved = null }, Modifier.fillMaxWidth(), placeholder = if (HubRepo.hasToken) "Token \u2022\u2022\u2022\u2022\u2022\u2022" else "Token", password = true)
+            Gap(h = Grid.m)
+            Row(horizontalArrangement = Arrangement.spacedBy(Grid.s), verticalAlignment = Alignment.CenterVertically) {
+                VButton("Save", filled = true, enabled = url.trim().startsWith("https://")) {
+                    HubRepo.setServer(ctx, url, token.takeIf { it.isNotBlank() }); token = ""; saved = "Saved"
+                }
+                if (HubRepo.connected) VButton(if (HubRepo.busy) "Refreshing" else "Refresh", enabled = !HubRepo.busy) { HubRepo.refresh(ctx) }
+                if (HubRepo.hasToken) VButton("Forget token", accent = V.Coral) { HubRepo.setServer(ctx, url, ""); saved = null }
+                saved?.let { VText(it, size = Type.caption, color = V.Teal) }
             }
-            if (HubRepo.connected) VButton(if (HubRepo.busy) "Refreshing…" else "Refresh now", enabled = !HubRepo.busy) { HubRepo.refresh(ctx) }
-            if (HubRepo.hasToken) VButton("Forget token") { HubRepo.setServer(ctx, url, ""); saved = "Token removed" }
         }
-        saved?.let { VText(it, size = Type.caption, color = if (it.startsWith("The")) V.Coral else V.Teal) }
-        Gap(h = 4.dp)
-        VText("The token is encrypted with a key kept in the tablet's Keystore. The server refreshes every hour, and when the screen comes on if the last refresh was over 10 minutes ago.",
-            size = Type.caption, color = V.Muted)
-        Gap(h = 18.dp)
 
-        Label("Sources")
-        Gap(h = 6.dp)
-        Column(Modifier.fillMaxWidth().pane(Oct).padding(16.dp)) {
-            HUB_SOURCES.forEach { (key, what) ->
+        VCard("Sources") {
+            HUB_SOURCES.forEachIndexed { i, (key, name) ->
                 val st = s?.sources?.firstOrNull { it.key == key }
-                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    StatusChip(when { st == null || !st.connected -> HubStatus.UNKNOWN; st.ok -> HubStatus.FINE; else -> HubStatus.ERRORS }, text = "")
-                    Column(Modifier.weight(1f)) {
-                        VText(what.substringBefore(" · "), size = Type.body, color = V.Text, maxLines = 1)
-                        VText(what.substringAfter(" · "), size = Type.caption, color = V.Muted, maxLines = 2)
-                    }
+                val on = st != null && st.connected
+                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(V.Line.copy(alpha = 0.5f)))
+                Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(7.dp).background(when { !on -> V.Tick; st!!.ok -> V.Teal; else -> V.Coral }, CircleShape))
+                    Gap(w = Grid.m)
+                    VText(name, size = Type.body, color = if (on) V.Text else V.Muted, maxLines = 1, modifier = Modifier.weight(1f))
                     VText(when {
-                        st == null || !st.connected -> "Not connected"
-                        st.ok -> Hub.ago(st.at, System.currentTimeMillis()).removePrefix("updated ")
+                        !on -> "\u2014"
+                        st!!.ok -> Hub.ago(st.at, System.currentTimeMillis()).removePrefix("updated ")
                         else -> st.error.ifBlank { "Failed" }
-                    }, size = Type.caption, color = if (st != null && st.connected && !st.ok) V.Coral else V.Muted, maxLines = 1, font = SansMedium)
+                    }, size = Type.caption, color = if (on && !st!!.ok) V.Coral else V.Muted, maxLines = 1, font = SansMedium,
+                        modifier = Modifier.widthIn(max = 260.dp))
                 }
             }
         }
-        Gap(h = 6.dp)
-        VText("To connect a source, add its key to the server, as docs/hub-setup.md in the VoidOS repo explains, then refresh.",
-            size = Type.caption, color = V.Muted)
-        Gap(h = 18.dp)
 
-        Label("Sites to check")
-        Gap(h = 6.dp)
-        val sites = HubRepo.manualSites
-        if (sites.isEmpty()) VText("No sites yet. Add the Staff Hub and the White Swan site to have them checked.", size = Type.caption, color = V.Muted, maxLines = 2)
-        sites.forEachIndexed { i, (n, u) ->
-            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    VText(n, size = Type.body, color = V.Text, maxLines = 1)
-                    VText(u, size = Type.caption, color = V.Muted, maxLines = 1)
+        VCard("Sites") {
+            val sites = HubRepo.manualSites
+            sites.forEachIndexed { i, (n, u) ->
+                Row(Modifier.fillMaxWidth().height(52.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Glyph(G.WEB, V.Teal, Modifier.size(18.dp))
+                    Gap(w = Grid.m)
+                    Column(Modifier.weight(1f)) {
+                        VText(n, size = Type.body, color = V.Text, maxLines = 1)
+                        VText(u.removePrefix("https://"), size = Type.caption, color = V.Muted, maxLines = 1)
+                    }
+                    Box(Modifier.size(36.dp).clip(Radius.Chip).tap { HubRepo.setSites(ctx, sites.filterIndexed { j, _ -> j != i }) }, contentAlignment = Alignment.Center) {
+                        Glyph(G.CLOSE, V.Muted, Modifier.size(16.dp))
+                    }
                 }
-                VText("Remove", size = Type.label, color = V.Coral, font = SansMedium,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).tap { HubRepo.setSites(ctx, sites.filterIndexed { j, _ -> j != i }) }.padding(8.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(V.Line.copy(alpha = 0.5f)))
+            }
+            if (sites.isNotEmpty()) Gap(h = Grid.m)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Grid.s), verticalAlignment = Alignment.CenterVertically) {
+                VField(siteName, { siteName = it }, Modifier.weight(1f), placeholder = "Name")
+                VField(siteUrl, { siteUrl = it }, Modifier.weight(1.6f), placeholder = "https://")
+                VButton("Add", enabled = siteName.isNotBlank() && siteUrl.trim().startsWith("https://")) {
+                    HubRepo.setSites(ctx, sites + (siteName.trim() to siteUrl.trim())); siteName = ""; siteUrl = ""
+                }
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            VField(siteName, { siteName = it }, Modifier.weight(1f), placeholder = "Name")
-            VField(siteUrl, { siteUrl = it }, Modifier.weight(1.6f), placeholder = "https://…")
-            VButton("Add", enabled = siteName.isNotBlank() && siteUrl.trim().startsWith("https://")) {
-                HubRepo.setSites(ctx, sites + (siteName.trim() to siteUrl.trim())); siteName = ""; siteUrl = ""
-            }
-        }
-        Gap(h = 4.dp)
-        VText("Sent to your server with each refresh, which checks their uptime, certificate and domain. A sites list in the server's hub/config takes priority.", size = Type.caption, color = V.Muted, maxLines = 3)
-        Gap(h = 24.dp)
+        Gap(h = Grid.l)
     }
 }
 
+/** Settings › Hidden apps: the apps hidden from the tablet, each with Show. */
+@Composable
+fun HiddenApps() {
+    val ctx = LocalContext.current
+    HubRepo.init(ctx)
+    val hidden = HubRepo.allApps.filter { it.id in HubRepo.hidden }
+    Column(Modifier.fillMaxWidth().testTag("hidden_apps")) {
+        if (hidden.isEmpty()) { Box(Modifier.fillMaxWidth().padding(top = 80.dp), contentAlignment = Alignment.Center) { NotConnected("NONE HIDDEN") }; return@Column }
+        VCard("Hidden", dot = V.Amber, trailing = { VText("${hidden.size}", size = Type.caption, color = V.Muted) }) {
+            hidden.forEachIndexed { i, a ->
+                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(V.Line.copy(alpha = 0.5f)))
+                Row(Modifier.fillMaxWidth().height(60.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (a.kind == HubKind.APP) AppIcon(a, 36.dp) else Glyph(G.WEB, V.Teal, Modifier.size(22.dp))
+                    Gap(w = Grid.m)
+                    VText(shortName(a.name), size = Type.body, color = V.Text, maxLines = 1, modifier = Modifier.weight(1f))
+                    VButton("Show") { HubRepo.hide(a.id, false) }
+                }
+            }
+        }
+    }
+}

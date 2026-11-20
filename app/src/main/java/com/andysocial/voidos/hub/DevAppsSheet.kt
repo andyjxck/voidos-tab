@@ -1,5 +1,13 @@
 package com.andysocial.voidos.hub
 
+import androidx.compose.ui.graphics.asImageBitmap
+import com.andysocial.voidos.ui.DotLabel
+import com.andysocial.voidos.ui.VCard
+import com.andysocial.voidos.ui.Grid
+import com.andysocial.voidos.ui.pane
+import com.andysocial.voidos.ui.Radius
+import com.andysocial.voidos.ui.G
+import com.andysocial.voidos.ui.Chamfer
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -78,73 +86,93 @@ fun DevAppsSheet(store: Store) {
     }
 }
 
+/** An installed app's own launcher icon, or the glyph on glass when it's a web console. */
+@Composable
+fun DevAppIcon(a: DevApp, size: androidx.compose.ui.unit.Dp) {
+    val ctx = LocalContext.current
+    val icon = remember(a.pkg) {
+        if (a.pkg.isBlank()) null else runCatching {
+            val d = ctx.packageManager.getApplicationIcon(a.pkg)
+            val px = (size.value * ctx.resources.displayMetrics.density).toInt().coerceAtLeast(48)
+            val b = android.graphics.Bitmap.createBitmap(px, px, android.graphics.Bitmap.Config.ARGB_8888)
+            val c = android.graphics.Canvas(b); d.setBounds(0, 0, px, px); d.draw(c)
+            b.asImageBitmap()
+        }.getOrNull()
+    }
+    if (icon != null) androidx.compose.foundation.Image(icon, a.name, Modifier.size(size).clip(Chamfer(Radius.control)))
+    else Box(Modifier.size(size).glass(Chamfer(Radius.control), 0.6f), contentAlignment = Alignment.Center) {
+        Glyph(DevApps.glyph(a), V.White, Modifier.size(size * 0.46f))
+    }
+}
+
+/** 2.0.1: one chamfered glass panel, the dot-and-caps header, tiles of real icons on an even grid. */
 @Composable
 fun DevAppsGrid(store: Store, modifier: Modifier = Modifier, onLaunched: () -> Unit = {}) {
     val ctx = LocalContext.current
     val list = DevApps.list(store)
-    BoxWithConstraints(modifier.glass(Chamfer(Radius.panel), 0.7f).tap { }.padding(24.dp).semantics { contentDescription = "Dev Apps" }.testTag("dev_apps")) {
-        val cols = when { maxWidth < 420.dp -> 3; maxWidth < 640.dp -> 4; else -> 5 }
+    BoxWithConstraints(modifier.pane(Chamfer(Radius.panel)).tap { }.padding(Grid.xl).semantics { contentDescription = "Dev Apps" }.testTag("dev_apps")) {
+        val cols = when { maxWidth < 420.dp -> 4; maxWidth < 640.dp -> 5; else -> 6 }
         Column {
-            Label("Dev Apps")
-            Gap(h = 14.dp)
-            list.chunked(cols).forEach { row ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            DotLabel("Dev Apps")
+            Gap(h = Grid.l)
+            list.chunked(cols).forEachIndexed { ri, row ->
+                if (ri > 0) Gap(h = Grid.m)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Grid.m)) {
                     row.forEach { a ->
-                        val native = DevApps.native(ctx, a)
                         Column(
                             Modifier.weight(1f).clip(Chamfer(Radius.card)).tap { if (DevApps.launch(ctx, store, a)) onLaunched() }
-                                .padding(vertical = 10.dp).semantics(mergeDescendants = true) { contentDescription = a.name + if (native) "" else ", opens in the browser" },
+                                .padding(vertical = Grid.s).semantics(mergeDescendants = true) { contentDescription = a.name },
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Box(Modifier.size(60.dp).glass(CircleShape, 0.55f), contentAlignment = Alignment.Center) {
-                                Glyph(DevApps.glyph(a), V.White, Modifier.size(28.dp))
-                                if (native) Box(Modifier.align(Alignment.TopEnd).padding(6.dp).size(8.dp).background(V.Teal, CircleShape))
-                            }
-                            Gap(h = 6.dp)
-                            FitText(a.name, 12.sp, Modifier.fillMaxWidth(), color = V.Text, font = SansMedium, align = Alignment.Center, min = 8.sp)
+                            DevAppIcon(a, 56.dp)
+                            Gap(h = Grid.s)
+                            FitText(a.name, 12.sp, Modifier.fillMaxWidth(), color = V.Text, font = SansMedium, align = Alignment.Center, min = 9.sp)
                         }
                     }
                     repeat(cols - row.size) { Box(Modifier.weight(1f)) }
                 }
-                Gap(h = 8.dp)
             }
         }
     }
 }
 
-/** Settings › Dev Apps: the list, one row each, remove with ×, add a name and a package or web address, or put the defaults back. */
+/** Settings › Dev Apps, 2.0.1: one card of rows (icon, name, a small ×), an add row, and Reset. */
 @Composable
 fun DevAppsEditor(store: Store) {
     val list = DevApps.list(store)
     var name by remember { mutableStateOf("") }
     var target by remember { mutableStateOf("") }
-    var problem by remember { mutableStateOf<String?>(null) }
-    Column(Modifier.fillMaxWidth().testTag("dev_apps_editor")) {
-        list.forEachIndexed { i, a ->
-            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Glyph(DevApps.glyph(a), V.Muted, Modifier.size(20.dp))
-                Gap(w = 10.dp)
-                Column(Modifier.weight(1f)) {
-                    VText(a.name, size = Type.body, color = V.Text, maxLines = 1)
-                    VText(listOf(a.pkg, a.url).filter { it.isNotBlank() }.joinToString(" · "), size = Type.caption, color = V.Muted, maxLines = 2)
+    var bad by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().testTag("dev_apps_editor"), verticalArrangement = Arrangement.spacedBy(Grid.l)) {
+        VCard("Dev Apps", trailing = {
+            VText("Reset", size = Type.label, color = V.Teal, font = SansMedium,
+                modifier = Modifier.clip(Radius.Chip).tap { store.saveDevApps("") }.padding(horizontal = Grid.s, vertical = Grid.xs))
+        }) {
+            list.forEachIndexed { i, a ->
+                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(V.Line.copy(alpha = 0.5f)))
+                Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
+                    DevAppIcon(a, 34.dp)
+                    Gap(w = Grid.m)
+                    Column(Modifier.weight(1f)) {
+                        VText(a.name, size = Type.body, color = V.Text, maxLines = 1)
+                        VText(a.pkg.ifBlank { a.url.removePrefix("https://") }, size = Type.caption, color = V.Muted, maxLines = 1)
+                    }
+                    Box(Modifier.size(36.dp).clip(Radius.Chip).tap { store.saveDevApps(DevApps.encode(list.filterIndexed { j, _ -> j != i }).ifEmpty { "-||-" }) }, contentAlignment = Alignment.Center) {
+                        Glyph(G.CLOSE, V.Muted, Modifier.size(16.dp))
+                    }
                 }
-                VText("Remove", size = Type.label, color = V.Coral, font = SansMedium,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).tap { store.saveDevApps(DevApps.encode(list.filterIndexed { j, _ -> j != i }).ifEmpty { "-||-" }) }.padding(8.dp))
             }
         }
-        Gap(h = 8.dp)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            VField(name, { name = it; problem = null }, Modifier.weight(1f), placeholder = "Name")
-            VField(target, { target = it; problem = null }, Modifier.weight(1.6f), placeholder = "Package or web address")
-            VButton("Add", filled = true, enabled = name.isNotBlank() && target.isNotBlank()) {
-                val e = DevApps.parseEntry(name, target)
-                if (e == null) problem = "That isn't a package name (com.example.app) or a web address."
-                else { store.saveDevApps(DevApps.encode(list + e)); name = ""; target = "" }
+        VCard("Add") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Grid.s), verticalAlignment = Alignment.CenterVertically) {
+                VField(name, { name = it; bad = false }, Modifier.weight(1f), placeholder = "Name")
+                VField(target, { target = it; bad = false }, Modifier.weight(1.6f), placeholder = "Package or address")
+                VButton("Add", filled = true, enabled = name.isNotBlank() && target.isNotBlank()) {
+                    val e = DevApps.parseEntry(name, target)
+                    if (e == null) bad = true else { store.saveDevApps(DevApps.encode(list + e)); name = ""; target = "" }
+                }
             }
+            if (bad) { Gap(h = Grid.s); VText("Not valid", size = Type.caption, color = V.Coral) }
         }
-        problem?.let { VText(it, size = Type.caption, color = V.Coral) }
-        Gap(h = 8.dp)
-        VText("Put back the starting list", size = Type.label, color = V.Teal, font = SansMedium,
-            modifier = Modifier.clip(RoundedCornerShape(8.dp)).tap { store.saveDevApps("") }.padding(vertical = 8.dp))
     }
 }

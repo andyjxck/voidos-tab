@@ -35,7 +35,12 @@ object DevApps {
         DevApp("Adsterra", "", "https://beta.publishers.adsterra.com"),
         DevApp("GitHub", "com.github.android", "https://github.com"),
         DevApp("Browser", "", "https://www.google.com"),
+        DevApp("Magisk", "com.topjohnwu.magisk", ""),
+        DevApp("Android Settings", "com.android.settings", ""),
     )
+
+    /** 2.0.1: always on the list, also on a list saved before they were defaults. */
+    private val pinned = defaults.takeLast(2)
 
     fun encode(list: List<DevApp>): String = list.joinToString("\n") { it.line() }
 
@@ -45,7 +50,10 @@ object DevApps {
         else DevApp(p[0].trim(), p[1].trim(), p[2].trim())
     }
 
-    fun list(store: Store): List<DevApp> = store.devApps.takeIf { it.isNotBlank() }?.let { decode(it) } ?: defaults
+    fun list(store: Store): List<DevApp> {
+        val saved = store.devApps.takeIf { it.isNotBlank() }?.let { decode(it) } ?: return defaults
+        return saved + pinned.filter { p -> saved.none { it.pkg == p.pkg } }
+    }
 
     /** Pure: a typed "name" and "package or web address" as an entry, or null when it isn't usable. */
     fun parseEntry(name: String, target: String): DevApp? {
@@ -87,6 +95,8 @@ object DevApps {
         a.name.contains("github", true) -> G.CODE
         a.name.contains("fasthosts", true) -> G.WEB
         a.name.contains("browser", true) -> G.GLOBE
+        a.pkg == "com.topjohnwu.magisk" -> G.KEY
+        a.pkg == "com.android.settings" -> G.SYSTEM
         else -> G.WEB
     }
 

@@ -76,12 +76,12 @@ class Store(private val ctx: Context) {
     private fun b(key: String, def: Boolean) = mutableStateOf(p.getBoolean(key, def))
 
     var setupDone by mutableStateOf(p.getBoolean("setupDone", false)); private set
-    var kiosk by mutableStateOf(p.getBoolean("kiosk", false)); private set
-    var hideBars by mutableStateOf(p.getBoolean("hideBars", true)); private set
-    var noLockScreen by mutableStateOf(p.getBoolean("noLockScreen", true)); private set
-    var blockUpdates by mutableStateOf(p.getBoolean("blockUpdates", true)); private set
-    var deskMode by mutableStateOf(p.getBoolean("deskMode", true)); private set
-    var hideLenovo by mutableStateOf(p.getBoolean("hideLenovo", false)); private set
+    var kiosk by mutableStateOf(true); private set // 2.0.1: fixed, no longer a setting
+    var hideBars by mutableStateOf(true); private set // 2.0.1: fixed, no longer a setting
+    var noLockScreen by mutableStateOf(true); private set // 2.0.1: fixed, no longer a setting
+    var blockUpdates by mutableStateOf(true); private set // 2.0.1: fixed, no longer a setting
+    var deskMode by mutableStateOf(true); private set // 2.0.1: fixed, no longer a setting
+    var hideLenovo by mutableStateOf(true); private set // 2.0.1: fixed, no longer a setting
     var use24h by mutableStateOf(p.getBoolean("use24h", true)); private set
 
     /** Screens left out of the side wheel (their Module names). The screens themselves stay. */
@@ -106,9 +106,9 @@ class Store(private val ctx: Context) {
     /** The VoidOS lock screen asks for the VoidOS PIN. On unless the user turns it off (new key, so it starts on). */
     var lockNeedsPin by mutableStateOf(p.getBoolean("pinLock", true)); private set
     var lockNotices by mutableStateOf(p.getBoolean("lockNotices", true)); private set
-    var timerSound by mutableStateOf(p.getBoolean("timerSound", true)); private set
+    var timerSound by mutableStateOf(true); private set // 2.0.1: fixed, no longer a setting
     var railLabels by mutableStateOf(p.getBoolean("railLabels", true)); private set
-    var tempF by mutableStateOf(p.getBoolean("tempF", false)); private set
+    var tempF by mutableStateOf(false); private set // 2.0.1: fixed, no longer a setting
     var nightAuto by mutableStateOf(p.getBoolean("nightAuto", false)); private set
     var autoNight by mutableStateOf(p.getBoolean("autoNight", false)); private set
     var alarmVibrate by mutableStateOf(p.getBoolean("alarmVibrate", true)); private set
@@ -124,10 +124,10 @@ class Store(private val ctx: Context) {
     var nightWarmth by mutableStateOf(p.getFloat("nightWarmth", 0.5f)); private set
     fun set(key: String, v: Float) { p.edit().putFloat(key, v).apply(); if (key == "nightWarmth") nightWarmth = v }
     /** Swipe left and right on a screen to move to the next one. */
-    var swipeScreens by mutableStateOf(p.getBoolean("swipeScreens", true)); private set
+    var swipeScreens by mutableStateOf(true); private set // 2.0.1: fixed, no longer a setting
     /** Settings > About > Edge touch debug: shows the edge zones and the last touch. */
     var edgeDebug by mutableStateOf(p.getBoolean("edgeDebug", false)); private set
-    var edgeInApps by mutableStateOf(p.getBoolean("edgeInApps", true)); private set
+    var edgeInApps by mutableStateOf(true); private set // 2.0.1: fixed, no longer a setting
     /** 2.0: the Dev Apps list, "Name|package|url" a line; empty means the built-in list (hub/DevApps.kt). */
     var devApps by mutableStateOf(p.getString("devApps", "") ?: ""); private set
     fun saveDevApps(v: String) { devApps = v; p.edit().putString("devApps", v).apply() }
@@ -141,7 +141,7 @@ class Store(private val ctx: Context) {
         e.apply()
     }
     /** The slow moving light behind every screen. Off holds it still. */
-    var motion by mutableStateOf(p.getBoolean("motion", true)); private set
+    var motion by mutableStateOf(true); private set // 2.0.1: fixed, no longer a setting
     /** Apps opened from VoidOS, newest first: what the right-edge app wheel offers. */
     var recentApps by mutableStateOf(p.getString("recentApps", "")!!.split(',').filter { it.isNotBlank() }); private set
     /**
@@ -158,23 +158,7 @@ class Store(private val ctx: Context) {
     var hubName by mutableStateOf(p.getString("hubName", "Home")!!); private set
     /** How Android app icons are drawn: "colour" (as shipped), "void" (VoidOS glyph or tinted) or "letter". */
     // 1.14: glass app icons are the new default; a saved "void" from before moves over once
-    var iconStyle by mutableStateOf(
-        if (!p.getBoolean("iconGlassMoved", false)) {
-            val old = p.getString("iconStyle", "glass")!!
-            val now = if (old == "void") "glass" else old
-            p.edit().putString("iconStyle", now).putBoolean("iconGlassMoved", true).apply(); now
-        } else p.getString("iconStyle", "glass")!!
-    ); private set
-    /** Apps whose notifications are switched off (VoidOS clears them and Android stops them). */
-    var mutedApps by mutableStateOf(p.getStringSet("mutedApps", emptySet())!!.toSet().also { VoidListener.muted = it }); private set
-    /** Lying face down also turns Do Not Disturb on until it's picked up. */
-    var faceDownQuiet by mutableStateOf(p.getBoolean("faceDownQuiet", false)); private set
-    /** The resting clock glows when there are unread notifications. */
-    var notifyLight by mutableStateOf(p.getBoolean("notifyLight", true)); private set
-    fun setMuted(pkg: String, muted: Boolean) {
-        mutedApps = if (muted) mutedApps + pkg else mutedApps - pkg
-        VoidListener.muted = mutedApps
-        p.edit().putStringSet("mutedApps", mutedApps).apply()
+    var iconStyle by mutableStateOf("glass"); private set // 2.0.1: always the glass icons
     }
 
     /** The VoidOS PIN as "pbkdf2$<rounds>$<salt hex>$<hash hex>"; empty means still the starting code. */
@@ -188,20 +172,20 @@ class Store(private val ctx: Context) {
         when (key) {
             "tapSound" -> tapSound = v
             "setupDone" -> setupDone = v
-            "kiosk" -> kiosk = v
-            "hideBars" -> hideBars = v
-            "noLockScreen" -> noLockScreen = v
-            "blockUpdates" -> blockUpdates = v
-            "deskMode" -> deskMode = v
-            "hideLenovo" -> hideLenovo = v
+            "kiosk" -> kiosk = true
+            "hideBars" -> hideBars = true
+            "noLockScreen" -> noLockScreen = true
+            "blockUpdates" -> blockUpdates = true
+            "deskMode" -> deskMode = true
+            "hideLenovo" -> hideLenovo = true
             "use24h" -> use24h = v
             "wallpaperDone" -> wallpaperDone = v
             "voidLock" -> voidLock = v
             "lockNeedsPin" -> { lockNeedsPin = v; p.edit().putBoolean("pinLock", v).apply() }
             "lockNotices" -> lockNotices = v
-            "timerSound" -> timerSound = v
+            "timerSound" -> timerSound = true
             "railLabels" -> railLabels = v
-            "tempF" -> tempF = v
+            "tempF" -> tempF = false
             "nightAuto" -> nightAuto = v
             "autoNight" -> autoNight = v
             "alarmVibrate" -> alarmVibrate = v
@@ -213,10 +197,10 @@ class Store(private val ctx: Context) {
             "notifyLight" -> notifyLight = v
             "faceDown" -> faceDown = v
             "pickUp" -> pickUp = v
-            "swipeScreens" -> swipeScreens = v
+            "swipeScreens" -> swipeScreens = true
             "edgeDebug" -> { edgeDebug = v; com.andysocial.voidos.ui.EdgeSwipe.debug.value = v }
-            "motion" -> { motion = v; com.andysocial.voidos.ui.Ambience.motion.value = v }
-            "edgeInApps" -> edgeInApps = v
+            "motion" -> { motion = true; com.andysocial.voidos.ui.Ambience.motion.value = true }
+            "edgeInApps" -> edgeInApps = true
         }
     }
 
@@ -244,7 +228,7 @@ class Store(private val ctx: Context) {
     fun setSplit(pkg: String) { splitApp = pkg; p.edit().putString("splitApp", pkg).apply() }
 
     @JvmName("pickRotation") fun setRotation(r: String) { rotation = r; p.edit().putString("rotation", r).apply() }
-    @JvmName("pickIconStyle") fun setIconStyle(v: String) { iconStyle = v; p.edit().putString("iconStyle", v).apply() }
+    @JvmName("pickIconStyle") fun setIconStyle(@Suppress("UNUSED_PARAMETER") v: String) { iconStyle = "glass" }
     @JvmName("pickHubName") fun setHubName(n: String) { hubName = n; p.edit().putString("hubName", n).apply() }
 
     /** Favourite apps, shown first in the drawer and on the face. Order kept. */

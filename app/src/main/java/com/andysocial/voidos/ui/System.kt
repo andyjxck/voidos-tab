@@ -82,7 +82,7 @@ private enum class Tab(val label: String, val g: G, val group: Int, val accent: 
     // 2.0: cut down to network, display, sound, the VoidOS options, the Hub, Dev Apps and About
     WIFI("Wi-Fi", G.WIFI, 0, V.Teal), BT("Bluetooth", G.BT, 0, Color(0xFF5A8CF0)), NET("Network", G.GLOBE, 0, V.Green),
     DISPLAY("Display & sound", G.SUN, 1, V.Orange),
-    HUB("Drawers, standby & clock", G.FACE, 2, V.Coral), VOID("Lock mode", G.LOCK, 2, V.Purple),
+    HUB("VoidOS", G.FACE, 2, V.Coral), HIDDEN("Hidden apps", G.EYE, 3, V.Amber),
     DATA("Hub", G.HUB, 3, V.Teal), DEV("Dev Apps", G.CODE, 3, V.Green),
     ABOUT("About", G.INFO, 4, Color(0xFF8E8E98)),
 }
@@ -110,9 +110,9 @@ fun SystemScreen(store: Store, act: MainActivity) {
                     Tab.DISPLAY -> DisplayPane(store, act)
                     Tab.HUB -> HubPane(store, act)
                     Tab.NET -> { NetworkPane(); Gap(h = 24.dp); NetworkExtras() }
-                    Tab.VOID -> VoidPane(store, act)
+                    Tab.HIDDEN -> com.andysocial.voidos.hub.HiddenApps()
                     Tab.DATA -> com.andysocial.voidos.hub.HubSettings()
-                    Tab.DEV -> { Head("Dev Apps"); VText("Only these launch from VoidOS. Swipe up from the bottom edge to open them. A package name opens the app when it's installed; otherwise the web address opens in the browser.", size = Type.body, color = V.Muted); Gap(h = 12.dp); com.andysocial.voidos.hub.DevAppsEditor(store) }
+                    Tab.DEV -> com.andysocial.voidos.hub.DevAppsEditor(store)
                     Tab.ABOUT -> AboutTabletPane(store, act)
                 }
             }
@@ -454,47 +454,21 @@ private fun BtRow(name: String, state: String, col: Color, onClick: () -> Unit) 
     }
 }
 
-// --------------------------------------------------------------- VoidOS rules
+// --------------------------------------------------------------- standby
 
+/** 2.0.1: lock mode is always on, so its page is gone; only the standby choices are left, on the VoidOS page. */
 @Composable
-private fun VoidPane(store: Store, act: MainActivity) {
-    val owner = Policy.isOwner(act)
-    val bloat = remember { Policy.bloatCandidates(act) }
-
-    fun toggle(key: String, v: Boolean) { store.set(key, v); act.applyPolicies() }
-
-    Head("VoidOS rules")
-    // once lock mode is on it can't be switched off here: only the hidden escape (taps + PIN) can
-    if (!(store.kiosk && owner)) SettingRow("Lock mode") {
-        VToggle(store.kiosk, V.Coral, enabled = owner) { toggle("kiosk", it) }
-    }
-    SettingRow("Hide Android") {
-        VToggle(store.hideBars, enabled = true) { toggle("hideBars", it) }
-    }
+internal fun StandbyRows(store: Store) {
     if (Stealth.restartNeeded.value) SettingRow("Restart to remove the bottom bar") {
         VButton("Restart", accent = V.Teal, filled = true) { com.andysocial.voidos.VoidKeysService.restartOrOff(restart = true) }
     }
-    SettingRow("No lock screen") {
-        VToggle(store.noLockScreen, enabled = owner) { toggle("noLockScreen", it) }
-    }
-    SettingRow("Hold off system updates") {
-        VToggle(store.blockUpdates, enabled = owner) { toggle("blockUpdates", it) }
-    }
-    SettingRow("Desk mode") {
-        VToggle(store.deskMode, V.Teal, enabled = owner) { toggle("deskMode", it) }
-    }
-    SettingRow("Hide extra apps", if (bloat.isEmpty()) null else "${bloat.size} hidden") {
-        VToggle(store.hideLenovo, V.Teal, enabled = owner) { toggle("hideLenovo", it) }
-    }
-    SettingRow("Ambient clock after") {}
+    SettingRow("Standby after") {}
     GlassSegments(
         listOf("0" to "Never", "1" to "1 min", "5" to "5 min", "15" to "15 min"), store.ambientMinutes.toString(), Modifier.widthIn(max = 520.dp),
     ) { store.setAmbient(it.toInt()) }
-    Gap(h = 16.dp)
+    Gap(h = Grid.l)
     SettingRow("Standby clock") {}
     GlassSegments(
         listOf("digital" to "Digital", "analog" to "Analogue"), store.ambientFace, Modifier.widthIn(max = 520.dp),
     ) { store.chooseAmbientFace(it) }
-    Gap(h = 16.dp)
-
 }

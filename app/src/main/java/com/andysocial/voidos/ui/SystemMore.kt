@@ -81,32 +81,17 @@ fun HubPane(store: Store, act: MainActivity) {
     val ctx = LocalContext.current
     var name by remember { mutableStateOf(store.hubName) }
     val access = remember { mutableStateOf(VoidListener.enabled(ctx)) }
-    Head("Drawers, standby & clock")
+    Head("VoidOS")
     SettingRow("Tablet name") {}
     Row(verticalAlignment = Alignment.CenterVertically) {
         VField(name, { name = it.take(16) }, Modifier.weight(1f), placeholder = "Home", onDone = { store.setHubName(name.ifBlank { "Home" }) })
         Gap(w = 8.dp)
         VButton("Save") { store.setHubName(name.ifBlank { "Home" }) }
     }
-    SettingRow("Swipe between screens") {
-        VToggle(store.swipeScreens) { store.set("swipeScreens", it) }
-    }
-    SettingRow("Edge drawers in other apps", if (com.andysocial.voidos.EdgeOverlay.allowed.value) null else "Needs permission") {
-        VToggle(store.edgeInApps) { store.set("edgeInApps", it); com.andysocial.voidos.EdgeOverlay.sync(ctx, store) }
-    }
     SettingRow("Tap sound") {
         VToggle(store.tapSound) { store.set("tapSound", it); if (it) com.andysocial.voidos.TapSound.play() }
     }
-    SettingRow("Living background") {
-        VToggle(store.motion) { store.set("motion", it) }
-    }
-    SettingRow("App icons") {}
-    GlassSegments(listOf("glass" to "Glass", "void" to "Plain", "letter" to "Letters", "colour" to "Original"), store.iconStyle, Modifier.widthIn(max = 450.dp)) { store.setIconStyle(it) }
-    SettingRow("Home widgets") {
-        VButton("Clear all", accent = V.Muted, enabled = store.widgets.isNotEmpty()) { store.saveWidgets(emptyList()) }
-    }
-    SettingRow("Fahrenheit") { VToggle(store.tempF) { store.set("tempF", it) } }
-    SettingRow("Timer alarm sound") { VToggle(store.timerSound, V.Orange) { store.set("timerSound", it) } }
+    StandbyRows(store)
     Gap(h = 16.dp)
     SetSection("Lock screen")
     SettingRow("VoidOS lock screen") {
@@ -114,10 +99,8 @@ fun HubPane(store: Store, act: MainActivity) {
     }
     PinSettings(store)
     SettingRow("Notifications on the lock screen") { VToggle(store.lockNotices) { store.set("lockNotices", it) } }
-    SettingRow("Show it now") { VButton("Lock", accent = V.Teal) { LockState.locked.value = true } }
     Gap(h = 16.dp)
-    SetSection("Media and notifications")
-    SettingRow("Access") {
+    SettingRow("Media and notification access") {
         if (access.value) VText("On", size = Type.body, color = V.Muted)
         else VButton("Allow", accent = V.Purple) { Thread { com.andysocial.voidos.Stealth.grant(ctx) }.start() }
     }

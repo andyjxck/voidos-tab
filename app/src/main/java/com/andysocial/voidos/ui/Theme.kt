@@ -30,6 +30,8 @@ object V {
     val Purple = Color(0xFFA585E8)
     val Orange = Color(0xFFEA9550)
     val Sun = Color(0xFFFAD278)
+    /** 2.0.1: attention, the old face's tick amber. */
+    val Amber = Color(0xFFF2B544)
 
     /** Note and widget colours the user can pick. Not for decoration. */
     val Lap = listOf(Coral, Purple, Teal, Green, Yellow, Orange)
