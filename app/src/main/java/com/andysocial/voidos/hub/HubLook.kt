@@ -131,26 +131,49 @@ fun StatusChip(s: HubStatus, modifier: Modifier = Modifier, text: String = s.lab
     }
 }
 
-/** "Not connected – set up in Settings › Hub": the tidy empty state every hub surface uses. */
+/**
+ * The empty state every hub surface uses until real data exists: "Nothing linked yet" over
+ * "Link App Store Connect in Settings › Hub". [what] names what's missing; [how] the next step.
+ */
 @Composable
-fun NotConnected(what: String, modifier: Modifier = Modifier, glyphSize: Dp = 40.dp) {
+fun NotConnected(what: String, modifier: Modifier = Modifier, glyphSize: Dp = 40.dp, how: String = linkHint(what)) {
     Column(modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Glyph(G.HUB, V.Tick, Modifier.size(glyphSize))
         Gap(h = 10.dp)
-        VText("$what not connected", size = Type.headline, font = SansMedium, color = V.Text, maxLines = 2,
+        VText(what, size = Type.headline, font = SansMedium, color = V.Text, maxLines = 2,
             align = androidx.compose.ui.text.style.TextAlign.Center)
         Gap(h = 4.dp)
-        VText("Set up in Settings › Hub", size = Type.body, color = V.Muted, maxLines = 2,
+        VText(how, size = Type.body, color = V.Muted, maxLines = 3,
             align = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
 
-/** The line under every hub screen's title: "updated 6 min ago", plus Demo data or the last problem. */
+/** The next step under an empty state: the server first, then the source that feeds it. */
+fun linkHint(what: String): String = when {
+    !HubRepo.connected -> "Link your hub server in Settings \u203a Hub"
+    else -> "Link ${sourceFor(what)} in Settings \u203a Hub"
+}
+
+/** Which source fills a screen, for its empty state. */
+fun sourceFor(what: String): String {
+    val w = what.lowercase()
+    return when {
+        "crash" in w -> "Crashlytics"
+        "ad" in w || "ecpm" in w || "impression" in w -> "AdMob"
+        "user" in w -> "Firebase Analytics"
+        "uptime" in w || "site" in w -> "a site"
+        "bounce" in w || "email" in w -> "Brevo"
+        "repo" in w || "github" in w || "commit" in w -> "GitHub"
+        "cost" in w || "spend" in w -> "a cost source"
+        else -> "App Store Connect"
+    }
+}
+
+/** The line under every hub screen's title: "updated 6 min ago", or the last problem. */
 fun freshness(s: HubSummary?, now: Long = System.currentTimeMillis()): String {
     if (s == null) return ""
     val base = Hub.ago(s.updatedAt, now)
     return when {
-        s.demo -> "Demo data · $base"
         HubRepo.error != null -> "${HubRepo.error} · showing the last numbers, $base"
         else -> base
     }
@@ -173,7 +196,12 @@ fun HubWidget(kind: String, wide: Boolean, iw: Float, ih: Float) {
     Column(Modifier.fillMaxWidth()) {
         Label(label)
         Gap(h = 4.dp)
-        if (s == null) { VText("Set up in Settings \u203a Hub", size = Type.caption, color = V.Muted, maxLines = 2); return@Column }
+        val v0 = metric?.let { m -> s?.let { Hub.total(it, m) } }
+        if (s == null || s.apps.isEmpty() || (metric != null && v0 == null)) {
+            VText(if (s == null) "Not linked yet" else "No data yet", size = Type.body, color = V.Text, font = SansMedium, maxLines = 1)
+            if (ih > 70f) VText(if (s == null) "Settings \u203a Hub" else "Link ${sourceFor(label)}", size = Type.caption, color = V.Muted, maxLines = 2)
+            return@Column
+        }
         if (metric == null) {
             val st = s.overall
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -201,11 +229,11 @@ private fun Int.sp() = androidx.compose.ui.unit.TextUnit(this.toFloat(), android
 /**
  * The standby ring as an alert light: (colour, flashing) or null to leave it as the charging ring.
  * An app that just went live flashes it teal (phase 2); errors glow it coral, and once real data is
- * connected, all fine glows it a steady teal (phase 3). Demo data never lights it.
+ * connected, all fine glows it a steady teal (phase 3). With nothing linked it stays the plain ring.
  */
 fun ringAlert(s: HubSummary?, justLive: Boolean): Pair<androidx.compose.ui.graphics.Color, Boolean>? = when {
     justLive -> V.Teal to true
-    s == null || s.demo -> null
+    s == null || s.demo || s.apps.isEmpty() -> null
     s.overall == HubStatus.ERRORS -> V.Coral to false
     s.overall == HubStatus.FINE -> V.Teal to false
     else -> null

@@ -66,7 +66,13 @@ fun MetricsScreen(store: Store) {
             Metric.entries.forEach { m -> Chip(m.label, m == metric, V.Teal, Modifier.padding(end = 6.dp), glyph = HubDrawers.glyph(m)) { store.setHub(metric = m.name) } }
         }
         Gap(h = 6.dp)
-        if (s == null) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { NotConnected("The hub") }; return@Column }
+        if (s == null) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { NotConnected("Nothing linked yet") }; return@Column }
+        if (s.apps.isEmpty()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { NotConnected("No apps linked yet") }; return@Column }
+        // a metric no linked source provides: say which source would, rather than show zeros
+        if (Hub.total(s, metric) == null && !(metric == Metric.REVENUE && (s.payout != null || s.costs.isNotEmpty())) && !(metric == Metric.REVIEWS && s.reviews.isNotEmpty())) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { NotConnected("No ${metric.label.lowercase()} yet", how = "Link ${sourceFor(metric.label)} in Settings \u203a Hub") }
+            return@Column
+        }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
             (listOf(Hub.ALL to "All apps") + s.apps.map { it.id to it.name }).forEach { (id, name) ->
                 Chip(name, id == appId, V.Teal, Modifier.padding(end = 6.dp)) { store.setHub(app = id) }
@@ -101,7 +107,7 @@ private fun BigNumber(m: Metric, v: MetricValue?, modifier: Modifier) {
         Canvas(Modifier.fillMaxSize().padding(10.dp)) { octagon(V.Teal.copy(alpha = 0.35f)) }
         Column(Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 22.dp), verticalArrangement = Arrangement.Center) {
             Label("Today")
-            if (v == null) VText("No data for this one", size = Type.title, color = V.Muted, maxLines = 2)
+            if (v == null) VText("Nothing for this app yet", size = Type.title, color = V.Muted, maxLines = 2)
             else {
                 FitText(Hub.fmt(v.today, m, v.currency), 64.sp(), Modifier.fillMaxWidth().height(76.dp), color = V.White, font = SansLight)
                 VText("Last 7 days: " + Hub.fmt(v.week, m, v.currency), size = Type.body, color = V.Muted, maxLines = 1)

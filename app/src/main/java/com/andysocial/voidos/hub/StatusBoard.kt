@@ -97,7 +97,7 @@ fun StatusBoard(store: Store, onGo: ((Module) -> Unit)?) {
         }
         Gap(h = 8.dp)
         if (s == null || s.apps.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { NotConnected("App Store Connect") }
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { NotConnected(if (s == null) "Nothing linked yet" else "No apps linked yet") }
             return@Column
         }
         // clipped to its own box: the rings can never ride up over the title
@@ -180,7 +180,7 @@ fun AppPanel(a: HubApp, s: HubSummary, store: Store, onGo: ((Module) -> Unit)?, 
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             // today's numbers, two to a row, the old face's label-over-number
             val figs = panelFigures(a)
-            if (figs.isEmpty()) NotConnected(if (a.kind == HubKind.SITE) "Site checks" else "Store data", Modifier.fillMaxWidth(), 28.dp)
+            if (figs.isEmpty()) NotConnected(if (a.kind == HubKind.SITE) "No site checks yet" else "No numbers yet", Modifier.fillMaxWidth(), 28.dp, how = if (a.kind == HubKind.SITE) "Your server checks it on its next refresh" else "Link App Store Connect in Settings \u203a Hub")
             figs.chunked(2).forEach { row ->
                 Row(Modifier.fillMaxWidth()) {
                     row.forEach { (m, v) ->
