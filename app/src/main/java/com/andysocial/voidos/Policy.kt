@@ -64,7 +64,13 @@ object Policy {
         // VoidOS's volume sliders, power menu and PIN pad: the accessibility service, switched on through root
         val sys = store.setupDone && (store.voidVolume || store.voidPower || store.voidKeyguard)
         Thread { runCatching { VoidKeysService.sync(c.applicationContext, sys) } }.apply { isDaemon = true; start() }
+        // 2.0.1: the VoidOS keyboard is the only keyboard
+        Thread { runCatching { com.andysocial.voidos.keyboard.VoidKeyboardService.makeDefault(c.applicationContext) } }.apply { isDaemon = true; start() }
         if (!isOwner(c)) return
+        safe("keyboard") {
+            dpm(c).setPermittedInputMethods(admin(c), listOf(c.packageName))
+            dpm(c).setSecureSetting(admin(c), android.provider.Settings.Secure.DEFAULT_INPUT_METHOD, com.andysocial.voidos.keyboard.VoidKeyboardService.ID)
+        }
         val d = dpm(c)
         val a = admin(c)
         val pkg = c.packageName

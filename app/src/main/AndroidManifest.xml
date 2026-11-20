@@ -199,5 +199,16 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+        <!-- 2.0.1: the VoidOS keyboard -->
+        <service
+            android:name=".keyboard.VoidKeyboardService"
+            android:label="VoidOS keyboard"
+            android:permission="android.permission.BIND_INPUT_METHOD"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data android:name="android.view.im" android:resource="@xml/void_ime" />
+        </service>
     </application>
 </manifest>
