@@ -329,3 +329,44 @@ private fun SwitcherCard(e: AppEntry, store: Store, used: String, height: androi
         }
     }
 }
+
+/**
+ * 2.0: the open apps, under Control Centre's controls (the bottom edge now opens Dev Apps).
+ * The same cards and rules as the old switcher, smaller, in one row: tap to open, swipe a card
+ * up to close it, Close all on the right. Closed apps stay closed (1.20).
+ */
+@Composable
+fun RecentAppsStrip(store: Store, modifier: Modifier = Modifier, onOpened: () -> Unit = {}) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val apps = remember { mutableStateListOf<String>() }
+    val all = remember { AppsRepo.all(ctx) }
+    androidx.compose.runtime.LaunchedEffect(store.closedApps, store.clearedAt) {
+        val list = withContext(Dispatchers.IO) { runCatching { Switcher.recent(ctx, store) }.getOrDefault(emptyList()) }
+        apps.clear(); apps.addAll(list)
+    }
+    val now = System.currentTimeMillis()
+    Column(modifier.testTag("recent_apps")) {
+        androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Label("Recent apps", Modifier.weight(1f))
+            if (apps.isNotEmpty()) VText("Close all", size = Type.label, color = V.Coral, font = SansMedium,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+                    val gone = (apps.toList() + store.recentApps).distinct(); apps.clear()
+                    com.andysocial.voidos.AppKill.closeAll(ctx, store, gone, scope)
+                }.padding(horizontal = 8.dp, vertical = 6.dp))
+        }
+        androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
+        if (apps.isEmpty()) VText("No apps open", size = Type.body, color = V.Muted, modifier = Modifier.padding(vertical = 18.dp))
+        else LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(apps.toList(), key = { it }) { pkg ->
+                val e = all.firstOrNull { it.pkg == pkg }
+                if (e != null) Box(Modifier.width(150.dp)) {
+                    SwitcherCard(e, store, lastUsedLabel(now, Switcher.lastUsed[pkg]), 120.dp,
+                        onOpen = { onOpened(); if (!launchApp(ctx, store, pkg)) store.forgetRecent(pkg) },
+                        onClose = { apps.remove(pkg); scope.launch { com.andysocial.voidos.AppKill.closeFromSwitcher(ctx, store, pkg) } },
+                    )
+                }
+            }
+        }
+    }
+}

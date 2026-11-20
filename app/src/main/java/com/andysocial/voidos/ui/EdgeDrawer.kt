@@ -132,6 +132,12 @@ fun EdgeDrawers(
     onTab: (String) -> Unit,
     apps: List<WheelItem>,
     onApp: (String) -> Unit,
+    /** 2.0: the right drawer's chosen row (the hub app), marked like the left drawer's. */
+    currentApp: String? = null,
+    /** 2.0: the drawers' names, read aloud and shown when a drawer is empty. */
+    leftName: String = "Metrics drawer",
+    rightName: String = "Apps drawer",
+    emptyText: String = "No apps yet",
     enabled: Boolean = true,
     /** True in the window over other apps: it takes its touches from the edge strips there, not from MainActivity. */
     overlay: Boolean = false,
@@ -195,7 +201,7 @@ fun EdgeDrawers(
         fun openAt(e: Edge) {
             side = e; sticky = false; lifted = false
             val list = itemsOf(e)
-            sel.intValue = if (e == Edge.LEFT) list.indexOfFirst { it.key == currentTab } else -1
+            sel.intValue = if (e == Edge.LEFT) list.indexOfFirst { it.key == currentTab } else list.indexOfFirst { it.key == currentApp }
             scroll.floatValue = 0f
             if (!overlay) Ambience.held.value = true
             cbOpen(e)
@@ -273,7 +279,7 @@ fun EdgeDrawers(
                     .size(railWdp, railHdp)
                     .graphicsLayer { alpha = (reveal.value * 3f).coerceIn(0f, 1f) * (1f - 0.85f * carried) }
                     .liquidGlass(Radius.Panel, GlassLook(smoke = 0.74f, depth = 1f, shine = 1.1f, magnify = 1.05f), still = true)
-                    .semantics { contentDescription = if (open == Edge.LEFT) "Screens drawer" else "Open apps drawer" },
+                    .semantics { contentDescription = if (open == Edge.LEFT) leftName else rightName },
             ) {
                 if (items.isEmpty()) {
                     Column(
@@ -281,7 +287,7 @@ fun EdgeDrawers(
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        FitText("No apps open", Type.body, Modifier.fillMaxWidth().height(22.dp), color = V.Text, font = SansMedium, align = Alignment.Center)
+                        FitText(emptyText, Type.body, Modifier.fillMaxWidth().height(22.dp), color = V.Text, font = SansMedium, align = Alignment.Center)
                     }
                 } else {
                     // the highlight under the finger: a lighter sheet of glass, inset on the grid
@@ -296,7 +302,7 @@ fun EdgeDrawers(
                     items.forEachIndexed { i, it ->
                         val y = lay.centre(i, scroll.floatValue) - lay.railTop - lay.row / 2f
                         if (y + lay.row < 0f || y > lay.railH) return@forEachIndexed
-                        val current = open == Edge.LEFT && it.key == currentTab
+                        val current = if (open == Edge.LEFT) it.key == currentTab else (currentApp != null && it.key == currentApp)
                         val hot = i == sel.intValue
                         Row(
                             Modifier

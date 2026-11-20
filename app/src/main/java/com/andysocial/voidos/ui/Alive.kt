@@ -78,16 +78,17 @@ object Ambience {
     /** Whether the moving parts should take their next step: motion on, and no wheel open. */
     val moving: Boolean get() = motion.value && !held.value
 
-    /** One mood per screen, in the pager's order: Home, Tools, Camera, Utilities, Weather, Notes, Music, Apps, Settings. */
+    /**
+     * One mood per screen, in the pager's order: Home, Status, Metrics, Notes, Time, Weather, Settings.
+     * 2.0 keeps them calmer and teal-led, nearer the first VoidOS's dark dial, so the hub reads as one place.
+     */
     val moods = listOf(
         Mood(V.Teal, V.Purple, V.Coral),
-        Mood(V.Coral, V.Purple, V.Orange),
-        Mood(V.Orange, V.Coral, V.Yellow),
-        Mood(V.Green, V.Teal, Color(0xFF5AA9F0)),
+        Mood(V.Teal, Color(0xFF3E6FD8), V.Purple),
         Mood(Color(0xFF5AA9F0), V.Teal, V.Purple),
-        Mood(V.Yellow, V.Coral, V.Purple),
-        Mood(V.Purple, V.Coral, V.Teal),
-        Mood(V.Teal, V.Green, V.Purple),
+        Mood(V.Yellow, V.Teal, V.Purple),
+        Mood(V.Coral, V.Purple, V.Teal),
+        Mood(Color(0xFF5AA9F0), V.Teal, V.Purple),
         Mood(V.Purple, Color(0xFF6E86F2), V.Teal),
     )
     val LOCK = Mood(V.Purple, V.Teal, V.Coral)

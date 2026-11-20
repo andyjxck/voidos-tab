@@ -409,17 +409,4 @@ fun CalendarPane(store: Store) {
     }
 }
 
-/** Tools tabs beyond the first four, for [ToolsScreen]. */
-@Composable
-internal fun MoreToolsPane(which: KTab, store: Store = VoidApp.instance.store) {
-    when (which) {
-        KTab.STOPWATCH -> StopwatchPane()
-        KTab.WORLD -> WorldClockPane(store)
-        KTab.LEVEL -> LevelPane()
-        KTab.METER -> SoundMeterPane()
-        KTab.MEMO -> VoiceMemoPane()
-        KTab.CALENDAR -> CalendarPane(store)
-        else -> {}
-    }
-}
 

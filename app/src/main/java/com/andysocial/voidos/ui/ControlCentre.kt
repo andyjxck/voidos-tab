@@ -331,25 +331,16 @@ private fun CcGrid(
     val pinned = store.rotation != "auto"
     val dndOn = st.dnd != NotificationManager.INTERRUPTION_FILTER_ALL
     val fm = store.focusModes.firstOrNull { it.name == store.focusOn }
-    val quick = rememberQuickItems(onClose) { st.note = it }
+    // 2.0: cut down to Wi-Fi, Bluetooth, Do Not Disturb, rotation lock and QR scan, with brightness and
+    // volume as bars and the recent apps underneath
     val tiles = buildList {
         add(CcItem(G.WIFI, "Wi-Fi", st.wifi, V.Teal, hold = { expand(CcPart.WIFI) }) { st.switchWifi(!st.wifi) })
         add(CcItem(G.BT, "Bluetooth", st.bt, BtBlue, hold = { expand(CcPart.BT) }) { st.switchBt(!st.bt) })
-        add(CcItem(if (dndOn && fm != null) focusGlyph(fm.glyph) else G.FOCUS_MODE, if (dndOn && fm != null) fm.name else "Focus", dndOn, V.Purple, hold = { expand(CcPart.DND) }) { expand(CcPart.DND) })
+        add(CcItem(if (dndOn && fm != null) focusGlyph(fm.glyph) else G.FOCUS_MODE, if (dndOn && fm != null) fm.name else "Do Not Disturb", dndOn, V.Purple, hold = { expand(CcPart.DND) }) { expand(CcPart.DND) })
         add(CcItem(G.ROTATE, "Rotation lock", pinned, V.Coral, hold = { expand(CcPart.ROTATE) }) {
             store.setRotation(if (pinned) "auto" else if (portrait) "port" else "land"); act.applyRotation()
         })
-        addAll(quick.take(3))
-        add(CcItem(G.LIGHT, "Stay awake", store.deskMode, V.Sun) { store.set("deskMode", !store.deskMode); act.applyPolicies() })
-        add(CcItem(G.BELL, "Notifications", com.andysocial.voidos.VoidListener.notices.value.isNotEmpty(), V.Teal) { expand(CcPart.NOTICES) })
-        addAll(quick.drop(3))
-        com.andysocial.voidos.Extras.assistantIntent(ctx)?.let { ai ->
-            add(CcItem(G.ASSISTANT, "Assistant", false, V.Purple) {
-                onClose()
-                ai.resolveActivity(ctx.packageManager)?.packageName?.let { p -> if (p !in store.allowed) store.setAllowed(p, true); act.applyPolicies() }
-                runCatching { ctx.startActivity(ai) }
-            })
-        }
+        add(CcItem(G.QR, "QR scan", false, V.Teal) { onClose(); openTool(KTab.SCAN) })
     }
     val cols = ccColumns(portrait, tiles.size)
     val rows = (tiles.size + cols - 1) / cols
@@ -359,7 +350,8 @@ private fun CcGrid(
     // (whole pixels, so a full row never comes out a pixel wider than the panel and clips its last tile)
     val dens = androidx.compose.ui.platform.LocalDensity.current.density
     val tileW = (kotlin.math.floor(((innerW - gap * (cols - 1)) / cols).value * dens) / dens).dp
-    val roomH = h - 32.dp - pad * 2 - headH - gap * 2 - (if (portrait) barH * 2 + gap else barH) - gap * rows
+    val recentH = 200.dp
+    val roomH = h - 32.dp - pad * 2 - headH - gap * 2 - barH - gap * rows - recentH
     val tileH = ccTileHeight(tileW, roomH, rows)
     Column(
         Modifier.padding(top = 16.dp).width(panelW)
@@ -379,26 +371,19 @@ private fun CcGrid(
             }
         }
         Spacer(Modifier.height(gap * 2))
-        if (portrait) {
-            MediaModule(Modifier.fillMaxWidth().height(barH)) { expand(CcPart.MEDIA) }
-            Spacer(Modifier.height(gap))
-            Row(Modifier.fillMaxWidth().height(barH), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                BrightSlider(st, Modifier.weight(1f).fillMaxHeight()) { expand(CcPart.BRIGHT) }
-                VolumeSlider(st, Modifier.weight(1f).fillMaxHeight()) { expand(CcPart.VOLUME) }
-            }
-        } else {
-            Row(Modifier.fillMaxWidth().height(barH), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                MediaModule(Modifier.weight(1.2f).fillMaxHeight()) { expand(CcPart.MEDIA) }
-                BrightSlider(st, Modifier.weight(1f).fillMaxHeight()) { expand(CcPart.BRIGHT) }
-                VolumeSlider(st, Modifier.weight(1f).fillMaxHeight()) { expand(CcPart.VOLUME) }
-            }
+        Row(Modifier.fillMaxWidth().height(barH), horizontalArrangement = Arrangement.spacedBy(gap)) {
+            BrightSlider(st, Modifier.weight(1f).fillMaxHeight()) { expand(CcPart.BRIGHT) }
+            VolumeSlider(st, Modifier.weight(1f).fillMaxHeight()) { expand(CcPart.VOLUME) }
         }
+        Spacer(Modifier.height(gap * 2))
+        // 2.0: the recent apps, under the controls (the bottom edge opens Dev Apps now)
+        RecentAppsStrip(store, Modifier.fillMaxWidth(), onOpened = onClose)
     }
 }
 
 /** Pure: columns of tiles. Upright: 4. Lying down: enough for two rows, at most 8. */
 internal fun ccColumns(portrait: Boolean, n: Int): Int =
-    if (portrait) 4 else ((n + 1) / 2).coerceIn(5, 8)
+    if (portrait) minOf(n, 5).coerceAtLeast(1) else n.coerceIn(1, 8)
 
 /** Pure: one tile height for every tile, from the width and the room left on screen. */
 internal fun ccTileHeight(tileW: Dp, roomH: Dp, rows: Int): Dp =

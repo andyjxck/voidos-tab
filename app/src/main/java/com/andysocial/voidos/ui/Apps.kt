@@ -115,6 +115,8 @@ fun blockReason(ctx: Context, store: Store, pkg: String): String? {
     if (runCatching { pm.isPackageSuspended(pkg) }.getOrDefault(false)) return "paused by Android"
     // the drawer shows only the apps chosen in Manage; the rest stay hidden and can't be opened from VoidOS
     if (pkg !in store.allowed) return HIDDEN
+    // 2.0: only Dev Apps (and the browser) launch from VoidOS; everything else stays hidden
+    if (pkg !in com.andysocial.voidos.hub.DevApps.allowedPackages(ctx, store)) return HIDDEN
     return null
 }
 
@@ -152,7 +154,7 @@ fun launchApp(ctx: Context, store: Store, pkg: String): Boolean {
 private fun startSafely(ctx: Context, store: Store, i: Intent, pkg: String?): Boolean {
     if (pkg != null) blockReason(ctx, store, pkg)?.let { why ->
         val name = AppsRepo.find(ctx, pkg)?.label ?: "That app"
-        launchMsg.value = if (why == HIDDEN) "$name is hidden. Tap Manage in Apps to show it." else "$name is $why."
+        launchMsg.value = if (why == HIDDEN) "$name is hidden. Add it in Settings › Dev Apps to open it from VoidOS." else "$name is $why."
         blocked.value = pkg
         return false
     }

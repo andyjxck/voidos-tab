@@ -14,7 +14,8 @@ import java.security.MessageDigest
  * points as fractions of the page width, so a drawing keeps its shape when
  * the tablet turns.
  */
-data class Note(val id: Long, val text: String, val colour: Int, val updated: Long, val ink: List<Stroke> = emptyList())
+/** [app] is the hub entry the note belongs to (2.0: notes are organised by app); empty for general notes. */
+data class Note(val id: Long, val text: String, val colour: Int, val updated: Long, val ink: List<Stroke> = emptyList(), val app: String = "")
 
 /** One pen stroke: [argb] colour, [width] as a fraction of the page width, [style] 0 solid, 1 dotted, 2 dashed. */
 data class Stroke(val argb: Int, val width: Float, val style: Int, val pts: List<Float>)
@@ -127,6 +128,18 @@ class Store(private val ctx: Context) {
     /** Settings > About > Edge touch debug: shows the edge zones and the last touch. */
     var edgeDebug by mutableStateOf(p.getBoolean("edgeDebug", false)); private set
     var edgeInApps by mutableStateOf(p.getBoolean("edgeInApps", true)); private set
+    /** 2.0: the Dev Apps list, "Name|package|url" a line; empty means the built-in list (hub/DevApps.kt). */
+    var devApps by mutableStateOf(p.getString("devApps", "") ?: ""); private set
+    fun saveDevApps(v: String) { devApps = v; p.edit().putString("devApps", v).apply() }
+    /** 2.0: the metric the hub view and the left drawer last had chosen, and the app. */
+    var hubMetric by mutableStateOf(p.getString("hubMetric", "REVENUE") ?: "REVENUE"); private set
+    var hubApp by mutableStateOf(p.getString("hubApp", "__all") ?: "__all"); private set
+    fun setHub(app: String? = null, metric: String? = null) {
+        val e = p.edit()
+        if (app != null) { hubApp = app; e.putString("hubApp", app) }
+        if (metric != null) { hubMetric = metric; e.putString("hubMetric", metric) }
+        e.apply()
+    }
     /** The slow moving light behind every screen. Off holds it still. */
     var motion by mutableStateOf(p.getBoolean("motion", true)); private set
     /** Apps opened from VoidOS, newest first: what the right-edge app wheel offers. */
@@ -350,7 +363,7 @@ class Store(private val ctx: Context) {
         val a = JSONArray(notesFile.readText())
         (0 until a.length()).map {
             val o = a.getJSONObject(it)
-            Note(o.getLong("id"), o.getString("text"), o.optInt("colour", 0), o.optLong("updated"), strokesFromJson(o.optJSONArray("ink")))
+            Note(o.getLong("id"), o.getString("text"), o.optInt("colour", 0), o.optLong("updated"), strokesFromJson(o.optJSONArray("ink")), o.optString("app", ""))
         }
     }.getOrDefault(emptyList())
 
@@ -381,9 +394,10 @@ class Store(private val ctx: Context) {
             List(a.length()) { val o = a.getJSONObject(it); FaceWidget(
                 o.getLong("id"), o.getString("k"), o.getDouble("x").toFloat(), o.getDouble("y").toFloat(), o.optLong("r"),
                 o.optDouble("sw", 1.0).toFloat(), o.optDouble("sh", 1.0).toFloat(), o.optDouble("rot", 0.0).toFloat(),
-            ) }
+            ) }.filter { it.kind !in RETIRED_WIDGETS }
         }.getOrDefault(emptyList())
     }
+
 
     fun saveWidgets(list: List<FaceWidget>) {
         widgets = list
@@ -398,6 +412,7 @@ class Store(private val ctx: Context) {
     }
 
     fun addWidget(kind: String, ref: Long = 0L) {
+        if (kind in RETIRED_WIDGETS) return
         if (widgets.any { it.kind == kind && it.ref == ref }) return
         // new widgets go to the first free corner, then the middle of each side, so none lands on another or on the clock
         val slots = listOf(0f to 1f, 1f to 1f, 0f to 0f, 1f to 0.14f, 0f to 0.5f, 1f to 0.5f, 0.5f to 1f, 0.5f to 0f)
@@ -442,6 +457,7 @@ class Store(private val ctx: Context) {
         notes.sortedByDescending { it.updated }.forEach {
             val o = JSONObject().put("id", it.id).put("text", it.text).put("colour", it.colour).put("updated", it.updated)
             if (it.ink.isNotEmpty()) o.put("ink", strokesToJson(it.ink))
+            if (it.app.isNotEmpty()) o.put("app", it.app)
             a.put(o)
         }
         runCatching {
@@ -518,3 +534,9 @@ internal fun normDeg(d: Float): Float {
     if (Math.abs(a - q) < 4f) a = q
     return if (a == -180f) 180f else a
 }
+
+/**
+ * 2.0 removed Music, world clocks and the Organise tools, so their widgets go too. Top level, not a
+ * Store field: the widgets load while the Store is being built, before its later fields are set.
+ */
+internal val RETIRED_WIDGETS = setOf("sound", "list", "calendar", "world")

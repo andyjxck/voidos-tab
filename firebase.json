@@ -1,0 +1,15 @@
+{
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "voidos-hub",
+      "runtime": "nodejs20",
+      "ignore": [
+        "node_modules",
+        "test",
+        ".git",
+        "*.local"
+      ]
+    }
+  ]
+}

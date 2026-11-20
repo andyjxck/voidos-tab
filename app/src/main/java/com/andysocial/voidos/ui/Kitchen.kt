@@ -76,30 +76,18 @@ import kotlin.math.abs
 import kotlin.math.roundToLong
 
 enum class KTab(val label: String, val glyph: G) {
-    TIMERS("Timers", G.TIMER), STOPWATCH("Stopwatch", G.STOPWATCH), ALARMS("Alarms", G.BELL), WORLD("World", G.WORLD),
-    CALENDAR("Calendar", G.CALENDAR), CONVERT("Convert", G.CONVERT), LIST("List", G.LIST), MEMO("Memos", G.MIC),
-    LEVEL("Level", G.LEVEL), METER("Sound", G.METER), SCAN("QR scan", G.QR), MIRROR("Mirror", G.MIRROR),
-    ZOOM("Magnifier", G.ZOOM), TORCH("Torch", G.TORCH),
-    FILES("Files", G.FOLDER), DOCSCAN("Doc scan", G.DOC), CALC("Calculator", G.CALC),
+    // 2.0: the Time page keeps only alarms and the stopwatch; QR scan lives in Control Centre
+    ALARMS("Alarms", G.BELL), STOPWATCH("Stopwatch", G.STOPWATCH), SCAN("QR scan", G.QR),
 }
 
-/** The four groups on the Tools screen, each with its tools in order. */
+/** 2.0: one group, on the Time page. World clocks, timers, Organise, Camera and Utilities are gone. */
 enum class KGroup(val label: String, val tabs: List<KTab>) {
-    TIME("Time", listOf(KTab.TIMERS, KTab.STOPWATCH, KTab.ALARMS, KTab.WORLD)),
-    ORGANISE("Organise", listOf(KTab.CALENDAR, KTab.LIST, KTab.MEMO, KTab.FILES)),
-    CAMERA("Camera", listOf(KTab.SCAN, KTab.DOCSCAN, KTab.ZOOM, KTab.MIRROR)),
-    UTILITIES("Utilities", listOf(KTab.CALC, KTab.CONVERT, KTab.LEVEL, KTab.METER, KTab.TORCH));
+    TIME("Time", listOf(KTab.ALARMS, KTab.STOPWATCH));
 
-    /** The page this group lives on: Time and Organise on Tools, Camera and Utilities each on their own. */
-    val page: Module get() = when (this) {
-        TIME, ORGANISE -> Module.TOOLS
-        CAMERA -> Module.CAMERA
-        UTILITIES -> Module.UTILITIES
-    }
+    val page: Module get() = Module.TOOLS
 
     companion object {
-        fun of(t: KTab): KGroup = entries.firstOrNull { t in it.tabs } ?: UTILITIES
-        /** The groups shown on one page. */
+        fun of(t: KTab): KGroup = TIME
         fun on(page: Module): List<KGroup> = entries.filter { it.page == page }
     }
 }
@@ -117,13 +105,13 @@ private fun ToolName(t: KTab, on: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** The tools that open over the whole screen, edge to edge. */
-val FULL_TOOLS = setOf(KTab.MIRROR, KTab.TORCH)
+/** The tools that open over the whole screen, edge to edge: 2.0 keeps only QR scan, opened from Control Centre. */
+val FULL_TOOLS = setOf(KTab.SCAN)
 
 /** The tool open over the whole screen right now, if any. */
 val fullTool = mutableStateOf<KTab?>(null)
 
-/** The mirror or the torch, edge to edge over everything, with one glass button to close it. */
+/** QR scan, edge to edge over everything, with one glass button to close it. */
 @Composable
 fun FullToolOverlay() {
     val t = fullTool.value ?: return
@@ -132,10 +120,7 @@ fun FullToolOverlay() {
             // nothing under it moves while it's open
             .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { it.consume() } } },
     ) {
-        when (t) {
-            KTab.MIRROR -> CameraPane(CamMode.MIRROR, edge = true)
-            else -> LightPane(edge = true)
-        }
+        CameraPane(CamMode.SCAN, edge = true)
         Box(
             Modifier.align(Alignment.TopEnd).padding(20.dp).size(52.dp).glass(CircleShape, 0.7f)
                 .clickable { fullTool.value = null }.semantics { contentDescription = "Close ${t.label}" },
@@ -148,6 +133,7 @@ fun FullToolOverlay() {
 val pendingTool = mutableStateOf<KTab?>(null)
 
 fun openTool(t: KTab) {
+    if (t in FULL_TOOLS) { fullTool.value = t; return }
     pendingTool.value = t
     val page = KGroup.of(t).page
     Idle.openModule.value = page.name
@@ -183,6 +169,7 @@ fun ToolsScreen(store: Store, page: Module = Module.TOOLS) {
     val full by fullTool
     LaunchedEffect(tab) { if (tab in FULL_TOOLS) fullTool.value = tab else before = tab }
     LaunchedEffect(full) { if (full == null && tab in FULL_TOOLS) tab = before }
+    LaunchedEffect(Unit) { if (page != Module.TOOLS) tab = KTab.ALARMS }
     Column(Modifier.fillMaxSize()) {
         if (groups.size > 1) {
             // more than one group on the page: one glass bar picks the group, a quiet row of names picks the tool
@@ -201,17 +188,9 @@ fun ToolsScreen(store: Store, page: Module = Module.TOOLS) {
         Gap(h = 16.dp)
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (tab) {
-                KTab.TIMERS -> TimersPane()
                 KTab.ALARMS -> AlarmsPane()
-                KTab.CONVERT -> ConvertPane()
-                KTab.CALC -> CalculatorPane()
-                KTab.LIST -> ShoppingPane(store)
-                KTab.SCAN -> CameraPane(CamMode.SCAN)
-                KTab.MIRROR, KTab.TORCH -> Box(Modifier.fillMaxSize())
-                KTab.ZOOM -> CameraPane(CamMode.ZOOM)
-                KTab.FILES -> FilesPane(store) { }
-                KTab.DOCSCAN -> DocScanPane(store)
-                else -> MoreToolsPane(tab, store)
+                KTab.STOPWATCH -> StopwatchPane()
+                KTab.SCAN -> Box(Modifier.fillMaxSize())
             }
         }
     }
