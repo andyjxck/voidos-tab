@@ -462,9 +462,12 @@ fun AmbientClock(store: Store, battery: Battery = rememberBattery()) {
                 AnalogueClock(now, Modifier.size(if (portrait) 300.dp else 280.dp))
                 Gap(h = Grid.l)
             } else {
-                VText(SimpleDateFormat(fmt, Locale.UK).format(Date(now)), size = if (portrait) 120.sp else 150.sp, color = V.Text.copy(alpha = 0.5f), font = SansThin)
+                // 2.0.1: the same octagon dial as Home, dimmed for the night; the ring stays quiet (no seconds sweep)
+                VoidDial(now, store.use24h, Modifier.size(if (portrait) 420.dp else 380.dp).semantics { contentDescription = SimpleDateFormat(fmt, Locale.UK).format(Date(now)) },
+                    ring = alert?.first ?: if (battery.charging) V.Green else V.Amber, dim = 0.55f, seconds = false)
             }
-            VText(SimpleDateFormat("EEEE d MMMM", Locale.UK).format(Date(now)), size = Type.title, color = V.Muted.copy(alpha = 0.6f))
+            if (store.ambientFace == "analog")
+                VText(SimpleDateFormat("EEE d MMM", Locale.UK).format(Date(now)).uppercase(), size = Type.label, font = SansMedium, spacing = 2.sp, color = V.Muted.copy(alpha = 0.6f))
             if (com.andysocial.voidos.hub.HubRepo.justLive.isNotEmpty()) {
                 Gap(h = Grid.s)
                 VText(com.andysocial.voidos.hub.HubRepo.justLive.joinToString(", ") + " is live", size = Type.label, color = V.Teal.copy(alpha = 0.8f),
@@ -472,8 +475,8 @@ fun AmbientClock(store: Store, battery: Battery = rememberBattery()) {
             }
             if (battery.charging) {
                 Gap(h = Grid.s)
-                VText(if (battery.pct >= 100) "Charged" else if (battery.pct >= 0) "Charging  \u00b7  ${battery.pct}%" else "Charging",
-                    size = Type.label, color = V.Green.copy(alpha = 0.7f), modifier = Modifier.semantics { contentDescription = "Charging" })
+                VText((if (battery.pct >= 100) "Charged" else if (battery.pct >= 0) "Charging  \u00b7  ${battery.pct}%" else "Charging").uppercase(),
+                    size = Type.label, font = SansMedium, spacing = 2.sp, color = V.Green.copy(alpha = 0.7f), modifier = Modifier.semantics { contentDescription = "Charging" })
             }
             // the notification light the tablet doesn't have: a slow teal glow while something new waits
             val waiting = com.andysocial.voidos.VoidListener.notices.value
@@ -505,15 +508,30 @@ internal fun ChargingRing(pct: Int, modifier: Modifier, colour: Color? = null, f
     val c = colour ?: if (full) V.Teal else V.Green
     Canvas(modifier.semantics { contentDescription = "Charging ring" }) {
         val inset = 10.dp.toPx()
-        val r = 34.dp.toPx()
-        val tl = Offset(inset, inset)
-        val sz = Size(size.width - inset * 2, size.height - inset * 2)
+        // 2.0.1: the ring follows the screen's edge with the VoidOS chamfer at the corners, not round ones
+        val k = 34.dp.toPx()
+        val l = inset; val t = inset; val r = size.width - inset; val b = size.height - inset
+        val edge = androidx.compose.ui.graphics.Path().apply {
+            moveTo(l + k, t); lineTo(r - k, t); lineTo(r, t + k); lineTo(r, b - k); lineTo(r - k, b)
+            lineTo(l + k, b); lineTo(l, b - k); lineTo(l, t + k); close()
+        }
         // the halo: wide, faint strokes under the line, fading outwards
         listOf(28.dp to 0.05f, 18.dp to 0.08f, 10.dp to 0.13f).forEach { (w, a) ->
-            drawRoundRect(c.copy(alpha = a * breathe), tl, sz, CornerRadius(r), style = Stroke(w.toPx()))
+            drawPath(edge, c.copy(alpha = a * breathe), style = Stroke(w.toPx(), join = androidx.compose.ui.graphics.StrokeJoin.Round))
         }
-        // the ring itself
-        drawRoundRect(c.copy(alpha = 0.55f * breathe + 0.15f), tl, sz, CornerRadius(r), style = Stroke(2.5.dp.toPx()))
+        // the ring itself, with a lit stretch showing how full the battery is, starting top centre
+        drawPath(edge, c.copy(alpha = 0.20f * breathe + 0.08f), style = Stroke(2.5.dp.toPx(), join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        val m = androidx.compose.ui.graphics.PathMeasure().apply { setPath(edge, false) }
+        val f = (if (pct < 0 || colour != null) 100 else pct).coerceIn(0, 100) / 100f
+        if (f > 0f) {
+            val lit = androidx.compose.ui.graphics.Path()
+            val len = m.length
+            val start = (size.width / 2f - (l + k))     // top centre, measured along the path from its first point
+            val endAt = start + len * f
+            if (endAt <= len) m.getSegment(start, endAt, lit, true)
+            else { m.getSegment(start, len, lit, true); m.getSegment(0f, endAt - len, lit, true) }
+            drawPath(lit, c.copy(alpha = 0.55f * breathe + 0.25f), style = Stroke(3.dp.toPx(), cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        }
     }
 }
 
@@ -530,11 +548,12 @@ internal fun AnalogueClock(now: Long, modifier: Modifier) {
         val c = Offset(size.width / 2, size.height / 2)
         val rad = minOf(size.width, size.height) / 2
         val dim = V.Text.copy(alpha = 0.5f)
-        drawCircle(V.Text.copy(alpha = 0.12f), rad - 1.dp.toPx(), c, style = Stroke(1.5.dp.toPx()))
+        // 2.0.1: the old VoidOS octagon round the hands, ticks following its edges
+        drawPath(octPath(c, (rad - 1.dp.toPx()) * 0.924f), V.Text.copy(alpha = 0.12f), style = Stroke(1.5.dp.toPx()))
         for (i in 0 until 60) {
             val a = Math.toRadians(i * 6.0 - 90)
             val major = i % 5 == 0
-            val outer = rad - 8.dp.toPx()
+            val outer = octRadius((rad - 8.dp.toPx()) * 0.924f, a)
             val inner = outer - (if (major) 16.dp else 6.dp).toPx()
             drawLine(
                 if (major) dim else V.Text.copy(alpha = 0.18f),

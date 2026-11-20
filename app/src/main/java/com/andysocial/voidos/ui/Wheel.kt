@@ -740,7 +740,7 @@ fun EdgeWheels(
                 Box(
                     Modifier.offset { IntOffset((hubC.x - px(Geo.hub)).roundToInt(), (hubC.y - px(Geo.hub)).roundToInt()) }
                         .size((Geo.hub * 2).dp)
-                        .liquidGlass(CircleShape, GlassLook(smoke = 0.55f, depth = 1.2f, shine = 1.4f, magnify = 1.5f), still = true),
+                        .liquidGlass(OctBtn, GlassLook(smoke = 0.55f, depth = 1.2f, shine = 1.4f, magnify = 1.5f), still = true),
                     contentAlignment = Alignment.Center,
                 ) {
                     if (open == Edge.LEFT) VoidMark(Modifier.size(30.dp), mono = V.Text)
@@ -835,7 +835,7 @@ fun EdgeWheels(
             Box(
                 Modifier.offset { IntOffset((p.x - px(36f)).roundToInt(), (p.y - px(36f)).roundToInt()) }
                     .size(72.dp)
-                    .liquidGlass(CircleShape, GlassLook(smoke = 0.6f, depth = 1.3f, shine = 1.5f, magnify = 1.3f), still = true),
+                    .liquidGlass(OctBtn, GlassLook(smoke = 0.6f, depth = 1.3f, shine = 1.5f, magnify = 1.3f), still = true),
                 contentAlignment = Alignment.Center,
             ) { held.icon(Modifier.size(if (carryApp) 44.dp else 30.dp), V.White) }
         }

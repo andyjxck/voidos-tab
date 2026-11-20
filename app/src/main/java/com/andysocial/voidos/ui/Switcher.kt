@@ -195,11 +195,10 @@ fun AppSwitcher(store: Store) {
             Column(Modifier.fillMaxSize().padding(horizontal = 48.dp).padding(top = 40.dp, bottom = 28.dp)) {
                 androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.Bottom) {
                     Column(Modifier.weight(1f)) {
-                        VText("Open apps", size = 30.sp, font = SansLight, color = V.White)
+                        DotLabel("Open apps", color = V.Text)
                         VText(
-                            when (apps.size) { 0 -> "Nothing open"; 1 -> "1 app"; else -> "${apps.size} apps" } +
-                                if (apps.isNotEmpty()) "  ·  tap to open, swipe up to close" else "",
-                            size = Type.label, color = V.Muted,
+                            when (apps.size) { 0 -> "\u2014"; 1 -> "1 APP"; else -> "${apps.size} APPS" },
+                            size = Type.caption, font = SansMedium, spacing = 2.sp, color = V.Muted,
                         )
                     }
                 }
@@ -209,7 +208,7 @@ fun AppSwitcher(store: Store) {
                         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                             Glyph(G.APPS, V.Muted, Modifier.size(44.dp))
                             androidx.compose.foundation.layout.Spacer(Modifier.height(Grid.m))
-                            VText("No apps open", size = Type.body, color = V.Muted)
+                            VText("\u2014  NO APPS OPEN", size = Type.label, font = SansMedium, spacing = 2.sp, color = V.Muted)
                         }
                     } else androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
                         val (gridCols, cardH) = switcherLayout(maxWidth.value, maxHeight.value, apps.size)
@@ -268,7 +267,7 @@ private fun SwitcherButton(label: String, g: G, accent: Boolean = false, onTap: 
     ) {
         Glyph(g, if (accent) V.Coral else V.Text, Modifier.size(18.dp))
         androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp))
-        VText(label, size = Type.body, color = V.Text)
+        VText(label.uppercase(), size = Type.label, font = SansMedium, spacing = 1.5.sp, color = V.Text)
     }
 }
 
@@ -316,7 +315,7 @@ private fun SwitcherCard(e: AppEntry, store: Store, used: String, height: androi
                 AppGlyph(e, store.iconStyle, if (height < 160.dp) 48.dp else if (height < 175.dp) 56.dp else 64.dp)
                 androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
                 Box(
-                    Modifier.size(36.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                    Modifier.size(36.dp).clip(OctBtn)
                         .background(Color.White.copy(alpha = 0.08f))
                         .clickable { scope.launch { dy.animateTo(-900f, Motion.quick()); onClose() } }
                         .semantics { contentDescription = "Close ${e.label}" },
@@ -325,7 +324,7 @@ private fun SwitcherCard(e: AppEntry, store: Store, used: String, height: androi
             }
             androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
             VText(e.label, size = 19.sp, color = V.White, maxLines = 1)
-            VText(used, size = Type.label, color = V.Muted, maxLines = 1)
+            VText(used.uppercase(), size = Type.caption, font = SansMedium, spacing = 1.2.sp, color = V.Muted, maxLines = 1)
         }
     }
 }
@@ -348,15 +347,15 @@ fun RecentAppsStrip(store: Store, modifier: Modifier = Modifier, onOpened: () ->
     val now = System.currentTimeMillis()
     Column(modifier.testTag("recent_apps")) {
         androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Label("Recent apps", Modifier.weight(1f))
-            if (apps.isNotEmpty()) VText("Close all", size = Type.label, color = V.Coral, font = SansMedium,
-                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+            DotLabel("Recent apps", modifier = Modifier.weight(1f))
+            if (apps.isNotEmpty()) VText("CLOSE ALL", size = Type.caption, color = V.Coral, font = SansMedium, spacing = 2.sp,
+                modifier = Modifier.clip(Chamfer(8.dp)).clickable {
                     val gone = (apps.toList() + store.recentApps).distinct(); apps.clear()
                     com.andysocial.voidos.AppKill.closeAll(ctx, store, gone, scope)
                 }.padding(horizontal = 8.dp, vertical = 6.dp))
         }
         androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
-        if (apps.isEmpty()) VText("No apps open", size = Type.body, color = V.Muted, modifier = Modifier.padding(vertical = 18.dp))
+        if (apps.isEmpty()) VText("\u2014  NO APPS OPEN", size = Type.label, font = SansMedium, spacing = 2.sp, color = V.Muted, modifier = Modifier.padding(vertical = 18.dp))
         else LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             items(apps.toList(), key = { it }) { pkg ->
                 val e = all.firstOrNull { it.pkg == pkg }

@@ -1,5 +1,8 @@
 package com.andysocial.voidos.hub
 
+import com.andysocial.voidos.ui.OctBtn
+import com.andysocial.voidos.ui.Pill
+import com.andysocial.voidos.ui.Chamfer
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.runtime.remember
 import com.andysocial.voidos.ui.Grid
@@ -156,7 +159,7 @@ private fun StatusCell(a: HubApp, chosen: Boolean, sizePx: Float, modifier: Modi
     val size = with(d) { sizePx.toDp() }
     val col = HubLook.colour(a.glow)
     Box(
-        modifier.size(size).clip(CircleShape)
+        modifier.size(size).clip(OctBtn)
             .combinedClickable(onClick = onTap, onLongClick = { StatusNav.hideAsk.value = a.id })
             .semantics { contentDescription = "${a.name}, ${a.glow.label}" }.testTag("cell_${a.id}"),
         contentAlignment = Alignment.Center,

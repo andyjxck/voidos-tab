@@ -242,7 +242,7 @@ fun OfflineBadge(wx: Wx?, modifier: Modifier = Modifier) {
         Glyph(G.WIFI_OFF, V.Coral, Modifier.size(30.dp))
         Gap(w = 16.dp)
         Column(Modifier.weight(1f)) {
-            VText("No Wi-Fi", size = Type.title2, font = SansMedium, color = V.White, maxLines = 1)
+            DotLabel("No Wi-Fi", V.Coral, color = V.White)
             VText(if (wx == null) "No data" else "From ${wxAge(wx.fetched)}", size = Type.body, color = V.Text, maxLines = 1)
         }
     }
@@ -553,7 +553,7 @@ fun WeatherScreen(store: Store) {
     }
     val graph: @Composable (Modifier) -> Unit = { mod ->
         VPanel(mod) {
-            Label("Next 12 hours")
+            DotLabel("Next 12 hours")
             Gap(h = 8.dp)
             wx?.let { TempGraph(it.hours, Modifier.fillMaxWidth().weight(1f)) }
         }
@@ -561,7 +561,7 @@ fun WeatherScreen(store: Store) {
     val days: @Composable () -> Unit = {
         // as tall as its rows: a fixed 200 dp cut the rain chances off the bottom
         VPanel(Modifier.fillMaxWidth().heightIn(min = 200.dp)) {
-            Label("Six days")
+            DotLabel("Six days", V.Amber)
             Gap(h = 12.dp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 wx?.days?.forEach { d ->
@@ -704,7 +704,7 @@ private fun CompactNow(w: Wx) {
 private fun CompactHours(w: Wx) {
     if (w.hours.isEmpty()) return
     VPanel(Modifier.fillMaxWidth().testTag("weatherHours"), padding = 16.dp) {
-        Label("Next 12 hours")
+        DotLabel("Next 12 hours")
         Gap(h = 10.dp)
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val cols = when {
@@ -740,7 +740,7 @@ private fun CompactDays(days: List<Day>) {
     val lo = days.minOf { it.min }
     val hi = days.maxOf { it.max }
     VPanel(Modifier.fillMaxWidth().testTag("weatherDays"), padding = 16.dp) {
-        Label("Six days")
+        DotLabel("Six days", V.Amber)
         Gap(h = 6.dp)
         days.forEach { d ->
             Row(Modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -831,5 +831,5 @@ fun PlaceSearch(query: String, onQuery: (String) -> Unit, onPick: (WeatherRepo.P
             }
         }
     }
-    if (looked && results.isEmpty()) VText("No places found", size = Type.label, color = V.Muted)
+    if (looked && results.isEmpty()) VText("\u2014  NO PLACES", size = Type.label, font = SansMedium, spacing = 2.sp, color = V.Muted)
 }

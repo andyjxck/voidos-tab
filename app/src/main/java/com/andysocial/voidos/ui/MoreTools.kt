@@ -1,5 +1,6 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.ui.platform.testTag
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -91,9 +92,16 @@ fun StopwatchPane() {
     LaunchedEffect(Stopwatch.running) { while (Stopwatch.running && isActive) { withFrameMillis { now = System.currentTimeMillis() } } }
     val t = Stopwatch.elapsed(now)
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Spacer(Modifier.weight(0.6f))
-        VText(stopwatchText(t), size = 84.sp, font = SansLight, color = V.White, spacing = (-1).sp)
-        Gap(h = 28.dp)
+        Spacer(Modifier.weight(0.4f))
+        // 2.0.1: the stopwatch sits in the VoidOS octagon with the 60-tick ring sweeping its seconds
+        Box(Modifier.size(300.dp), contentAlignment = Alignment.Center) {
+            val secs = ((t / 1000L) % 60L).toInt(); val frac = (t % 1000L) / 1000f
+            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                octDialTicks(androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f), size.minDimension / 2.62f, if (t == 0L) -1 else secs, frac, V.Teal, bead = t > 0L)
+            }
+            VText(stopwatchText(t), size = 44.sp, font = SansLight, color = V.White, spacing = (-0.5).sp, modifier = Modifier.testTag("stopwatch_time"))
+        }
+        Gap(h = 20.dp)
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             if (Stopwatch.running) {
                 VButton("Lap") { Stopwatch.lap() }
@@ -109,7 +117,7 @@ fun StopwatchPane() {
             laps.forEachIndexed { i, total ->
                 val split = total - (laps.getOrNull(i + 1) ?: 0L)
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                    VText("Lap ${laps.size - i}", size = Type.headline, color = V.Muted, modifier = Modifier.weight(1f))
+                    VText("LAP ${laps.size - i}", size = Type.label, font = SansMedium, spacing = 2.sp, color = V.Muted, modifier = Modifier.weight(1f))
                     VText(stopwatchText(split), size = Type.headline, color = V.Text)
                 }
             }
@@ -321,7 +329,7 @@ fun VoiceMemoPane() {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Gap(h = 12.dp)
         Box(
-            Modifier.size(96.dp).droplet(androidx.compose.foundation.shape.CircleShape, if (rec != null) V.Coral else V.Purple, 1.4f).tap {
+            Modifier.size(96.dp).droplet(OctBtn, if (rec != null) V.Coral else V.Purple, 1.4f).tap {
                 if (rec != null) stopRec() else {
                     val f = File(dir, "Memo " + java.text.SimpleDateFormat("d MMM HH.mm.ss", Locale.UK).format(java.util.Date()) + ".m4a")
                     rec = runCatching {
@@ -344,7 +352,7 @@ fun VoiceMemoPane() {
             files.forEach { f ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        Modifier.size(44.dp).glass(androidx.compose.foundation.shape.CircleShape, 0.8f).tap {
+                        Modifier.size(44.dp).glass(OctBtn, 0.8f).tap {
                             player[0]?.release(); player[0] = null
                             if (playing == f) playing = null else {
                                 player[0] = runCatching { MediaPlayer().apply { setDataSource(f.path); prepare(); setOnCompletionListener { playing = null }; start() } }.getOrNull()
@@ -397,7 +405,7 @@ fun CalendarPane(store: Store) {
                             Box(Modifier.size(cell), contentAlignment = Alignment.Center) {
                                 if (n in 1..days) {
                                     val isToday = month.withDayOfMonth(n) == today
-                                    if (isToday) Box(Modifier.size(cell * 0.8f).droplet(androidx.compose.foundation.shape.CircleShape, V.Teal, 1f))
+                                    if (isToday) Box(Modifier.size(cell * 0.8f).droplet(OctBtn, V.Teal, 1f))
                                     VText("$n", size = dayText, color = if (isToday) Color.White else if (d >= 5) V.Muted else V.Text)
                                 }
                             }

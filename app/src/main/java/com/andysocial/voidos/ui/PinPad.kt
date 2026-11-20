@@ -117,7 +117,7 @@ fun GlassPinPad(
                 val filled by animateFloatAsState(if (i < entry.length) 1f else 0f, Motion.quick(), label = "dot")
                 Box(
                     Modifier.size(14.dp).graphicsLayer { val s = 1f + 0.15f * filled; scaleX = s; scaleY = s }
-                        .clip(CircleShape)
+                        .clip(OctBtn)
                         .background(Color.White.copy(alpha = 0.16f + 0.84f * filled)),
                 )
             }
@@ -161,8 +161,8 @@ private fun PinKey(k: String, size: Dp, dim: Boolean, onTap: () -> Unit) {
             .semantics(mergeDescendants = true) { role = Role.Button; if (back) contentDescription = "Delete"; if (ok) contentDescription = "Enter"; onClick { onTap(); true } }
             .graphicsLayer { alpha = if (dim) 0.35f else 1f }
             .then(
-                if (back) Modifier.clip(CircleShape)
-                else Modifier.liquidGlass(CircleShape, GlassLook(smoke = 0.5f - 0.3f * lit, depth = 0.4f, shine = 0.9f + 0.6f * lit, magnify = 1.18f + 0.2f * lit, edge = 0.35f))
+                if (back) Modifier.clip(OctBtn)
+                else Modifier.liquidGlass(OctBtn, GlassLook(smoke = 0.5f - 0.3f * lit, depth = 0.4f, shine = 0.9f + 0.6f * lit, magnify = 1.18f + 0.2f * lit, edge = 0.35f))
             )
             .pointerInput(dim) {
                 detectTapGestures(onPress = { down = true; com.andysocial.voidos.Haptics.tick(view); tryAwaitRelease(); down = false }, onTap = { onTap() })

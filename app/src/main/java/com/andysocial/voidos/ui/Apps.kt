@@ -499,7 +499,7 @@ private fun ManageRow(app: AppEntry, store: Store, on: Boolean, starred: Boolean
             }
             if (on) {
                 Box(
-                    Modifier.size(40.dp).clip(CircleShape).semantics { contentDescription = if (starred) "Unstar ${app.label}" else "Star ${app.label}" }
+                    Modifier.size(40.dp).clip(OctBtn).semantics { contentDescription = if (starred) "Unstar ${app.label}" else "Star ${app.label}" }
                         .clickable { store.toggleFav(app.pkg) },
                     contentAlignment = Alignment.Center,
                 ) { Glyph(G.STAR, if (starred) V.Teal else V.Tick, Modifier.size(20.dp)) }

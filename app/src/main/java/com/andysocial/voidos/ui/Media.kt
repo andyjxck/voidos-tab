@@ -398,7 +398,7 @@ private fun Controls(src: Source?, modifier: Modifier) {
         SkipTen("-10", "Back 10 seconds") { if (local) Player.skip(-10_000) else com.andysocial.voidos.Now.skip(-10_000) }
         BareIcon(G.PREV, "Previous", 34.dp) { if (local) Player.prev(ctx) else if (live) com.andysocial.voidos.Now.prev() else mediaKey(ctx, KeyEvent.KEYCODE_MEDIA_PREVIOUS) }
         Box(
-            Modifier.size(74.dp).clip(CircleShape).background(V.White)
+            Modifier.size(74.dp).clip(OctBtn).background(V.White)
                 .semantics { contentDescription = if (src?.playing == true) "Pause" else "Play" }
                 .clickable { if (local) Player.toggle(ctx) else if (live) com.andysocial.voidos.Now.playPause() else mediaKey(ctx, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) },
             contentAlignment = Alignment.Center,
@@ -411,7 +411,7 @@ private fun Controls(src: Source?, modifier: Modifier) {
 @Composable
 private fun BareIcon(g: G, desc: String, size: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
     Box(
-        Modifier.size(size + 22.dp).clip(CircleShape).semantics { contentDescription = desc }.clickable(onClick = onClick),
+        Modifier.size(size + 22.dp).clip(OctBtn).semantics { contentDescription = desc }.clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Glyph(g, V.White, Modifier.size(size)) }
 }
@@ -419,7 +419,7 @@ private fun BareIcon(g: G, desc: String, size: androidx.compose.ui.unit.Dp, onCl
 @Composable
 private fun SkipTen(text: String, desc: String, onClick: () -> Unit) {
     Box(
-        Modifier.size(48.dp).clip(CircleShape).semantics { contentDescription = desc }.clickable(onClick = onClick),
+        Modifier.size(48.dp).clip(OctBtn).semantics { contentDescription = desc }.clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { VText(text, size = Type.body, font = SansMedium, color = V.Text.copy(alpha = 0.7f)) }
 }
@@ -451,13 +451,13 @@ private fun Volume(modifier: Modifier) {
 private fun NoiseRow() {
     val noiseOn by Noise.on
     var swell by remember { mutableStateOf(Noise.swell) }
-    val shape = RoundedCornerShape(50)
+    val shape = Pill
     Row(
         Modifier.fillMaxWidth().liquidGlass(shape, GlassLook(smoke = 1.1f)).padding(start = 8.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(48.dp).clip(CircleShape).background(if (noiseOn) V.Teal.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.07f))
+            Modifier.size(48.dp).clip(OctBtn).background(if (noiseOn) V.Teal.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.07f))
                 .tap { if (noiseOn) Noise.stop() else Noise.start() }.semantics { contentDescription = if (noiseOn) "Stop brown noise" else "Play brown noise" },
             contentAlignment = Alignment.Center,
         ) { Glyph(if (noiseOn) G.PAUSE else G.WAVE, if (noiseOn) V.Teal else V.Text, Modifier.size(24.dp)) }

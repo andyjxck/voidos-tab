@@ -122,7 +122,7 @@ fun FullToolOverlay() {
     ) {
         CameraPane(CamMode.SCAN, edge = true)
         Box(
-            Modifier.align(Alignment.TopEnd).padding(20.dp).size(52.dp).glass(CircleShape, 0.7f)
+            Modifier.align(Alignment.TopEnd).padding(20.dp).size(52.dp).glass(OctBtn, 0.7f)
                 .clickable { fullTool.value = null }.semantics { contentDescription = "Close ${t.label}" },
             contentAlignment = Alignment.Center,
         ) { Glyph(G.CLOSE, V.White, Modifier.size(24.dp)) }
@@ -371,7 +371,7 @@ private fun Stepper(value: Int, unit: String, onChange: (Int) -> Unit, step: Int
 @Composable
 private fun RoundKey(text: String, onClick: () -> Unit) {
     Box(
-        Modifier.size(40.dp).clip(CircleShape).background(V.Panel2).clickable(onClick = onClick),
+        Modifier.size(40.dp).clip(OctBtn).background(V.Panel2).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { VText(text, size = Type.title, color = V.Text, font = SansLight) }
 }
@@ -398,7 +398,7 @@ private fun TimerCard(t: KTimer, now: Long) {
         val big = (ringSide.value * (if (digits > 5) 0.17f else 0.24f)).coerceIn(22f, 150f).sp
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 6.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             VText(t.label, size = Type.body, font = SansMedium, color = V.Text, modifier = Modifier.weight(1f), maxLines = 1)
-            Box(Modifier.size(40.dp).clip(CircleShape).clickable { KTimers.remove(ctx, t.id) }, contentAlignment = Alignment.Center) {
+            Box(Modifier.size(40.dp).clip(OctBtn).clickable { KTimers.remove(ctx, t.id) }, contentAlignment = Alignment.Center) {
                 Glyph(G.CLOSE, V.Muted, Modifier.size(16.dp))
             }
         }
@@ -430,7 +430,7 @@ private fun TimerCard(t: KTimer, now: Long) {
         Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             SmallKey(if (tight) "+1" else "+1 min", tight = tight) { KTimers.addTime(ctx, t.id, 60_000) }
             Box(
-                Modifier.size(48.dp).clip(CircleShape).background(if (t.running) Brush.verticalGradient(listOf(V.Panel2, V.Panel2)) else Brush.verticalGradient(listOf(lerp(V.Coral, Color.White, 0.2f), V.Coral))).clickable { KTimers.toggle(ctx, t.id) },
+                Modifier.size(48.dp).clip(OctBtn).background(if (t.running) Brush.verticalGradient(listOf(V.Panel2, V.Panel2)) else Brush.verticalGradient(listOf(lerp(V.Coral, Color.White, 0.2f), V.Coral))).clickable { KTimers.toggle(ctx, t.id) },
                 contentAlignment = Alignment.Center,
             ) { Glyph(if (t.running) G.PAUSE else G.PLAY, if (t.running) V.Text else V.Bg, Modifier.size(20.dp)) }
             SmallKey(if (tight) "+5" else "+5 min", tight = tight) { KTimers.addTime(ctx, t.id, 300_000) }
@@ -633,12 +633,12 @@ fun ShoppingPane(store: Store) {
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Box(
-                                        Modifier.size(24.dp).then(if (it2.done) Modifier.droplet(CircleShape, V.Teal, 1.6f) else Modifier.pane(CircleShape)),
+                                        Modifier.size(24.dp).then(if (it2.done) Modifier.droplet(OctBtn, V.Teal, 1.6f) else Modifier.pane(OctBtn)),
                                         contentAlignment = Alignment.Center,
                                     ) { if (it2.done) Glyph(G.CHECK, V.Bg, Modifier.size(15.dp)) }
                                     Gap(w = 16.dp)
                                     VText(it2.text, size = Type.headline, color = if (it2.done) V.Muted else V.Text, modifier = Modifier.weight(1f))
-                                    Box(Modifier.size(44.dp).clip(CircleShape).clickable { store.removeItem(it2.id) }, contentAlignment = Alignment.Center) {
+                                    Box(Modifier.size(44.dp).clip(OctBtn).clickable { store.removeItem(it2.id) }, contentAlignment = Alignment.Center) {
                                         Glyph(G.CLOSE, V.Tick, Modifier.size(15.dp))
                                     }
                                 }

@@ -1,5 +1,8 @@
 package com.andysocial.voidos.hub
 
+import com.andysocial.voidos.ui.OctBtn
+import com.andysocial.voidos.ui.Pill
+import com.andysocial.voidos.ui.Chamfer
 import com.andysocial.voidos.ui.PageHeader
 import com.andysocial.voidos.ui.SelectButton
 import com.andysocial.voidos.ui.PickSheet
@@ -169,8 +172,8 @@ private fun Ranking(s: HubSummary, m: Metric, modifier: Modifier) {
             rank.forEach { (a, x) ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     VText(a.name, size = Type.label, color = V.Text, modifier = Modifier.width(118.dp), maxLines = 1)
-                    Box(Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)).background(V.Tick.copy(alpha = 0.35f))) {
-                        Box(Modifier.fillMaxHeight().fillMaxWidth((x / top).toFloat().coerceIn(0.02f, 1f)).clip(RoundedCornerShape(4.dp)).background(HubLook.colour(a.glow).takeIf { it != V.Tick } ?: V.Teal))
+                    Box(Modifier.weight(1f).height(8.dp).clip(Chamfer(4.dp)).background(V.Tick.copy(alpha = 0.35f))) {
+                        Box(Modifier.fillMaxHeight().fillMaxWidth((x / top).toFloat().coerceIn(0.02f, 1f)).clip(Chamfer(4.dp)).background(HubLook.colour(a.glow).takeIf { it != V.Tick } ?: V.Teal))
                     }
                     Gap(w = 8.dp)
                     VText(Hub.fmt(x, m, a.metrics[m]?.currency ?: "GBP"), size = Type.label, color = V.Muted, modifier = Modifier.width(76.dp), maxLines = 1,
@@ -303,7 +306,7 @@ private fun ReviewsInbox(s: HubSummary, appId: String, store: Store, modifier: M
                         VButton("Cancel") { replying = null; text = "" }
                     }
                 } else VText("Reply", size = Type.label, color = V.Teal, font = SansMedium,
-                    modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(8.dp)).tap { replying = r.id; text = "" }.padding(vertical = 4.dp))
+                    modifier = Modifier.padding(top = 4.dp).clip(Chamfer(8.dp)).tap { replying = r.id; text = "" }.padding(vertical = 4.dp))
             }
         }
         note?.let { VText(it, size = Type.caption, color = V.Coral) }

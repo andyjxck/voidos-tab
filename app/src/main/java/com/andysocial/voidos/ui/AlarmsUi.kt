@@ -109,7 +109,7 @@ fun AlarmsPane() {
                 )
             }
             Box(
-                Modifier.size(52.dp).clip(CircleShape).background(V.Teal).testTag("alarm_add")
+                Modifier.size(52.dp).clip(OctBtn).background(V.Teal).testTag("alarm_add")
                     .semantics { contentDescription = "Add alarm" }.clickable { editing = newAlarm() },
                 contentAlignment = Alignment.Center,
             ) { Glyph(G.PLUS, V.Bg, Modifier.size(22.dp)) }
@@ -123,9 +123,7 @@ fun AlarmsPane() {
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
                 ) {
                     if (roomy) { Glyph(G.BELL, V.Tick, Modifier.size(64.dp)); Gap(h = 16.dp) }
-                    VText("No alarms yet", size = Type.title, color = V.Text, font = SansLight)
-                    Gap(h = 8.dp)
-                    VText("Wake up to birds, a bugle or a screaming goat.", size = Type.body, color = V.Muted, align = TextAlign.Center)
+                    VText("\u2014  NO ALARMS", size = Type.label, font = SansMedium, spacing = 2.sp, color = V.Muted)
                     Gap(h = 20.dp)
                     VButton("Add alarm", filled = true) { editing = newAlarm() }
                 }
@@ -172,14 +170,14 @@ private fun AlarmCard(a: Alarm, now: Long, onEdit: () -> Unit) {
             snoozed -> {
                 Gap(h = 8.dp)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    VText("Snoozed until " + SimpleDateFormat(if (h24) "HH:mm" else "h:mm a", Locale.UK).format(Date(a.snoozeAt)), size = Type.label, color = V.Teal, modifier = Modifier.weight(1f), maxLines = 1)
+                    VText("SNOOZED \u00b7 " + SimpleDateFormat(if (h24) "HH:mm" else "h:mm a", Locale.UK).format(Date(a.snoozeAt)), size = Type.label, color = V.Teal, modifier = Modifier.weight(1f), maxLines = 1)
                     SmallKey("Stop snooze") { AlarmService.cancelSnooze(ctx, a.id) }
                 }
             }
             a.enabled && a.repeats -> {
                 Gap(h = 8.dp)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    VText(if (skipping) "Skipping the next one" else "", size = Type.label, color = V.Muted, modifier = Modifier.weight(1f), maxLines = 1)
+                    VText(if (skipping) "SKIPPING NEXT" else "", size = Type.caption, font = SansMedium, spacing = 1.5.sp, color = V.Muted, modifier = Modifier.weight(1f), maxLines = 1)
                     SmallKey(if (skipping) "Undo skip" else "Skip next") { Alarms.skipNext(ctx, a.id, !skipping) }
                 }
             }
@@ -206,11 +204,11 @@ fun AlarmEditor(start: Alarm, isNew: Boolean, onClose: () -> Unit) {
         // top bar: Cancel | title | Save
         Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) {
-                VText("Cancel", size = Type.headline, color = V.Teal, modifier = Modifier.clip(Pill).clickable { AlarmPreview.stop(); onClose() }.padding(horizontal = 8.dp, vertical = 10.dp))
+                VText("CANCEL", size = Type.label, font = SansMedium, spacing = 2.sp, color = V.Teal, modifier = Modifier.clip(Pill).clickable { AlarmPreview.stop(); onClose() }.padding(horizontal = 8.dp, vertical = 10.dp))
             }
-            VText(if (isNew) "New alarm" else "Edit alarm", size = Type.headline, font = SansMedium, color = V.White)
+            DotLabel(if (isNew) "New alarm" else "Edit alarm", V.Amber, color = V.White)
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-                VText("Save", size = Type.headline, font = SansMedium, color = V.Teal,
+                VText("SAVE", size = Type.label, font = SansMedium, spacing = 2.sp, color = V.Teal,
                     modifier = Modifier.clip(Pill).testTag("alarm_save").clickable { save() }.padding(horizontal = 8.dp, vertical = 10.dp))
             }
         }
@@ -226,7 +224,7 @@ fun AlarmEditor(start: Alarm, isNew: Boolean, onClose: () -> Unit) {
                         Modifier.fillMaxWidth().pane(Oct).clickable { AlarmPreview.stop(); Alarms.remove(ctx, a.id); onClose() }
                             .padding(vertical = 16.dp),
                         contentAlignment = Alignment.Center,
-                    ) { VText("Delete alarm", size = Type.headline, color = V.Coral) }
+                    ) { VText("DELETE ALARM", size = Type.label, font = SansMedium, spacing = 2.sp, color = V.Coral) }
                 }
                 Gap(h = 24.dp)
             }
@@ -259,7 +257,7 @@ private fun AlarmOptions(a: Alarm, pickSound: Boolean, setPick: (Boolean) -> Uni
             listOf("M", "T", "W", "T", "F", "S", "S").forEachIndexed { i, d ->
                 val on = a.days and (1 shl i) != 0
                 Box(
-                    Modifier.size(44.dp).clip(CircleShape).background(if (on) V.Teal else V.Panel2)
+                    Modifier.size(44.dp).clip(OctBtn).background(if (on) V.Teal else V.Panel2)
                         .testTag("day_$i").clickable { set(a.copy(days = a.days xor (1 shl i))) },
                     contentAlignment = Alignment.Center,
                 ) { VText(d, size = Type.body, font = SansMedium, color = if (on) V.Bg else V.Text) }
@@ -295,7 +293,7 @@ private fun AlarmOptions(a: Alarm, pickSound: Boolean, setPick: (Boolean) -> Uni
 
     Label("Gradual volume", Modifier.padding(start = 4.dp, bottom = 8.dp))
     if (sound.cat == SoundCat.PROGRESSIVE) {
-        GroupBox { VText("${sound.name} builds up on its own, from quiet to loud.", size = Type.body, color = V.Muted) }
+        GroupBox { VText("BUILT IN", size = Type.caption, font = SansMedium, spacing = 1.5.sp, color = V.Muted) }
     } else {
         Segmented(rampChoices.map { it.second }, rampChoices.indexOfFirst { it.first == a.rampSec }.coerceAtLeast(0), Modifier.fillMaxWidth()) {
             set(a.copy(rampSec = rampChoices[it].first))
@@ -344,7 +342,7 @@ private fun SoundPicker(selected: String, volume: Float, onPick: (String) -> Uni
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
-                    Modifier.size(40.dp).then(if (playing == s.key) Modifier.droplet(CircleShape, V.Teal, 2f) else Modifier.pane(CircleShape))
+                    Modifier.size(40.dp).then(if (playing == s.key) Modifier.droplet(OctBtn, V.Teal, 2f) else Modifier.pane(OctBtn))
                         .semantics { contentDescription = "Preview ${s.name}" }
                         .clickable { AlarmPreview.toggle(ctx, s.key, volume) },
                     contentAlignment = Alignment.Center,
@@ -464,31 +462,28 @@ fun AlarmRingScreen(r: Ringing, onSnooze: () -> Unit, onStop: () -> Unit) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
             Glyph(G.BELL, V.Teal, Modifier.size(40.dp).graphicsLayer { rotationZ = bell })
             Gap(h = 16.dp)
-            VText(r.alarm.label.ifBlank { "Alarm" }, size = Type.title2, color = V.Text, font = SansMedium, align = TextAlign.Center, maxLines = 2)
-            Gap(h = 4.dp)
-            Row(verticalAlignment = Alignment.Bottom) {
-                VText(SimpleDateFormat(if (h24) "HH:mm" else "h:mm", Locale.UK).format(Date(now)), size = clockSize, color = V.White, font = SansThin, maxLines = 1)
-                if (!h24) VText(SimpleDateFormat("a", Locale.UK).format(Date(now)), size = Type.large, color = V.Text, modifier = Modifier.padding(bottom = 24.dp, start = 8.dp))
-            }
-            VText(SimpleDateFormat("EEEE d MMMM", Locale.UK).format(Date(now)), size = Type.title, color = V.Muted)
-            Gap(h = if (portrait) 64.dp else 36.dp)
+            Box(Modifier.widthIn(max = 420.dp)) { DotLabel(r.alarm.label.ifBlank { "Alarm" }, V.Amber, color = V.Text) }
+            Gap(h = 8.dp)
+            // 2.0.1: the ringing alarm shows Home's octagon dial, ring lit amber
+            VoidDial(now, h24, Modifier.size((clockSize.value * 2.6f).dp).semantics { contentDescription = SimpleDateFormat(if (h24) "HH:mm" else "h:mm a", Locale.UK).format(Date(now)) }, ring = V.Amber)
+            Gap(h = if (portrait) 40.dp else 20.dp)
             val w = Modifier.widthIn(max = 420.dp).fillMaxWidth()
             if (r.alarm.snoozeMin > 0) {
                 Box(
-                    w.height(76.dp).glass(Pill).testTag("alarm_snooze").clickable(onClick = onSnooze),
+                    w.height(76.dp).glass(Radius.Panel).testTag("alarm_snooze").clickable(onClick = onSnooze),
                     contentAlignment = Alignment.Center,
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        VText("Snooze", size = Type.title2, color = V.White, font = SansMedium)
-                        VText("${r.alarm.snoozeMin} minutes", size = Type.label, color = V.Muted)
+                        VText("SNOOZE", size = Type.headline, color = V.White, font = SansMedium, spacing = 3.sp)
+                        VText("${r.alarm.snoozeMin} MIN", size = Type.caption, font = SansMedium, spacing = 1.5.sp, color = V.Muted)
                     }
                 }
                 Gap(h = 16.dp)
             }
             Box(
-                w.height(64.dp).clip(Pill).background(V.Teal).testTag("alarm_stop").clickable(onClick = onStop),
+                w.height(64.dp).clip(Radius.Panel).background(V.Teal).testTag("alarm_stop").clickable(onClick = onStop),
                 contentAlignment = Alignment.Center,
-            ) { VText("Stop", size = Type.title, color = V.Bg, font = SansMedium) }
+            ) { VText("STOP", size = Type.headline, color = V.Bg, font = SansMedium, spacing = 3.sp) }
         }
     }
 }

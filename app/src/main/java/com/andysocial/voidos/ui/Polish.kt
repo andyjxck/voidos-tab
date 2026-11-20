@@ -50,7 +50,7 @@ fun RoundIcon(
 ) {
     Box(
         modifier.size(size)
-            .then(if (active) Modifier.droplet(CircleShape, V.Teal) else Modifier.glass(CircleShape, 0.6f))
+            .then(if (active) Modifier.droplet(OctBtn, V.Teal) else Modifier.glass(OctBtn, 0.6f))
             .semantics { contentDescription = desc; role = Role.Button }
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,

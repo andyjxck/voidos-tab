@@ -1,5 +1,6 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.ui.platform.testTag
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -429,7 +430,7 @@ fun DocScanPane(store: Store) {
             }, modifier = Modifier.fillMaxSize())
             saved?.let { f -> VText("Saved ${f.nameWithoutExtension} in Documents/Scans", size = Type.body, color = V.Text, modifier = Modifier.align(Alignment.TopCenter).padding(Grid.l).glass(Pill, 0.7f).padding(horizontal = Grid.l, vertical = Grid.s)) }
             Box(
-                Modifier.align(Alignment.BottomCenter).padding(Grid.xl).size(76.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.9f)).tap {
+                Modifier.align(Alignment.BottomCenter).padding(Grid.xl).size(76.dp).clip(OctBtn).background(Color.White.copy(alpha = 0.9f)).tap {
                     capture?.takePicture(ContextCompat.getMainExecutor(ctx), object : ImageCapture.OnImageCapturedCallback() {
                         override fun onCaptureSuccess(image: ImageProxy) { shot = imageToBitmap(image); image.close() }
                         override fun onError(exception: ImageCaptureException) { toast.value = "The camera didn't take the picture." }
@@ -667,7 +668,13 @@ fun ToastHost(modifier: Modifier = Modifier) {
     val m by toast
     LaunchedEffect(m) { if (m != null) { delay(4500); toast.value = null } }
     AnimatedVisibility(m != null, modifier, enter = fadeIn(Motion.quick()) + slideInVertically(Motion.springOffset) { it / 2 }, exit = fadeOut(Motion.quick())) {
-        VText(m.orEmpty(), size = Type.body, color = V.Text, maxLines = 2,
-            modifier = Modifier.padding(Grid.l).widthIn(max = 620.dp).liquidGlass(Pill, GlassLook(smoke = 1.25f, depth = 1.2f)).padding(horizontal = Grid.xl, vertical = Grid.m))
+        // 2.0.1: a VoidOS note: chamfered glass with the dot, never Android's grey toast
+        Row(Modifier.padding(Grid.l).widthIn(max = 620.dp).liquidGlass(Radius.Control, GlassLook(smoke = 1.25f, depth = 1.2f)).padding(horizontal = Grid.xl, vertical = Grid.m).testTag("void_toast"),
+            verticalAlignment = Alignment.CenterVertically) {
+            val bad = m.orEmpty().let { it.contains("n't") || it.contains("fail", true) || it.startsWith("No ") }
+            Box(Modifier.size(6.dp).clip(OctBtn).background(if (bad) V.Coral else V.Teal))
+            Gap(w = 12.dp)
+            VText(m.orEmpty(), size = Type.body, color = V.Text, maxLines = 2)
+        }
     }
 }

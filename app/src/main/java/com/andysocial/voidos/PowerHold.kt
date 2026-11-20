@@ -2,7 +2,6 @@ package com.andysocial.voidos
 
 import android.app.Activity
 import android.os.Bundle
-import android.widget.Toast
 
 /**
  * 1.20.0: holding power opens VoidOS's power menu and nothing else. Android's white

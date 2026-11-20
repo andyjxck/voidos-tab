@@ -55,7 +55,7 @@ import androidx.compose.ui.unit.sp
  */
 
 /** Bars are capsules: fully round ends, like a drop of glass pulled long. */
-val BarShape = RoundedCornerShape(percent = 50)
+val BarShape: androidx.compose.ui.graphics.Shape = Pill
 
 /** The chosen segment: a drop of stained glass that magnifies the light under it. */
 private fun Modifier.lens(shape: Shape, accent: Color): Modifier = this.droplet(shape, accent)
@@ -86,7 +86,7 @@ fun GlassSegments(
         val shown by animateFloatAsState(if (idx >= 0) 1f else 0f, label = "lensOn")
         if (shown > 0.01f) Box(
             Modifier.offset(x = x).width(segW).fillMaxHeight().padding(4.dp)
-                .lens(RoundedCornerShape(percent = 50), if (enabled) calm(accent) else V.Tick),
+                .lens(Pill, if (enabled) calm(accent) else V.Tick),
         )
         Row(Modifier.fillMaxSize()) {
             options.forEachIndexed { i, (k, l) ->
@@ -130,7 +130,7 @@ fun GlassActions(actions: List<GlassAction>, modifier: Modifier = Modifier, heig
             Box(
                 Modifier.weight(1f).fillMaxHeight()
                     .padding(4.dp)
-                    .then(if (a.active) Modifier.droplet(RoundedCornerShape(percent = 50), V.Teal, 0.8f) else Modifier.clip(RoundedCornerShape(percent = 50)))
+                    .then(if (a.active) Modifier.droplet(Pill, V.Teal, 0.8f) else Modifier.clip(Pill))
                     .background(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.16f * glow), Color.Transparent)))
                     .semantics { role = Role.Button; selected = a.active }
                     .clickable(interactionSource = src, indication = null, enabled = a.enabled, onClick = a.onClick),

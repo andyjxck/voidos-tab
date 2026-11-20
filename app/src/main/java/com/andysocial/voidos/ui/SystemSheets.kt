@@ -1,5 +1,6 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.ui.platform.testTag
 import android.media.AudioManager
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Animatable
@@ -115,7 +116,7 @@ private fun VolumeSlider(audio: AudioManager, stream: Int, label: String, g: G, 
     val frac by animateFloatAsState(volumeFraction(level, min, max), Motion.quick(), label = "vol")
     val h = 200.dp
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(72.dp)) {
-        VText("${Math.round(volumeFraction(level, min, max) * 100)}", size = Type.caption, color = V.Text, align = TextAlign.Center)
+        VText("${Math.round(volumeFraction(level, min, max) * 100)}", size = 15.sp, color = V.White, font = Jupi, align = TextAlign.Center)
         Box(Modifier.height(8.dp))
         Box(
             Modifier.width(48.dp).height(h).clip(Chamfer(Radius.card)).background(Color.White.copy(alpha = 0.10f))
@@ -132,14 +133,21 @@ private fun VolumeSlider(audio: AudioManager, stream: Int, label: String, g: G, 
                 .pointerInput(stream, max) { detectTapGestures { o -> val l = volumeLevel(1f - o.y / size.height, min, max); level = l; runCatching { audio.setStreamVolume(stream, l, 0) }; onTouch() } },
             contentAlignment = Alignment.BottomCenter,
         ) {
-            Box(Modifier.fillMaxWidth().fillMaxHeight(frac.coerceAtLeast(0.001f)).background(Brush.verticalGradient(listOf(V.White, V.Text.copy(alpha = 0.85f)))))
+            Box(Modifier.fillMaxWidth().fillMaxHeight(frac.coerceAtLeast(0.001f)).background(Brush.verticalGradient(listOf(V.Teal, V.Teal.copy(alpha = 0.55f)))))
+            // 2.0.1: the old face's tick marks up the track, so the slider reads like the dial
+            androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+                for (i in 1 until 10) {
+                    val y = size.height * (1f - i / 10f)
+                    drawLine(Color.White.copy(alpha = if (i == 5) 0.30f else 0.14f), androidx.compose.ui.geometry.Offset(size.width * 0.32f, y), androidx.compose.ui.geometry.Offset(size.width * 0.68f, y), 1.dp.toPx())
+                }
+            }
         }
         Box(Modifier.height(10.dp))
         Box(
-            Modifier.size(36.dp).clip(CircleShape).clickable { onGlyph() }.semantics { contentDescription = "All volumes" },
+            Modifier.size(36.dp).clip(OctBtn).clickable { onGlyph() }.semantics { contentDescription = "All volumes" },
             contentAlignment = Alignment.Center,
         ) { Glyph(if (level <= min) G.VIBRATE.takeIf { stream == AudioManager.STREAM_RING } ?: g else g, V.Text, Modifier.size(20.dp)) }
-        VText(label, size = 11.sp, color = V.Muted, align = TextAlign.Center, maxLines = 1)
+        VText(label.uppercase(), size = 10.sp, font = SansMedium, spacing = 1.5.sp, color = V.Muted, align = TextAlign.Center, maxLines = 1)
     }
 }
 
@@ -154,10 +162,8 @@ fun PowerMenu(onLock: () -> Unit, onRestart: () -> Unit, onPowerOff: () -> Unit,
         ) {
             SystemScrim()
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                VText(if (confirm == null) "Power" else "$confirm?", size = 26.sp, font = SansLight, color = V.White)
-                Box(Modifier.height(6.dp))
-                VText(if (confirm == null) "" else "Confirm?", size = Type.label, color = V.Muted)
-                Box(Modifier.height(32.dp))
+                Box(Modifier.width(240.dp)) { DotLabel(if (confirm == null) "Power" else "$confirm \u00b7 again to confirm", if (confirm == "Power off") V.Coral else V.Teal, Modifier.align(Alignment.Center)) }
+                Box(Modifier.height(28.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                     PowerButton("Lock", G.LOCK, false, 88.dp) { onLock() }
                     PowerButton("Restart", G.RESTART, confirm == "Restart", 88.dp) { if (confirm == "Restart") onRestart() else confirm = "Restart" }
@@ -174,13 +180,13 @@ private fun PowerButton(label: String, g: G, armed: Boolean, size: Dp, warn: Boo
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier.size(size)
-                .then(if (armed) Modifier.droplet(CircleShape, if (warn) V.Coral else V.Teal, 0.6f + 0.4f * lit) else Modifier.liquidGlass(CircleShape, GlassLook(smoke = 0.6f, depth = 0.8f, shine = 1.3f, magnify = 1.2f)))
+                .then(if (armed) Modifier.droplet(OctBtn, if (warn) V.Coral else V.Teal, 0.6f + 0.4f * lit) else Modifier.liquidGlass(OctBtn, GlassLook(smoke = 0.6f, depth = 0.8f, shine = 1.3f, magnify = 1.2f)))
                 .pointerInput(Unit) { detectTapGestures { onTap() } }
                 .semantics(mergeDescendants = true) { role = Role.Button; contentDescription = label; onClick { onTap(); true } },
             contentAlignment = Alignment.Center,
         ) { Glyph(g, if (warn && armed) V.White else V.Text, Modifier.size(size * 0.36f)) }
         Box(Modifier.height(10.dp))
-        VText(label, size = Type.body, color = V.Text)
+        VText(label.uppercase(), size = Type.label, font = SansMedium, spacing = 2.sp, color = if (armed) V.White else V.Text)
     }
 }
 
@@ -212,16 +218,13 @@ fun KeyguardPad(store: Store, onPin: (String) -> Unit) {
                     onPin = onPin,
                 )
             }
+            // 2.0.1: Home's octagon dial beside the pad, so Android's keyguard never looks like Android
             if (portrait) Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                VText(time, size = 64.sp, font = SansThin, color = V.White)
-                VText(date, size = Type.body, color = V.Text)
-                Box(Modifier.height(36.dp))
+                VoidDial(now, store.use24h, Modifier.size(240.dp).semantics { contentDescription = "$time, $date" }, seconds = false)
+                Box(Modifier.height(20.dp))
                 pad()
             } else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(72.dp)) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    VText(time, size = 72.sp, font = SansThin, color = V.White)
-                    VText(date, size = Type.body, color = V.Text)
-                }
+                VoidDial(now, store.use24h, Modifier.size(minOf(320.dp, maxHeight * 0.6f)).semantics { contentDescription = "$time, $date" }, seconds = false)
                 pad()
             }
         }
@@ -242,14 +245,18 @@ fun PowerOffScreen(restart: Boolean) {
     val t = remember { Animatable(0f) }
     LaunchedEffect(Unit) { t.animateTo(POWER_SHOW_MS + POWER_FADE_MS.toFloat(), tween((POWER_SHOW_MS + POWER_FADE_MS).toInt(), easing = LinearEasing)) }
     Box(Modifier.fillMaxSize().background(V.Bg).semantics { contentDescription = if (restart) "Restarting" else "Powering off" }, contentAlignment = Alignment.Center) {
+        // 2.0.1: Home's octagon dial winds down: the lit ticks run back to zero and the octagon
+        // draws in, all in one orientation, then the screen goes dark. No flip, no corner flash.
+        androidx.compose.foundation.Canvas(Modifier.size(420.dp).graphicsLayer { alpha = powerOffAlpha(t.value); val k = 1f - 0.12f * (t.value / (POWER_SHOW_MS + POWER_FADE_MS)); scaleX = k; scaleY = k }.testTag("power_off_dial")) {
+            val lit = (59 - (t.value / POWER_SHOW_MS * 60f)).toInt().coerceAtLeast(-1)
+            octDialTicks(androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f), size.minDimension / 2.62f, lit, 0f, if (restart) V.Teal else V.Amber, 0.8f, bead = false)
+        }
         Column(Modifier.graphicsLayer { alpha = powerOffAlpha(t.value) }, horizontalAlignment = Alignment.CenterHorizontally) {
-            androidx.compose.foundation.Canvas(Modifier.size(260.dp, 90.dp)) {
+            androidx.compose.foundation.Canvas(Modifier.size(200.dp, 70.dp)) {
                 drawVoidWord(androidx.compose.ui.geometry.Offset(size.width / 2, size.height / 2), size.width, alpha = 0.9f)
             }
-            Gap(h = 28.dp)
-            VText(if (restart) "Restarting" else "Powering off", size = Type.title, color = V.Text)
-            Gap(h = 6.dp)
-            VText(if (restart) "Back in a minute" else "See you soon", size = Type.caption, color = V.Muted)
+            Gap(h = 12.dp)
+            VText(if (restart) "RESTARTING" else "POWERING OFF", size = Type.label, font = SansMedium, spacing = 3.sp, color = V.Text)
         }
     }
 }
@@ -293,8 +300,8 @@ fun LowBatteryBanner(pct: Int, onDismiss: () -> Unit) {
             Glyph(G.BATTERY, if (warn) V.Coral else V.Yellow, Modifier.size(24.dp))
             Gap(w = 12.dp)
             Column {
-                VText("Battery low \u00b7 $pct%", size = Type.body, color = V.White, font = Sans)
-                VText(if (pct <= 5) "Plug in now, the tablet will switch off soon" else "Plug in soon", size = Type.caption, color = V.Muted)
+                DotLabel("Battery low", if (warn) V.Coral else V.Yellow, color = V.Text)
+                VText("$pct%", size = Type.title2, color = V.White, font = SansLight)
             }
         }
     }

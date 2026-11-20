@@ -412,7 +412,7 @@ private fun CcTile(it: CcItem, w: Dp, h: Dp) {
     ) {
         val well = min(h * 0.46f, 48.dp)
         Box(
-            Modifier.size(well).clip(CircleShape).background(lerp(Color.White.copy(alpha = 0.10f), it.accent, lit * 0.85f)),
+            Modifier.size(well).clip(OctBtn).background(lerp(Color.White.copy(alpha = 0.10f), it.accent, lit * 0.85f)),
             contentAlignment = Alignment.Center,
         ) { Glyph(it.g, lerp(V.Text, Color.White, lit), Modifier.size(well * 0.5f)) }
         Spacer(Modifier.height(6.dp))
@@ -496,9 +496,9 @@ private fun CcHeader(store: Store, onSettings: () -> Unit, onPower: () -> Unit) 
     val dens = LocalDensity.current
     Row(verticalAlignment = Alignment.Bottom) {
         Column(Modifier.weight(1f)) {
-            VText(greeting(System.currentTimeMillis()), size = Type.label, color = lerp(V.Teal, Color.White, 0.3f), spacing = 0.5.sp)
+            DotLabel(greeting(System.currentTimeMillis()), V.Teal, Modifier.widthIn(max = 280.dp), color = lerp(V.Teal, Color.White, 0.3f))
             RollingText(now.format(DateTimeFormatter.ofPattern(if (store.use24h) "HH:mm" else "h:mm")), with(dens) { 50.sp.toPx() }, thin, tick = ticker)
-            VText(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM")), size = Type.body, color = V.Muted)
+            VText(now.format(DateTimeFormatter.ofPattern("EEE d MMM")).uppercase(), size = Type.caption, font = SansMedium, spacing = 2.sp, color = V.Muted)
         }
         val bat = rememberBattery()
         if (bat.pct >= 0) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
@@ -507,7 +507,7 @@ private fun CcHeader(store: Store, onSettings: () -> Unit, onPower: () -> Unit) 
                     .background(if (bat.pct <= 15 && !bat.charging) V.Coral else V.Text))
             }
             Spacer(Modifier.width(8.dp))
-            VText("${bat.pct}%" + if (bat.charging) " charging" else "", size = Type.label, color = V.Text)
+            VText("${bat.pct}%" + if (bat.charging) "  CHARGING" else "", size = Type.caption, font = SansMedium, spacing = 1.5.sp, color = V.Text)
         }
         Spacer(Modifier.width(16.dp))
         // Settings and Power sit with the clock, so the grid below is only switches
@@ -523,9 +523,9 @@ private fun CcHeadButton(g: G, label: String, onTap: () -> Unit) {
     Box(
         Modifier.size(48.dp)
             .semantics(mergeDescendants = true) { contentDescription = label }
-            .clip(CircleShape)
+            .clip(OctBtn)
             .background(Color.White.copy(alpha = 0.08f))
-            .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape)
+            .border(1.dp, Color.White.copy(alpha = 0.10f), OctBtn)
             .tap(onTap),
         contentAlignment = Alignment.Center,
     ) { Glyph(g, V.Text, Modifier.size(22.dp)) }
@@ -546,7 +546,7 @@ private fun CcBubble(g: G, label: String, on: Boolean, accent: Color, d: Dp, onT
             .semantics { contentDescription = label; selected = on }
             .drawBehind { if (lit > 0f) drawCircle(Brush.radialGradient(listOf(accent.copy(alpha = 0.42f * lit), Color.Transparent)), size.minDimension * 0.92f) }
             .graphicsLayer { val s = 0.95f + 0.05f * lit; scaleX = s; scaleY = s }
-            .ccGlass(CircleShape, smoke = 0.72f, stain = accent, lit = lit)
+            .ccGlass(OctBtn, smoke = 0.72f, stain = accent, lit = lit)
             .tapOrHold(onTap, onHold),
         contentAlignment = Alignment.Center,
     ) { Glyph(g, lerp(V.Text, Color.White, lit), Modifier.size(d * 0.4f)) }
@@ -635,7 +635,7 @@ private fun MediaModule(modifier: Modifier, onHold: () -> Unit) {
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                if (cur == null) VText("Not playing", size = Type.label, color = V.Muted, maxLines = 1)
+                if (cur == null) VText("\u2014  NOT PLAYING", size = Type.caption, font = SansMedium, spacing = 1.5.sp, color = V.Muted, maxLines = 1)
                 else {
                     VText(cur.title.ifBlank { cur.appName }, size = Type.label, font = SansMedium, color = V.Text, maxLines = 1)
                     VText(cur.artist.ifBlank { cur.appName }, size = 11.sp, color = V.Muted, maxLines = 1)
@@ -652,7 +652,7 @@ private fun MediaModule(modifier: Modifier, onHold: () -> Unit) {
 
 @Composable
 private fun IconTap(g: G, size: Dp, color: Color = V.Text, onClick: () -> Unit) {
-    Box(Modifier.size(size + 22.dp).clip(CircleShape).tap(onClick), contentAlignment = Alignment.Center) { Glyph(g, color, Modifier.size(size)) }
+    Box(Modifier.size(size + 22.dp).clip(OctBtn).tap(onClick), contentAlignment = Alignment.Center) { Glyph(g, color, Modifier.size(size)) }
 }
 
 
@@ -682,7 +682,7 @@ private fun PanelHead(g: G, title: String, state: String, on: Boolean, accent: C
         val lit by animateFloatAsState(if (on) 1f else 0f, label = "lit")
         Box(
             Modifier.size(52.dp).semantics { contentDescription = title; selected = on }
-                .ccGlass(CircleShape, smoke = 0.72f, stain = accent, lit = lit)
+                .ccGlass(OctBtn, smoke = 0.72f, stain = accent, lit = lit)
                 .then(if (onToggle != null) Modifier.tap(onToggle) else Modifier),
             contentAlignment = Alignment.Center,
         ) { Glyph(g, if (on) Color.White else V.Text, Modifier.size(22.dp)) }
@@ -697,7 +697,7 @@ private fun PanelHead(g: G, title: String, state: String, on: Boolean, accent: C
 
 @Composable
 private fun Section(text: String) {
-    VText(text, size = Type.caption, color = V.Muted, spacing = 0.6.sp, modifier = Modifier.padding(start = 4.dp, top = 6.dp, bottom = 8.dp))
+    DotLabel(text, modifier = Modifier.padding(start = 4.dp, top = 6.dp, bottom = 8.dp))
 }
 
 /** One row in an opened-up module: soft glass when chosen, bare otherwise. No lines between rows. */
@@ -775,12 +775,12 @@ private fun ColumnScope.ConnectPanel(st: CcState, store: Store, act: MainActivit
     val pinned = store.rotation != "auto"
     val portrait = LocalPortrait.current
     val dndOn = st.dnd != NotificationManager.INTERRUPTION_FILTER_ALL
-    VText("Connections", size = Type.title, font = SansMedium, color = V.Text, modifier = Modifier.padding(start = 4.dp, bottom = 12.dp))
+    DotLabel("Connections", modifier = Modifier.padding(start = 4.dp, bottom = 12.dp), color = V.Text)
     @Composable
     fun line(g: G, title: String, sub: String, on: Boolean, accent: Color, toggle: () -> Unit, part: CcPart) {
         Row(Modifier.fillMaxWidth().clip(Radius.Card).tap { go(part) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             val lit by animateFloatAsState(if (on) 1f else 0f, label = "lit")
-            Box(Modifier.size(50.dp).semantics { contentDescription = title; selected = on }.ccGlass(CircleShape, smoke = 0.72f, stain = accent, lit = lit).tap(toggle),
+            Box(Modifier.size(50.dp).semantics { contentDescription = title; selected = on }.ccGlass(OctBtn, smoke = 0.72f, stain = accent, lit = lit).tap(toggle),
                 contentAlignment = Alignment.Center) { Glyph(g, if (on) Color.White else V.Text, Modifier.size(21.dp)) }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
@@ -841,7 +841,7 @@ private fun ColumnScope.WifiPanel(st: CcState) {
     if (!st.wifi) { VText("Wi-Fi off", size = Type.body, color = V.Muted, modifier = Modifier.padding(start = 4.dp)); return }
 
     Section(if (scanning && nets.isEmpty()) "Looking for networks…" else "Networks")
-    if (!scanning && nets.isEmpty()) VText("No networks found nearby.", size = Type.body, color = V.Muted, modifier = Modifier.padding(start = 4.dp))
+    if (!scanning && nets.isEmpty()) VText("\u2014  NO NETWORKS", size = Type.label, font = SansMedium, spacing = 2.sp, color = V.Muted, modifier = Modifier.padding(start = 4.dp))
     nets.forEach { n ->
         val isOpen = open == n.ssid
         PanelRow(
@@ -868,7 +868,7 @@ private fun ColumnScope.WifiPanel(st: CcState) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (n.locked) Glyph(G.LOCK, V.Muted, Modifier.size(15.dp))
                     if (n.connected) Glyph(G.CHECK, V.Teal, Modifier.size(18.dp))
-                    if (n.saved && !n.connected) Box(Modifier.size(30.dp).clip(CircleShape).tap { open = if (isOpen) null else n.ssid }, contentAlignment = Alignment.Center) {
+                    if (n.saved && !n.connected) Box(Modifier.size(30.dp).clip(OctBtn).tap { open = if (isOpen) null else n.ssid }, contentAlignment = Alignment.Center) {
                         Glyph(G.INFO, V.Muted, Modifier.size(17.dp))
                     }
                 }
@@ -952,7 +952,7 @@ private fun ColumnScope.BtPanel(st: CcState) {
     err?.let { VText(it, size = Type.caption, color = V.Coral, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)) }
 
     Section("My devices")
-    if (devs.isEmpty()) VText("Nothing paired yet.", size = Type.body, color = V.Muted, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
+    if (devs.isEmpty()) VText("\u2014  NOTHING PAIRED", size = Type.label, font = SansMedium, spacing = 2.sp, color = V.Muted, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
     devs.forEach { d ->
         PanelRow(
             chosen = d.connected, accent = BtBlue,
@@ -969,7 +969,7 @@ private fun ColumnScope.BtPanel(st: CcState) {
             title = d.name,
             sub = when { busy == d.address -> if (d.connected) "Disconnecting…" else "Connecting…"; d.connected -> "Connected"; else -> "Not connected" },
             trail = {
-                Box(Modifier.size(30.dp).clip(CircleShape).tap { open = if (open == d.address) null else d.address }, contentAlignment = Alignment.Center) {
+                Box(Modifier.size(30.dp).clip(OctBtn).tap { open = if (open == d.address) null else d.address }, contentAlignment = Alignment.Center) {
                     Glyph(G.INFO, V.Muted, Modifier.size(17.dp))
                 }
             },
@@ -1065,7 +1065,7 @@ private fun ColumnScope.RotatePanel(store: Store, act: MainActivity) {
 /** Hold brightness: a big slider, auto-brightness and Night Light. */
 @Composable
 private fun ColumnScope.BrightPanel(st: CcState) {
-    VText("Brightness", size = Type.title, font = SansMedium, color = V.Text, modifier = Modifier.align(Alignment.CenterHorizontally))
+    DotLabel("Brightness", V.Amber, Modifier.align(Alignment.CenterHorizontally), color = V.Text)
     VText("${(st.bright * 100).toInt()}%", size = Type.label, color = V.Muted, modifier = Modifier.align(Alignment.CenterHorizontally))
     Spacer(Modifier.height(16.dp))
     CcTall(G.SUN, st.bright, Modifier.align(Alignment.CenterHorizontally).width(120.dp).height(260.dp), SunFill, "Brightness", null) {
@@ -1085,11 +1085,11 @@ private fun ColumnScope.BrightPanel(st: CcState) {
 private fun LabelledBubble(g: G, label: String, on: Boolean, accent: Color, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         val lit by animateFloatAsState(if (on) 1f else 0f, label = "lit")
-        Box(Modifier.size(60.dp).semantics { contentDescription = label; selected = on }.ccGlass(CircleShape, smoke = 0.72f, stain = accent, lit = lit).tap(onClick),
+        Box(Modifier.size(60.dp).semantics { contentDescription = label; selected = on }.ccGlass(OctBtn, smoke = 0.72f, stain = accent, lit = lit).tap(onClick),
             contentAlignment = Alignment.Center) { Glyph(g, if (on) Color.White else V.Text, Modifier.size(24.dp)) }
         Spacer(Modifier.height(6.dp))
-        VText(label, size = Type.caption, color = V.Text)
-        VText(if (on) "On" else "Off", size = Type.caption, color = if (on) lerp(accent, Color.White, 0.3f) else V.Muted)
+        VText(label.uppercase(), size = 10.sp, font = SansMedium, spacing = 1.2.sp, color = V.Text, maxLines = 1)
+        VText(if (on) "ON" else "OFF", size = 10.sp, font = SansMedium, spacing = 1.2.sp, color = if (on) lerp(accent, Color.White, 0.3f) else V.Muted)
     }
 }
 
@@ -1099,7 +1099,7 @@ private fun ColumnScope.VolumePanel(st: CcState) {
     val ctx = st.ctx
     var alarm by remember { mutableFloatStateOf(Tablet.stream(ctx, AudioManager.STREAM_ALARM)) }
     var notif by remember { mutableFloatStateOf(Tablet.stream(ctx, AudioManager.STREAM_NOTIFICATION)) }
-    VText("Volume", size = Type.title, font = SansMedium, color = V.Text, modifier = Modifier.align(Alignment.CenterHorizontally))
+    DotLabel("Volume", modifier = Modifier.align(Alignment.CenterHorizontally), color = V.Text)
     Spacer(Modifier.height(16.dp))
     Row(Modifier.fillMaxWidth().height(260.dp), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)) {
         @Composable
@@ -1107,7 +1107,7 @@ private fun ColumnScope.VolumePanel(st: CcState) {
             Column(Modifier.fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
                 CcTall(g, v, Modifier.width(w).weight(1f), fill, label, null, set)
                 Spacer(Modifier.height(8.dp))
-                VText(label, size = Type.caption, color = V.Muted)
+                VText(label.uppercase(), size = 10.sp, font = SansMedium, spacing = 1.5.sp, color = V.Muted)
             }
         }
         col("Media", G.MEDIA, st.vol, VolFill, 110.dp) { st.vol = it; Tablet.setVolume(ctx, it) }
@@ -1125,9 +1125,7 @@ private fun ColumnScope.MediaPanel() {
     if (cur == null) {
         Glyph(G.MEDIA, V.Muted, Modifier.size(40.dp).align(Alignment.CenterHorizontally))
         Spacer(Modifier.height(12.dp))
-        VText("Nothing is playing", size = Type.title, font = SansMedium, color = V.Text, modifier = Modifier.align(Alignment.CenterHorizontally))
-        VText("Nothing playing", size = Type.label, color = V.Muted,
-            align = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 8.dp).align(Alignment.CenterHorizontally))
+        VText("\u2014  NOTHING PLAYING", size = Type.label, font = SansMedium, spacing = 2.sp, color = V.Muted, modifier = Modifier.align(Alignment.CenterHorizontally))
         return
     }
     var pos by remember { mutableFloatStateOf(0f) }
@@ -1156,7 +1154,7 @@ private fun ColumnScope.MediaPanel() {
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
         IconTap(G.PREV, 28.dp) { Now.prev() }
-        Box(Modifier.size(72.dp).ccGlass(CircleShape, smoke = 0.6f, stain = V.Teal, lit = 0.5f).tap { Now.playPause() }, contentAlignment = Alignment.Center) {
+        Box(Modifier.size(72.dp).ccGlass(OctBtn, smoke = 0.6f, stain = V.Teal, lit = 0.5f).tap { Now.playPause() }, contentAlignment = Alignment.Center) {
             Glyph(if (cur.playing) G.PAUSE else G.PLAY, Color.White, Modifier.size(32.dp))
         }
         IconTap(G.NEXT, 28.dp) { Now.next() }
@@ -1181,14 +1179,14 @@ private fun PowerPanel() {
 @Composable
 private fun NoticesPanel(onOpened: () -> Unit) {
     val list by com.andysocial.voidos.VoidListener.notices
-    if (list.isEmpty()) VText("Nothing new", size = Type.body, color = V.Muted)
+    if (list.isEmpty()) VText("\u2014  NOTHING NEW", size = Type.label, font = SansMedium, spacing = 2.sp, color = V.Muted)
     list.forEach { n ->
         Column(
             Modifier.fillMaxWidth().padding(vertical = Grid.xs).ccGlass(Radius.Card, smoke = 0.5f)
                 .tap { com.andysocial.voidos.VoidListener.open(n.key); onOpened() }
                 .padding(horizontal = Grid.l, vertical = Grid.m),
         ) {
-            VText(n.appName, size = Type.caption, color = V.Muted, maxLines = 1)
+            VText(n.appName.uppercase(), size = Type.caption, font = SansMedium, spacing = 1.2.sp, color = V.Muted, maxLines = 1)
             VText(n.title, size = Type.body, color = V.White, maxLines = 1)
             if (n.text.isNotBlank()) VText(n.text, size = Type.label, color = V.Text, maxLines = 2)
         }
@@ -1196,6 +1194,6 @@ private fun NoticesPanel(onOpened: () -> Unit) {
     if (list.isNotEmpty()) {
         Spacer(Modifier.height(Grid.m))
         Box(Modifier.ccGlass(Pill, smoke = 0.6f).tap { com.andysocial.voidos.VoidListener.clearAll() }
-            .padding(horizontal = Grid.l, vertical = Grid.s)) { VText("Clear all", size = Type.label, color = V.Text) }
+            .padding(horizontal = Grid.l, vertical = Grid.s)) { VText("CLEAR ALL", size = Type.caption, font = SansMedium, spacing = 2.sp, color = V.Text) }
     }
 }

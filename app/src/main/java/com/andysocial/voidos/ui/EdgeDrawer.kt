@@ -323,7 +323,7 @@ fun EdgeDrawers(
                         ) {
                             Box(
                                 Modifier.size(Drawer.TILE_DP.dp)
-                                    .background(if (open == Edge.LEFT) V.White.copy(alpha = if (current) 0.16f else 0.07f) else Color.Transparent, RoundedCornerShape(Drawer.ICON_RADIUS_DP.dp)),
+                                    .background(if (open == Edge.LEFT) V.White.copy(alpha = if (current) 0.16f else 0.07f) else Color.Transparent, Chamfer(Drawer.ICON_RADIUS_DP.dp)),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 it.icon(Modifier.size(if (open == Edge.RIGHT) Drawer.TILE_DP.dp else 22.dp), if (current || hot) V.White else V.Text)

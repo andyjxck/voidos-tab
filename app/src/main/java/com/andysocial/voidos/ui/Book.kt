@@ -1,5 +1,6 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.ui.unit.sp
 import android.content.Context
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box
@@ -375,16 +376,18 @@ internal fun TimeIsland(store: Store, modifier: Modifier = Modifier) {
     val date = SimpleDateFormat("EEE d MMM", Locale.UK).format(Date(now))
     Row(
         modifier.padding(top = 6.dp).height(38.dp)
-            .clip(Pill).background(Color.Black.copy(alpha = 0.82f))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), Pill)
+            .clip(Chamfer(12.dp)).background(Color.Black.copy(alpha = 0.82f))
+            .border(1.dp, V.Teal.copy(alpha = 0.16f), Chamfer(12.dp))
             .padding(horizontal = 18.dp)
             .semantics(mergeDescendants = true) { contentDescription = "$time, $date" }
             .testTag("timeIsland"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        VText(time, size = Type.body, color = V.Text, font = Sans, maxLines = 1)
-        Box(Modifier.padding(horizontal = 10.dp).size(4.dp).clip(CircleShape).background(V.Teal.copy(alpha = 0.8f)))
-        VText(date, size = Type.label, color = V.Muted, font = Sans, maxLines = 1)
+        // 2.0.1: the island speaks the face's language: Manrope time, amber seconds, small-caps date
+        VText(time, size = Type.body, color = V.White, font = SansLight, maxLines = 1)
+        VText(SimpleDateFormat(":ss", Locale.UK).format(Date(now)), size = 11.sp, color = V.Amber, font = Jupi, maxLines = 1, modifier = Modifier.padding(start = 2.dp))
+        Box(Modifier.padding(horizontal = 10.dp).size(5.dp).clip(OctBtn).background(V.Teal.copy(alpha = 0.8f)))
+        VText(date.uppercase(), size = Type.caption, color = V.Muted, font = SansMedium, spacing = 1.8.sp, maxLines = 1)
     }
 }
 
@@ -399,7 +402,7 @@ private fun PaneBody(p: Pane?, face: @Composable () -> Unit, screen: @Composable
 private fun CloseDrop(modifier: Modifier, label: String, onClose: () -> Unit) {
     Box(
         modifier.padding(4.dp).size(42.dp)
-            .liquidGlass(CircleShape, GlassLook(smoke = 0.9f, depth = 1.1f, shine = 1.2f))
+            .liquidGlass(OctBtn, GlassLook(smoke = 0.9f, depth = 1.1f, shine = 1.2f))
             .squish()
             .tap(onClose)
             .semantics { contentDescription = label },

@@ -68,8 +68,10 @@ import kotlin.math.sin
 val Oct: androidx.compose.ui.graphics.Shape = Radius.Panel
 /** Card and control corners, the same chamfer, smaller. */
 val OctS: androidx.compose.ui.graphics.Shape = Radius.Card
-/** Fully round ends. */
-val Pill = RoundedCornerShape(50)
+/** 2.0.1: capsule ends cut with the VoidOS chamfer instead of rounded. */
+val Pill: androidx.compose.ui.graphics.Shape = androidx.compose.foundation.shape.CutCornerShape(30)
+/** Round buttons become octagons: the old VoidOS mark. */
+val OctBtn: androidx.compose.ui.graphics.Shape = androidx.compose.foundation.shape.CutCornerShape(29)
 
 @Composable
 fun VText(
@@ -95,7 +97,7 @@ fun VText(
 /** Small grey uppercase label, the watch's "STEPS" style. */
 @Composable
 fun Label(text: String, modifier: Modifier = Modifier, color: Color = V.Muted) =
-    VText(text.uppercase(), modifier, size = Type.caption, color = if (color == V.Muted || color == V.Tick) color else calm(color), font = SansMedium, spacing = 1.sp)
+    VText(text.uppercase(), modifier, size = Type.caption, color = if (color == V.Muted || color == V.Tick) color else calm(color), font = SansMedium, spacing = 1.8.sp)
 
 @Composable
 fun VPanel(
@@ -143,7 +145,7 @@ fun VButton(
         contentAlignment = Alignment.Center,
     ) {
         VText(
-            label, size = Type.body, font = SansMedium, maxLines = 1,
+            label.uppercase(), size = Type.label, font = SansMedium, spacing = 1.8.sp, maxLines = 1,
             color = when {
                 !enabled -> V.Tick
                 filled -> V.Bg
@@ -168,17 +170,20 @@ fun VToggle(checked: Boolean, accent: Color = V.Teal, enabled: Boolean = true, o
 }
 
 internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawToggle(t: Float, c: Color, enabled: Boolean) {
+    // 2.0.1: the VoidOS switch: a chamfered track and an octagon knob, not Android's capsule and circle
     val w = size.width; val h = size.height
-    val cr = CornerRadius(h / 2)
-    drawRoundRect(Color.White.copy(alpha = 0.10f), cornerRadius = cr)
-    drawRoundRect(Brush.verticalGradient(listOf(lerp(c, Color.White, 0.25f), c, lerp(c, Color.Black, 0.15f))), cornerRadius = cr, alpha = t)
-    // gloss over the top half
-    drawRoundRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.22f), Color.Transparent), endY = h * 0.55f), cornerRadius = cr)
-    val r = h / 2 - 3.dp.toPx()
+    val k = h * 0.30f
+    val track = Path().apply { moveTo(k, 0f); lineTo(w - k, 0f); lineTo(w, k); lineTo(w, h - k); lineTo(w - k, h); lineTo(k, h); lineTo(0f, h - k); lineTo(0f, k); close() }
+    drawPath(track, Color.White.copy(alpha = 0.10f))
+    drawPath(track, Brush.verticalGradient(listOf(lerp(c, Color.White, 0.25f), c, lerp(c, Color.Black, 0.15f))), alpha = t)
+    drawPath(track, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.18f), Color.Transparent), endY = h * 0.55f))
+    drawPath(track, Color.White.copy(alpha = 0.10f + 0.10f * t), style = Stroke(1.dp.toPx()))
+    val r = h / 2 - 4.dp.toPx()
     val cx = h / 2 + (w - h) * t
     val ctr = Offset(cx, h / 2)
-    drawCircle(Color.Black.copy(alpha = 0.28f), r + 1.dp.toPx(), ctr + Offset(0f, 1.5f.dp.toPx()))
-    drawBead(ctr, r, if (enabled) Color.White else V.Muted)
+    drawPath(octPath(ctr + Offset(0f, 1.5f.dp.toPx()), r + 1.dp.toPx()), Color.Black.copy(alpha = 0.28f))
+    val knob = if (enabled) Color.White else V.Muted
+    drawPath(octPath(ctr, r), Brush.radialGradient(listOf(knob, lerp(knob, Color(0xFFB8C2CC), 0.35f)), center = ctr - Offset(r * 0.3f, r * 0.4f), radius = r * 1.5f))
 }
 
 /** A glossy glass bead: lit from the top left, with a bright specular dot. */

@@ -1,5 +1,8 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
@@ -165,28 +168,23 @@ private fun LockClock(store: Store, now: Long, big: Boolean, start: Boolean = fa
     val thin = rememberFace("sans-serif-thin")
     val d = LocalDensity.current
     val portrait = LocalPortrait.current
-    Column(horizontalAlignment = if (start) Alignment.Start else Alignment.CenterHorizontally) {
-        VText(greeting(now) + (if (store.hubName.isNotBlank() && store.hubName != "Home") ", ${store.hubName}" else ""), size = Type.body, color = lerpTeal(), spacing = 0.4.sp)
-        Gap(h = 4.dp)
-        VText(SimpleDateFormat("EEEE d MMMM", Locale.UK).format(Date(now)), size = Type.title2, color = V.Text.copy(alpha = 0.86f), font = SansLight)
-        Gap(h = 16.dp)
-        RollingText(
-            SimpleDateFormat(if (store.use24h) "HH:mm" else "h:mm", Locale.UK).format(Date(now)),
-            with(d) { (if (big) (if (portrait) 168.sp else 150.sp) else 96.sp).toPx() }, thin,
-            Modifier.breathingGlow(tick, Ambience.LOCK, 1.3f), tick = tick,
-        )
-        Gap(h = 24.dp)
+    // 2.0.1: the lock screen wears Home's octagon dial, so the tablet has one clock face everywhere
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        DotLabel(greeting(now) + (if (store.hubName.isNotBlank() && store.hubName != "Home") ", ${store.hubName}" else ""), V.Teal, Modifier.widthIn(max = 420.dp), color = lerpTeal())
+        Gap(h = 12.dp)
+        VoidDial(now, store.use24h, Modifier.size(if (big) (if (portrait) 440.dp else 400.dp) else 260.dp).breathingGlow(tick, Ambience.LOCK, 1.3f).semantics(mergeDescendants = true) {})
+        Gap(h = 12.dp)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             wx?.let { w ->
-                Row(Modifier.glass(Pill, 0.7f).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    WxIcon(w.code, w.isDay, Modifier.size(30.dp))
+                Row(Modifier.glass(Radius.Control, 0.7f).padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    WxIcon(w.code, w.isDay, Modifier.size(26.dp))
                     Gap(w = 8.dp)
-                    VText("${t(w.temp)}  ${wxWords(w.code)}", size = Type.body, color = V.Text)
+                    VText("${t(w.temp)}  ${wxWords(w.code)}".uppercase(), size = Type.label, font = SansMedium, spacing = 1.5.sp, color = V.Text)
                 }
             }
-            Row(Modifier.glass(Pill, 0.7f).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.glass(Radius.Control, 0.7f).padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 BatteryGlyph(bat)
-                if (bat.pct >= 0) { Gap(w = 8.dp); VText("${bat.pct}%" + if (bat.charging) "  Charging" else "", size = Type.body, color = V.Text) }
+                if (bat.pct >= 0) { Gap(w = 8.dp); VText("${bat.pct}%" + if (bat.charging) "  CHARGING" else "", size = Type.label, font = SansMedium, spacing = 1.5.sp, color = V.Text) }
             }
         }
     }
@@ -203,19 +201,19 @@ private fun lerpTeal(): Color = androidx.compose.ui.graphics.lerp(V.Teal, Color.
 private fun LockToday(store: Store, now: Long) {
     val wx by WeatherRepo.state
     val next = com.andysocial.voidos.AlarmMath.soonest(com.andysocial.voidos.Alarms.list.value, now, com.andysocial.voidos.Alarms.zone)
-    Column(Modifier.fillMaxWidth().glass(Oct, 0.75f).padding(horizontal = 20.dp, vertical = 16.dp)) {
+    VCard("Today", Modifier.fillMaxWidth()) {
         NextEventLine(store, V.Text)
         Gap(h = 8.dp)
         Row(verticalAlignment = Alignment.CenterVertically) {
             val day = wx?.days?.firstOrNull()
             Column(Modifier.weight(1f)) {
-                VText(day?.let { "${t(it.max)} / ${t(it.min)}" } ?: "--", size = Type.title2, color = V.White, font = SansLight)
-                VText(day?.let { if (it.rain > 0) "${it.rain}% chance of rain" else wxWords(it.code) } ?: "Weather when online", size = Type.label, color = V.Muted)
+                VText(day?.let { "${t(it.max)} / ${t(it.min)}" } ?: "\u2014", size = Type.title2, color = V.White, font = SansLight)
+                VText((day?.let { if (it.rain > 0) "${it.rain}% rain" else wxWords(it.code) } ?: "No data").uppercase(), size = Type.caption, font = SansMedium, spacing = 1.5.sp, color = V.Muted)
             }
             Gap(w = 16.dp)
             Column(Modifier.weight(1f)) {
-                VText(next?.let { SimpleDateFormat(if (store.use24h) "HH:mm" else "h:mm a", Locale.UK).format(Date(it.second)) } ?: "No alarm", size = Type.title2, color = V.White, font = SansLight)
-                VText(if (next != null) "Next alarm" else "Set one in Tools", size = Type.label, color = V.Muted)
+                VText(next?.let { SimpleDateFormat(if (store.use24h) "HH:mm" else "h:mm a", Locale.UK).format(Date(it.second)) } ?: "\u2014", size = Type.title2, color = V.White, font = SansLight)
+                VText(if (next != null) "NEXT ALARM" else "NO ALARM", size = Type.caption, font = SansMedium, spacing = 1.5.sp, color = V.Muted)
             }
         }
     }
@@ -230,7 +228,7 @@ private fun LockCards(store: Store, now: Long) {
     if (quiet) LockToday(store, now)
     p?.takeIf { it.title.isNotBlank() }?.let { np ->
         Row(
-            Modifier.fillMaxWidth().glass(Oct, 0.8f).padding(12.dp),
+            Modifier.fillMaxWidth().pane(Radius.Card).padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.size(56.dp).clip(OctS).background(V.Panel2), contentAlignment = Alignment.Center) {
@@ -251,7 +249,7 @@ private fun LockCards(store: Store, now: Long) {
     }
     timers.take(3).forEach { tm ->
         Row(
-            Modifier.fillMaxWidth().glass(OctS, 0.8f).padding(horizontal = 16.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth().pane(Radius.Card).padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Glyph(G.TIMER, V.Teal, Modifier.size(20.dp))
@@ -263,13 +261,13 @@ private fun LockCards(store: Store, now: Long) {
     if (store.lockNotices) {
         notices.take(if (LocalPortrait.current) 5 else 3).forEach { n ->
             Row(
-                Modifier.fillMaxWidth().glass(OctS, 0.8f).padding(horizontal = 16.dp, vertical = 12.dp),
+                Modifier.fillMaxWidth().pane(Radius.Card).padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Glyph(G.BELL, V.Muted, Modifier.size(20.dp))
                 Gap(w = 12.dp)
                 Column(Modifier.weight(1f)) {
-                    VText("${n.appName} \u00b7 ${n.title}", size = Type.label, color = V.Muted, maxLines = 1)
+                    VText("${n.appName} \u00b7 ${n.title}".uppercase(), size = Type.caption, font = SansMedium, spacing = 1.2.sp, color = V.Muted, maxLines = 1)
                     if (n.text.isNotBlank()) VText(n.text, size = Type.label, color = V.Text, font = Sans, maxLines = 1)
                 }
             }
@@ -282,9 +280,8 @@ private fun SwipeHint() {
     val now = rememberNow(60)
     val bob = sin((now % 1600) / 1600.0 * 2 * PI).toFloat()
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Glyph(G.CHEV, V.White.copy(alpha = 0.8f), Modifier.size(24.dp).graphicsLayer { rotationZ = -90f; translationY = bob * 8f; alpha = 0.55f + 0.45f * (1 - bob) / 2 })
-        Gap(h = 4.dp)
-        VText("Swipe up to open", size = Type.caption, color = V.Muted, align = TextAlign.Center, spacing = 0.5.sp)
+        Glyph(G.CHEV, V.White.copy(alpha = 0.8f), Modifier.size(24.dp).semantics { contentDescription = "Swipe up to open" }.graphicsLayer { rotationZ = -90f; translationY = bob * 8f; alpha = 0.55f + 0.45f * (1 - bob) / 2 })
+
     }
 }
 
@@ -303,8 +300,8 @@ fun LockPin(store: Store, title: String, onOk: () -> Unit, onCancel: () -> Unit)
             onPin = { onOk() },
         )
         Gap(h = 16.dp)
-        Box(Modifier.clip(Pill).clickable { onCancel() }.padding(horizontal = 24.dp, vertical = 10.dp)) {
-            VText("Cancel", size = Type.body, color = V.Text)
+        Box(Modifier.glass(Radius.Control, 0.6f).clickable { onCancel() }.padding(horizontal = 24.dp, vertical = 10.dp)) {
+            VText("CANCEL", size = Type.label, font = SansMedium, spacing = 2.sp, color = V.Text)
         }
     }
 }
@@ -315,6 +312,6 @@ private fun LockClockSmall(store: Store, now: Long) {
     val t = java.time.Instant.ofEpochMilli(now).atZone(java.time.ZoneId.systemDefault())
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.graphicsLayer { alpha = 0.55f }) {
         VText(t.format(java.time.format.DateTimeFormatter.ofPattern(if (store.use24h) "HH:mm" else "h:mm")), size = Type.large, color = V.White, font = SansLight)
-        VText(t.format(java.time.format.DateTimeFormatter.ofPattern("EEEE d MMMM")), size = Type.label, color = V.Text)
+        VText(t.format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM")).uppercase(), size = Type.caption, font = SansMedium, spacing = 2.sp, color = V.Text)
     }
 }

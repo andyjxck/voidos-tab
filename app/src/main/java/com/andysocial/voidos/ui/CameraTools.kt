@@ -1,5 +1,7 @@
 package com.andysocial.voidos.ui
 
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.testTag
 import android.Manifest
 import android.app.Activity
 import android.content.Context
@@ -115,7 +117,7 @@ fun LightPane(edge: Boolean = false) {
 @Composable
 private fun GlassSlider(label: String, value: Float, onChange: (Float) -> Unit) {
     Column(Modifier.glass(Radius.Control, 0.6f).padding(horizontal = Grid.l, vertical = Grid.s)) {
-        VText(label, size = Type.label, color = V.Muted)
+        Label(label)
         VSlider(value, Modifier.fillMaxWidth(), onChange = onChange)
     }
 }
@@ -176,7 +178,7 @@ fun CameraPane(mode: CamMode, edge: Boolean = false) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Box(Modifier.glass(Pill, 0.7f).clickable {
                 Thread { val ok = Policy.grantSelf(ctx, Manifest.permission.CAMERA); if (ok) allowed = true }.start()
-            }.padding(horizontal = Grid.xl, vertical = Grid.m)) { VText("Use the camera", size = Type.body, color = V.Text) }
+            }.padding(horizontal = Grid.xl, vertical = Grid.m)) { VText("USE THE CAMERA", size = Type.label, font = SansMedium, spacing = 2.sp, color = V.Text) }
         }
         return
     }
@@ -218,6 +220,19 @@ fun CameraPane(mode: CamMode, edge: Boolean = false) {
             },
             modifier = Modifier.fillMaxSize().graphicsLayer { if (mode == CamMode.MIRROR) scaleX = -1f },
         )
+        if (mode == CamMode.SCAN && found == null) {
+            // 2.0.1: a VoidOS viewfinder: four chamfered teal corner brackets, nothing else
+            androidx.compose.foundation.Canvas(Modifier.align(Alignment.Center).size(260.dp).testTag("qr_frame")) {
+                val k = size.minDimension * 0.16f; val w = 3.dp.toPx(); val c = V.Teal.copy(alpha = 0.9f)
+                val e = size.width; val h = size.height; val j = k * 0.35f
+                fun br(p: List<androidx.compose.ui.geometry.Offset>) = drawPath(androidx.compose.ui.graphics.Path().apply { moveTo(p[0].x, p[0].y); p.drop(1).forEach { lineTo(it.x, it.y) } }, c, style = androidx.compose.ui.graphics.drawscope.Stroke(w))
+                fun o(x: Float, y: Float) = androidx.compose.ui.geometry.Offset(x, y)
+                br(listOf(o(0f, k), o(0f, j), o(j, 0f), o(k, 0f)))
+                br(listOf(o(e - k, 0f), o(e - j, 0f), o(e, j), o(e, k)))
+                br(listOf(o(e, h - k), o(e, h - j), o(e - j, h), o(e - k, h)))
+                br(listOf(o(k, h), o(j, h), o(0f, h - j), o(0f, h - k)))
+            }
+        }
         if (mode == CamMode.ZOOM) {
             DisposableEffect(zoom, cam) { cam?.cameraControl?.setLinearZoom(zoom); onDispose { } }
             Box(Modifier.align(Alignment.BottomCenter).padding(Grid.xl).fillMaxWidth(0.6f)) { GlassSlider("Zoom", zoom) { zoom = it } }
@@ -227,10 +242,11 @@ fun CameraPane(mode: CamMode, edge: Boolean = false) {
                 Modifier.align(Alignment.BottomCenter).padding(Grid.xl).fillMaxWidth(0.8f).glass(Radius.Card, 0.75f).padding(Grid.l),
                 verticalArrangement = Arrangement.spacedBy(Grid.s),
             ) {
+                DotLabel("Scanned", V.Green)
                 VText(text, size = Type.body, color = V.Text, maxLines = 4)
                 Row(horizontalArrangement = Arrangement.spacedBy(Grid.s)) {
-                    Box(Modifier.glass(Pill, 0.6f).clickable { copy(ctx, text) }.padding(horizontal = Grid.l, vertical = Grid.s)) { VText("Copy", size = Type.label, color = V.Text) }
-                    Box(Modifier.glass(Pill, 0.6f).clickable { found = null }.padding(horizontal = Grid.l, vertical = Grid.s)) { VText("Scan again", size = Type.label, color = V.Text) }
+                    Box(Modifier.glass(Pill, 0.6f).clickable { copy(ctx, text) }.padding(horizontal = Grid.l, vertical = Grid.s)) { VText("COPY", size = Type.caption, font = SansMedium, spacing = 2.sp, color = V.Text) }
+                    Box(Modifier.glass(Pill, 0.6f).clickable { found = null }.padding(horizontal = Grid.l, vertical = Grid.s)) { VText("SCAN AGAIN", size = Type.caption, font = SansMedium, spacing = 2.sp, color = V.Text) }
                 }
             }
         }

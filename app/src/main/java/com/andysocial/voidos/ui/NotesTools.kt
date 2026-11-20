@@ -76,11 +76,11 @@ internal fun InkTool(
 ) {
     val c = when { !enabled -> V.Tick; warn -> V.Coral; on -> V.Teal; else -> V.Text.copy(alpha = 0.86f) }
     Box(
-        Modifier.size(Cell).clip(CircleShape)
+        Modifier.size(Cell).clip(OctBtn)
             .then(
                 when {
-                    warn && enabled -> Modifier.droplet(CircleShape, V.Coral)
-                    on -> Modifier.droplet(CircleShape, V.Teal)
+                    warn && enabled -> Modifier.droplet(OctBtn, V.Coral)
+                    on -> Modifier.droplet(OctBtn, V.Teal)
                     else -> Modifier
                 },
             )
@@ -94,8 +94,8 @@ internal fun InkTool(
 @Composable
 private fun InkValueCell(desc: String, state: String, on: Boolean, onClick: () -> Unit, content: @Composable BoxScope.() -> Unit) {
     Box(
-        Modifier.size(Cell).clip(CircleShape)
-            .then(if (on) Modifier.droplet(CircleShape, V.Teal) else Modifier)
+        Modifier.size(Cell).clip(OctBtn)
+            .then(if (on) Modifier.droplet(OctBtn, V.Teal) else Modifier)
             .semantics { contentDescription = desc; stateDescription = state; role = Role.Button; selected = on }
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -137,7 +137,7 @@ internal fun InkBar(
             { onPanel(if (panel == InkPanel.COLOUR) InkPanel.NONE else InkPanel.COLOUR) }) {
             val c = Color(rgb or (0xFF shl 24))
             Box(
-                Modifier.size(24.dp).clip(CircleShape)
+                Modifier.size(24.dp).clip(OctBtn)
                     .background(Brush.radialGradient(listOf(androidx.compose.ui.graphics.lerp(c, Color.White, 0.4f), c), center = Offset(18f, 14f))),
             )
         }
@@ -145,7 +145,7 @@ internal fun InkBar(
         InkValueCell("Size", sizeLabel, panel == InkPanel.SIZE, { onPanel(if (panel == InkPanel.SIZE) InkPanel.NONE else InkPanel.SIZE) }) {
             val t = sliderFromSize(size, if (tool == TOOL_ERASER) MIN_ERASER else MIN_PEN, if (tool == TOOL_ERASER) MAX_ERASER else MAX_PEN)
             val d = (4f + 18f * t).dp
-            Box(Modifier.size(d).clip(CircleShape).background(if (panel == InkPanel.SIZE) V.Teal else V.Text.copy(alpha = 0.86f)))
+            Box(Modifier.size(d).clip(OctBtn).background(if (panel == InkPanel.SIZE) V.Teal else V.Text.copy(alpha = 0.86f)))
         }
         InkTool(R.drawable.vi_ink_brush, "Brush options", on = panel == InkPanel.BRUSH) {
             onPanel(if (panel == InkPanel.BRUSH) InkPanel.NONE else InkPanel.BRUSH)
@@ -183,7 +183,7 @@ internal fun ColourPanel(
         ColourWheel(hsv[0], hsv[1], hsv[2], wheel) { h, s -> onColour(hsvToArgb(h, s, if (hsv[2] < 0.05f) 1f else hsv[2])) }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
-                Modifier.size(52.dp).clip(CircleShape).background(Color(withAlpha(rgb, opacity))),
+                Modifier.size(52.dp).clip(OctBtn).background(Color(withAlpha(rgb, opacity))),
             )
             VText(hex(rgb), size = Type.caption, color = V.Muted, align = TextAlign.Center)
             InkTool(R.drawable.vi_ink_eyedropper, if (picking) "Picking a colour from the page" else "Pick a colour from the page", on = picking) { onPick() }
@@ -203,12 +203,12 @@ internal fun ColourPanel(
         chips.forEach { c ->
             val on = (c and 0xFFFFFF) == (rgb and 0xFFFFFF)
             Box(
-                Modifier.size(26.dp).clip(CircleShape)
-                    .then(if (on) Modifier.droplet(CircleShape, V.Teal) else Modifier)
+                Modifier.size(26.dp).clip(OctBtn)
+                    .then(if (on) Modifier.droplet(OctBtn, V.Teal) else Modifier)
                     .semantics { contentDescription = "Colour ${hex(c)}"; selected = on }
                     .clickable { onColour(c or (0xFF shl 24)) },
                 contentAlignment = Alignment.Center,
-            ) { Box(Modifier.size(if (on) 16.dp else 22.dp).clip(CircleShape).background(Color(c or (0xFF shl 24)))) }
+            ) { Box(Modifier.size(if (on) 16.dp else 22.dp).clip(OctBtn).background(Color(c or (0xFF shl 24)))) }
         }
     }
 }

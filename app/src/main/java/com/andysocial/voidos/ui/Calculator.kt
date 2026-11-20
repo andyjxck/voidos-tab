@@ -256,7 +256,7 @@ private fun CalcKey(k: String, size: Dp, onKey: (String) -> Unit) {
     val op = k in listOf("÷", "×", "−", "+")
     val eq = k == "="
     val fn = k in listOf("AC", "( )", "%", "±")
-    val shape = RoundedCornerShape(size * 0.34f)
+    val shape = Chamfer(size * 0.30f)
     Box(
         Modifier.size(size).clip(shape)
             .background(when { eq -> V.Teal.copy(alpha = 0.85f); op -> V.Teal.copy(alpha = 0.18f); fn -> Color.White.copy(alpha = 0.12f); else -> Color.White.copy(alpha = 0.07f) })

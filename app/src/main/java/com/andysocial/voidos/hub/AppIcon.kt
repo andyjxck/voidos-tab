@@ -1,5 +1,8 @@
 package com.andysocial.voidos.hub
 
+import com.andysocial.voidos.ui.OctBtn
+import com.andysocial.voidos.ui.Pill
+import com.andysocial.voidos.ui.Chamfer
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -89,7 +92,7 @@ fun AppIcon(app: HubApp, size: Dp, modifier: Modifier = Modifier) {
     if (img == null && pre == null && app.icon.isNotBlank()) {
         LaunchedEffect(app.icon) { AppIcons.load(ctx, app.icon)?.let { img = it.asImageBitmap() } }
     }
-    val shape = RoundedCornerShape(size * 0.225f)
+    val shape = com.andysocial.voidos.ui.Chamfer(size * 0.22f)
     val i = img
     if (i != null) {
         Image(i, app.name, modifier.size(size).clip(shape), contentScale = ContentScale.Crop)

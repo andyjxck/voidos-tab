@@ -225,7 +225,7 @@ fun rememberFace(name: String): Typeface {
  * left and down; this doesn't.
  */
 @Composable
-private fun InkText(text: String, sizePx: Float, color: Color, face: Typeface, spacingEm: Float = 0f, modifier: Modifier = Modifier) {
+internal fun InkText(text: String, sizePx: Float, color: Color, face: Typeface, spacingEm: Float = 0f, modifier: Modifier = Modifier) {
     val paint = remember(face, sizePx, spacingEm) {
         Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = face; textSize = sizePx; letterSpacing = spacingEm }
     }
@@ -282,35 +282,7 @@ private fun Dial(store: Store, now: Long, onOpen: (Module) -> Unit, scale: Float
         val timePx = apo * 0.56f
         val sideDp = with(d) { (apo * 2.62f).toDp() }
         Box(Modifier.align(Alignment.Center).size(sideDp), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.fillMaxSize().testTag("tick_ring")) {
-                val c = Offset(size.width / 2f, size.height / 2f)
-                val oct = apo                            // the glass octagon
-                val ringIn = apo * 1.10f                 // ticks start just outside it
-                // glass: a faint fill and two rims, the outer one catching the light along the cuts
-                drawPath(octPath(c, oct), Color.White.copy(alpha = 0.045f))
-                drawPath(octPath(c, oct), Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.30f), V.Teal.copy(alpha = 0.22f), Color.White.copy(alpha = 0.08f)), c.y - oct, c.y + oct),
-                    style = Stroke(width = apo * 0.012f))
-                drawPath(octPath(c, oct * 0.955f), V.Teal.copy(alpha = 0.10f), style = Stroke(width = apo * 0.006f))
-                // the 60 ticks, following the octagon (not a circle)
-                for (i in 0 until 60) {
-                    val t = i / 60.0 * 2 * PI - PI / 2
-                    val quarter = i % 15 == 0
-                    val major = i % 5 == 0
-                    val r0 = octRadius(ringIn, t)
-                    val len = apo * when { quarter -> 0.11f; major -> 0.075f; else -> 0.045f }
-                    val lit = i <= sec
-                    val col = if (lit) ringCol.copy(alpha = if (quarter) 1f else 0.85f) else Color.White.copy(alpha = if (quarter) 0.34f else if (major) 0.22f else 0.12f)
-                    val dx = cos(t).toFloat(); val dy = sin(t).toFloat()
-                    drawLine(col, Offset(c.x + dx * r0, c.y + dy * r0), Offset(c.x + dx * (r0 + len), c.y + dy * (r0 + len)),
-                        apo * when { quarter -> 0.018f; major -> 0.013f; else -> 0.008f }, StrokeCap.Round)
-                }
-                // the bead glides between seconds, on the ring's outer edge
-                val bt = (sec + ms) / 60.0 * 2 * PI - PI / 2
-                val br = octRadius(ringIn, bt) + apo * 0.15f
-                val bp = Offset(c.x + cos(bt).toFloat() * br, c.y + sin(bt).toFloat() * br)
-                drawCircle(Brush.radialGradient(listOf(ringCol.copy(alpha = 0.45f), Color.Transparent), bp, apo * 0.06f), apo * 0.06f, bp)
-                drawCircle(ringCol, apo * 0.018f, bp)
-            }
+            Canvas(Modifier.fillMaxSize().testTag("tick_ring")) { octDialTicks(Offset(size.width / 2f, size.height / 2f), apo, sec, ms, ringCol) }
             // the time sits dead centre; the date and the seconds hang off it at equal distances
             RollingText(
                 SimpleDateFormat(fmt, Locale.UK).format(Date(now)), timePx, light,
@@ -378,7 +350,7 @@ private fun NextAlarm(now: Long, use24h: Boolean, px: Float, top: Boolean, onOpe
     val d = LocalDensity.current
     val fs = with(d) { (24 * px).toSp() }
     Row(
-        Modifier.padding(top = if (top) 12.dp else 0.dp).clip(RoundedCornerShape(50)).tap { onOpen(Module.TOOLS) }
+        Modifier.padding(top = if (top) 12.dp else 0.dp).clip(Pill).tap { onOpen(Module.TOOLS) }
             .padding(horizontal = 14.dp, vertical = 8.dp).testTag("next_alarm"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -394,7 +366,7 @@ private fun StopwatchPill(now: Long, px: Float, onOpen: (Module) -> Unit) {
     val d = LocalDensity.current
     val fs = with(d) { (30 * px).toSp() }
     Row(
-        Modifier.glass(RoundedCornerShape(50), 0.8f).tap { onOpen(Module.TOOLS) }
+        Modifier.glass(Pill, 0.8f).tap { onOpen(Module.TOOLS) }
             .padding(horizontal = with(d) { (22 * px).toDp() }, vertical = with(d) { (11 * px).toDp() }).testTag("stopwatch_pill"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -413,11 +385,11 @@ private fun TimerPills(running: List<KTimer>, now: Long, px: Float, onOpen: (Mod
         running.take(2).forEach { t ->
             val soon = t.remaining(now) < 60_000
             Row(
-                Modifier.glass(RoundedCornerShape(50), 0.8f)
+                Modifier.glass(Pill, 0.8f)
                     .tap { onOpen(Module.TOOLS) }.padding(horizontal = with(d) { (22 * px).toDp() }, vertical = with(d) { (11 * px).toDp() }),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(Modifier.size(10.dp).clip(RoundedCornerShape(50)).background(if (soon) V.Coral else V.Teal))
+                Box(Modifier.size(10.dp).clip(Pill).background(if (soon) V.Coral else V.Teal))
                 Gap(w = 8.dp)
                 VText(t.label.take(14), size = fs * 0.85f, color = V.Muted, maxLines = 1)
                 Gap(w = 8.dp)
@@ -431,7 +403,7 @@ private fun TimerPills(running: List<KTimer>, now: Long, px: Float, onOpen: (Mod
 @Composable
 private fun FaceEditButton(editing: Boolean, onClick: () -> Unit) {
     Box(
-        Modifier.padding(4.dp).size(42.dp).clip(CircleShape).background(if (editing) V.Teal else V.Panel.copy(alpha = 0.7f)).tap(onClick),
+        Modifier.padding(4.dp).size(42.dp).clip(OctBtn).background(if (editing) V.Teal else V.Panel.copy(alpha = 0.7f)).tap(onClick),
         contentAlignment = Alignment.Center,
     ) { Glyph(if (editing) G.CHECK else G.PLUS, if (editing) V.Bg else V.Muted, Modifier.size(20.dp)) }
 }
@@ -475,7 +447,7 @@ private fun WidgetMenu(store: Store, modifier: Modifier, onDone: () -> Unit) {
                 // a note on the face: its colour dot sits by the tick, tap the dot to change the colour
                 row(n.text.lineSequence().firstOrNull()?.ifBlank { null } ?: if (n.ink.isNotEmpty()) "Drawing" else "Empty note", G.NOTES, c, "note", n.id) {
                     Box(
-                        Modifier.size(28.dp).clip(CircleShape).tap { store.setNoteColour(n.id, (n.colour + 1).mod(V.Lap.size)) }
+                        Modifier.size(28.dp).clip(OctBtn).tap { store.setNoteColour(n.id, (n.colour + 1).mod(V.Lap.size)) }
                             .semantics { contentDescription = "Note colour" },
                         contentAlignment = Alignment.Center,
                     ) { Box(Modifier.size(14.dp).clip(CircleShape).background(c)) }
@@ -530,7 +502,7 @@ private fun WidgetLayer(store: Store, now: Long, editing: Boolean, onOpen: (Modu
                 WidgetBody(store, wd, now, onOpen, lifted = held != null)
             }
             if (editing) Box(
-                Modifier.align(Alignment.TopEnd).offset(6.dp, (-6).dp).size(28.dp).clip(RoundedCornerShape(50))
+                Modifier.align(Alignment.TopEnd).offset(6.dp, (-6).dp).size(28.dp).clip(Pill)
                     .background(V.Coral).tap { store.removeWidget(wd.id) },
                 contentAlignment = Alignment.Center,
             ) { Glyph(G.CLOSE, V.Bg, Modifier.size(14.dp)) }
@@ -538,3 +510,65 @@ private fun WidgetLayer(store: Store, now: Long, editing: Boolean, onOpen: (Modu
     }
 }
 
+
+
+/**
+ * 2.0.1: the merged face's octagon and its 60-tick ring, shared by Home, the lock screen and
+ * standby so every clock on the tablet is the same clock. [apo] is the octagon's half-height;
+ * the ticks are lit in [ringCol] up to [sec], with a bead gliding round the outside. [dim]
+ * scales everything down for standby.
+ */
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.octDialTicks(c: Offset, apo: Float, sec: Int, ms: Float, ringCol: Color, dim: Float = 1f, bead: Boolean = true) {
+    val oct = apo
+    val ringIn = apo * 1.10f
+    drawPath(octPath(c, oct), Color.White.copy(alpha = 0.045f * dim))
+    drawPath(octPath(c, oct), Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.30f * dim), V.Teal.copy(alpha = 0.22f * dim), Color.White.copy(alpha = 0.08f * dim)), c.y - oct, c.y + oct),
+        style = Stroke(width = apo * 0.012f))
+    drawPath(octPath(c, oct * 0.955f), V.Teal.copy(alpha = 0.10f * dim), style = Stroke(width = apo * 0.006f))
+    for (i in 0 until 60) {
+        val t = i / 60.0 * 2 * PI - PI / 2
+        val quarter = i % 15 == 0
+        val major = i % 5 == 0
+        val r0 = octRadius(ringIn, t)
+        val len = apo * when { quarter -> 0.11f; major -> 0.075f; else -> 0.045f }
+        val lit = i <= sec
+        val col = if (lit) ringCol.copy(alpha = (if (quarter) 1f else 0.85f) * dim) else Color.White.copy(alpha = (if (quarter) 0.34f else if (major) 0.22f else 0.12f) * dim)
+        val dx = cos(t).toFloat(); val dy = sin(t).toFloat()
+        drawLine(col, Offset(c.x + dx * r0, c.y + dy * r0), Offset(c.x + dx * (r0 + len), c.y + dy * (r0 + len)),
+            apo * when { quarter -> 0.018f; major -> 0.013f; else -> 0.008f }, StrokeCap.Round)
+    }
+    if (!bead) return
+    val bt = (sec + ms) / 60.0 * 2 * PI - PI / 2
+    val br = octRadius(ringIn, bt) + apo * 0.15f
+    val bp = Offset(c.x + cos(bt).toFloat() * br, c.y + sin(bt).toFloat() * br)
+    drawCircle(Brush.radialGradient(listOf(ringCol.copy(alpha = 0.45f * dim), Color.Transparent), bp, apo * 0.06f), apo * 0.06f, bp)
+    drawCircle(ringCol.copy(alpha = dim), apo * 0.018f, bp)
+}
+
+/**
+ * The same dial as Home's, on its own: octagon, tick ring, small-caps date, Manrope time and
+ * the amber seconds. Sized to fit its box. Used by the lock screen, standby and the PIN pad.
+ */
+@Composable
+fun VoidDial(now: Long, use24h: Boolean, modifier: Modifier = Modifier, ring: Color = V.Amber, dim: Float = 1f, seconds: Boolean = true) {
+    val light = rememberFace("sans-serif-light")
+    val medium = rememberFace("sans-serif-medium")
+    val d = LocalDensity.current
+    val cal = java.util.Calendar.getInstance().apply { timeInMillis = now }
+    val sec = cal.get(java.util.Calendar.SECOND)
+    val ms = (now % 1000L).toFloat() / 1000f
+    BoxWithConstraints(modifier.testTag("void_dial"), contentAlignment = Alignment.Center) {
+        val side = with(d) { minOf(maxWidth, maxHeight).toPx() }
+        val apo = side / 2.62f
+        val timePx = apo * 0.56f
+        val time = SimpleDateFormat(if (use24h) "HH:mm" else "h:mm", Locale.UK).format(Date(now))
+        Canvas(Modifier.fillMaxSize()) { octDialTicks(Offset(size.width / 2f, size.height / 2f), apo, if (seconds) sec else 59, ms, ring, dim, bead = seconds) }
+        InkText(time, timePx, V.White.copy(alpha = 0.92f * dim), light, -0.01f, Modifier.testTag("dial_time"))
+        Box(Modifier.offset { IntOffset(0, -(timePx * 0.72f).roundToInt()) }) {
+            InkText(SimpleDateFormat("EEE d MMM", Locale.UK).format(Date(now)).uppercase(), timePx * 0.14f, V.Text.copy(alpha = 0.72f * dim), medium, 0.22f)
+        }
+        if (seconds) Box(Modifier.offset { IntOffset(0, (timePx * 0.74f).roundToInt()) }) {
+            VText("%02d".format(sec), size = with(d) { (timePx * 0.19f).toSp() }, color = ring.copy(alpha = dim), font = Jupi, maxLines = 1)
+        }
+    }
+}
