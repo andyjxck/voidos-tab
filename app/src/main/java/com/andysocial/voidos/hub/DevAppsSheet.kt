@@ -126,7 +126,7 @@ fun DevAppsEditor(store: Store) {
                 Gap(w = 10.dp)
                 Column(Modifier.weight(1f)) {
                     VText(a.name, size = Type.body, color = V.Text, maxLines = 1)
-                    VText(listOf(a.pkg, a.url).filter { it.isNotBlank() }.joinToString(" · "), size = Type.caption, color = V.Muted, maxLines = 1)
+                    VText(listOf(a.pkg, a.url).filter { it.isNotBlank() }.joinToString(" · "), size = Type.caption, color = V.Muted, maxLines = 2)
                 }
                 VText("Remove", size = Type.label, color = V.Coral, font = SansMedium,
                     modifier = Modifier.clip(RoundedCornerShape(8.dp)).tap { store.saveDevApps(DevApps.encode(list.filterIndexed { j, _ -> j != i }).ifEmpty { "-||-" }) }.padding(8.dp))
