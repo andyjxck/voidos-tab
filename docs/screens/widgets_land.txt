@@ -1,1 +1,13 @@
 renders=176
+widget_sound_0.6x0.6   TEXT CUT  "Pick up the long ladder from Dave and check the attic hatch above the gents before Friday" box=94 x 62 text=94 x 62 lines=4 (ellipsized)
+widget_sound_1.0x1.0   TEXT CUT  "Pick up the long ladder from Dave and check the attic hatch above the gents before Friday" box=158 x 102 text=158 x 102 lines=4 (ellipsized)
+widget_sound_1.7x1.7   TEXT CUT  "Pick up the long ladder from Dave and check the attic hatch above the gents before Friday" box=267 x 210 text=267 x 210 lines=5 (ellipsized)
+widget_sound_2.6x2.6   TEXT CUT  "Pick up the long ladder from Dave and check the attic hatch above the gents before Friday" box=409 x 323 text=409 x 323 lines=5 (ellipsized)
+widget_list_0.6x0.6   TEXT CUT  "Pick up the long ladder from Dave and check the attic hatch above the gents before Friday" box=94 x 62 text=94 x 62 lines=4 (ellipsized)
+widget_list_1.0x1.0   TEXT CUT  "Pick up the long ladder from Dave and check the attic hatch above the gents before Friday" box=158 x 102 text=158 x 102 lines=4 (ellipsized)
+widget_list_1.7x1.7   TEXT CUT  "Pick up the long ladder from Dave and check the attic hatch above the gents before Friday" box=267 x 210 text=267 x 210 lines=5 (ellipsized)
+widget_list_2.6x2.6   TEXT CUT  "Pick up the long ladder from Dave and check the attic hatch above the gents before Friday" box=409 x 323 text=409 x 323 lines=5 (ellipsized)
+widget_calendar_0.6x0.6   TEXT CUT  "Pick up the long ladder from Dave and check the attic hatch above the gents before Friday" box=94 x 62 text=94 x 62 lines=4 (ellipsized)
+widget_calendar_1.0x1.0   TEXT CUT  "Pick up the long ladder from Dave and check the attic hatch above the gents before Friday" box=158 x 102 text=158 x 102 lines=4 (ellipsized)
+widget_calendar_1.7x1.7   TEXT CUT  "Pick up the long ladder from Dave and check the attic hatch above the gents before Friday" box=267 x 210 text=267 x 210 lines=5 (ellipsized)
+widget_calendar_2.6x2.6   TEXT CUT  "Pick up the long ladder from Dave and check the attic hatch above the gents before Friday" box=409 x 323 text=409 x 323 lines=5 (ellipsized)
