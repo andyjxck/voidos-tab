@@ -532,6 +532,7 @@ class EdgeOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
                 currentTab = st.hubMetric,
                 onTab = { k -> st.setHub(metric = k); backToVoid(Module.METRICS.name) },
                 apps = com.andysocial.voidos.hub.HubDrawers.appItems(summary),
+                emptyText = com.andysocial.voidos.hub.HubDrawers.emptyText(summary),
                 currentApp = st.hubApp,
                 onApp = { id -> st.setHub(app = id); backToVoid(Module.METRICS.name) },
                 overlay = true,

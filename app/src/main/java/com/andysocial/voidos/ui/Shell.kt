@@ -266,6 +266,7 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
         currentTab = store.hubMetric,
         onTab = { k -> store.setHub(metric = k); go(Module.METRICS, animate = false) },
         apps = appItems,
+        emptyText = com.andysocial.voidos.hub.HubDrawers.emptyText(hubSummary),
         currentApp = store.hubApp,
         onApp = { id -> store.setHub(app = id); go(Module.METRICS, animate = false) },
         // pull a row out past the drawer and drop it on a half of Home: a metric opens the metric view

@@ -27,6 +27,9 @@ object HubDrawers {
     fun metricItems(): List<WheelItem> = Metric.entries.map { item(it.name, it.label, glyph(it), V.Text) }
 
     /** "All apps" first, then the store apps, then the sites. Empty until the hub has a summary. */
+    /** What the right drawer says before anything is linked, the same words as the other empty states. */
+    fun emptyText(s: HubSummary?): String = if (s == null) "Nothing linked yet" else "No apps linked yet"
+
     fun appItems(s: HubSummary?): List<WheelItem> {
         if (s == null || s.apps.isEmpty()) return emptyList()
         return listOf(item(Hub.ALL, "All apps", G.APPS, V.Text)) +
