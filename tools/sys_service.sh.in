@@ -1,0 +1,118 @@
+#!/system/bin/sh
+# VoidOS system app: runs late in every boot.
+# 2.0.4 (module 1.8): reads every setting before writing it, so a normal boot changes nothing and
+# causes no configuration change; one-time grants run only after a module or app update; no
+# fixed sleep; boot timings go to /data/local/tmp/voidos_boot.txt (adb shell cat it).
+MODDIR=${0%/*}
+LOG=/data/local/tmp/voidos_boot.txt
+up() { cut -d' ' -f1 /proc/uptime; }
+T_START=$(up)
+until [ "$(getprop sys.boot_completed)" = "1" ]; do sleep 1; done
+T_BOOT=$(up)
+P=com.andysocial.voidos
+CHANGED=""
+note() { CHANGED="$CHANGED $1"; }
+# sput <namespace> <key> <value>: writes only when the value differs
+sput() {
+  [ "$(settings get $1 $2 2>/dev/null)" = "$3" ] && return 0
+  settings put $1 $2 "$3" && note "$1/$2"
+}
+[ "$(getprop qemu.hw.mainkeys)" = "1" ] || { resetprop qemu.hw.mainkeys 1 2>/dev/null; note mainkeys; }
+sput global policy_control 'immersive.full=*:immersive.preconfirms=*'
+
+# One-time steps (permission grants, appops, notification access): they stick, so they only run
+# again after this module or the VoidOS app is updated or reinstalled.
+STAMP="@SYS_VERSION@ $(pm path $P 2>/dev/null | head -n1)"
+if [ "$(cat $MODDIR/.granted 2>/dev/null)" != "$STAMP" ]; then
+  appops set $P SYSTEM_ALERT_WINDOW allow
+  pm grant $P android.permission.WRITE_SECURE_SETTINGS 2>/dev/null
+  # 1.19: VoidOS's own permissions granted up front, so Android's "Allow VoidOS to..." prompts never show
+  for perm in ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION CAMERA RECORD_AUDIO READ_CALENDAR READ_EXTERNAL_STORAGE WRITE_EXTERNAL_STORAGE; do
+    pm grant $P android.permission.$perm 2>/dev/null
+  done
+  appops set $P WRITE_SETTINGS allow 2>/dev/null
+  appops set $P ACCESS_NOTIFICATIONS allow 2>/dev/null
+  cmd notification allow_listener $P/$P.VoidListener 2>/dev/null
+  cmd notification allow_dnd $P 2>/dev/null
+  echo "$STAMP" > $MODDIR/.granted
+  note grants
+fi
+
+# VoidOS's volume sliders, power menu and PIN pad (an accessibility service)
+S=$P/$P.VoidKeysService
+CUR=$(settings get secure enabled_accessibility_services)
+case "$CUR" in
+  *VoidKeysService*) ;;
+  null|"") settings put secure enabled_accessibility_services $S; note a11y ;;
+  *) settings put secure enabled_accessibility_services "$CUR:$S"; note a11y ;;
+esac
+sput secure accessibility_enabled 1
+# 2.0.1: the VoidOS keyboard is the keyboard
+IME=$P/.keyboard.VoidKeyboardService
+case "$(settings get secure enabled_input_methods)" in
+  *VoidKeyboardService*) ;;
+  *) ime enable $IME >/dev/null 2>&1; note ime-enable ;;
+esac
+if [ "$(settings get secure default_input_method)" != "$IME" ]; then
+  ime set $IME >/dev/null 2>&1
+  settings put secure default_input_method $IME
+  note ime
+fi
+# 2.0.1: Android's own surfaces in VoidOS's colours: dark everywhere (the theme overlay turns the
+# dark palette into VoidOS navy and teal). 2.0.4: night mode is only switched when it is off, and
+# Android keeps it (ui_night_mode 2), so it is already dark from the start of the next boot.
+case "$(cmd uimode night 2>/dev/null)" in
+  *yes*) ;;
+  *) cmd uimode night yes >/dev/null 2>&1; note night ;;
+esac
+sput secure ui_night_mode 2
+# no heads-up banners over VoidOS (its notification listener shows them), no "isn't responding"
+# or crash dialogs
+sput global heads_up_notifications_enabled 0
+sput global hide_error_dialogs 1
+sput secure show_first_crash_dialog_dev_option 0
+sput global show_first_crash_dialog 0
+# The theme overlays are static (android:isStatic, in /vendor/overlay), so Android 10 turns them on
+# itself at every boot. One is only enabled here if it is somehow off, and the state goes to a file
+# so it can be checked over adb.
+OL=$(cmd overlay list 2>/dev/null)
+for O in com.andysocial.voidos.nobar com.andysocial.voidos.theme com.andysocial.voidos.theme.sysui; do
+  echo "$OL" | grep -q "\[x\] $O\$" || { cmd overlay enable --user 0 $O 2>/dev/null; note "overlay:$O"; }
+done
+cmd overlay list 2>/dev/null | grep -i voidos > /data/local/tmp/voidos_overlays.txt 2>/dev/null
+# no "Viewing full screen" or accessibility shortcut dialogs
+sput secure accessibility_shortcut_dialog_shown 1
+sput secure immersive_mode_confirmations confirmed
+T_END=$(up)
+{
+  echo "VoidOS boot (seconds since power-on, module @SYS_VERSION@)"
+  echo "script start:   $T_START"
+  echo "boot completed: $T_BOOT"
+  echo "boot animation started: $(getprop ro.boottime.bootanim) ns"
+  echo "script end:     $T_END"
+  if [ -z "$CHANGED" ]; then echo "changed:        nothing"; else echo "changed:       $CHANGED"; fi
+} > $LOG 2>/dev/null
+# when the boot animation left the screen (the hub had drawn by then)
+(
+  n=0
+  while [ "$(getprop init.svc.bootanim)" = "running" ] && [ $n -lt 120 ]; do sleep 1; n=$((n + 1)); done
+  echo "boot animation gone: $(up)" >> $LOG
+) &
+# 1.3 (VoidOS 1.20.0): a hold on power goes straight to VoidOS's menu (PowerHold.kt), and
+# Android's white dialog is never drawn. VoidOS switches it on itself; this watchdog switches
+# Android's dialog back on whenever VoidOS or its service is missing, so there is always a
+# power menu. A short press still sleeps and wakes the screen.
+voidos_ok() {
+  cmd package list packages -e $P 2>/dev/null | grep -qx "package:$P" || return 1
+  case "$(settings get secure enabled_accessibility_services)" in *VoidKeysService*) ;; *) return 1 ;; esac
+  return 0
+}
+(
+  while true; do
+    if ! voidos_ok && [ "$(settings get global power_button_long_press)" = "5" ]; then
+      settings put global power_button_long_press 1
+      settings delete secure assistant
+    fi
+    sleep 20
+  done
+) &

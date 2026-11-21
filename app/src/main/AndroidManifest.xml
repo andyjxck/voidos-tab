@@ -63,6 +63,7 @@
             android:resizeableActivity="false"
             android:screenOrientation="fullUser"
             android:stateNotNeeded="true"
+            android:theme="@style/Theme.VoidOS.Starting"
             android:windowSoftInputMode="adjustResize"
             >
             <intent-filter>

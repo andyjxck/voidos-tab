@@ -9,6 +9,10 @@
         <item name="android:windowShowWallpaper">false</item>
         <item name="android:windowDisablePreview">false</item>
     </style>
+    <!-- 2.0.4: MainActivity's starting window shows the still logo; onCreate swaps to Theme.VoidOS -->
+    <style name="Theme.VoidOS.Starting" parent="Theme.VoidOS">
+        <item name="android:windowBackground">@drawable/void_starting</item>
+    </style>
     <!-- BootCover: no starting window, no animation; it normally never draws -->
     <style name="Theme.VoidOS.BootCover" parent="Theme.VoidOS">
         <item name="android:windowDisablePreview">true</item>

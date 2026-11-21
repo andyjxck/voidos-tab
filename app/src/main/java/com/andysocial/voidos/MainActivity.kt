@@ -27,11 +27,16 @@ class MainActivity : ComponentActivity() {
     private var swallowTouch = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // 2.0.4: the starting window showed the still logo (Theme.VoidOS.Starting); the screen itself
+        // draws its own background
+        setTheme(R.style.Theme_VoidOS)
         super.onCreate(savedInstanceState)
         TapSound.init(this)
         live = java.lang.ref.WeakReference(this)
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        Policy.applyAll(this)
+        // 2.0.4: the device policies (dozens of system calls, app lists) wait until Home's first
+        // frame is on screen, then run. They persist, so last boot's still hold.
+        afterFirstFrame { applyPoliciesInBackground() }
         excludeEdges()
         EdgeSwipe.debug.value = store.edgeDebug
         com.andysocial.voidos.ui.Ambience.motion.value = store.motion
@@ -276,6 +281,20 @@ class MainActivity : ComponentActivity() {
             "port" -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
             else -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_USER
         }
+    }
+
+    /** Runs [block] on the main thread just after the window's first frame has been drawn. */
+    private fun afterFirstFrame(block: () -> Unit) {
+        val decor = window.decorView
+        androidx.core.view.OneShotPreDrawListener.add(decor) { decor.post(block) }
+    }
+
+    private fun applyPoliciesInBackground() {
+        // the root and keyboard parts already run on their own threads inside applyAll; the device
+        // policy calls stay on the main thread (they touch the store), just after Home has drawn
+        if (isFinishing || isDestroyed) return
+        runCatching { Policy.applyAll(this) }
+        applyBars(); enforceLockTask()
     }
 
     fun applyPolicies() {

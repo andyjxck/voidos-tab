@@ -49,7 +49,8 @@ class VoidApp : Application() {
         prefs.edit().putLong("bootId", bootId).apply()
         KTimers.load(this)
         Alarms.load(this)
-        Alarms.rescheduleAll(this)
+        // 2.0.4: putting the alarms back with AlarmManager doesn't need to hold up Home's first frame
+        Thread { runCatching { Alarms.rescheduleAll(this) } }.apply { isDaemon = true; name = "voidos-alarms"; start() }
         // the VoidOS lock screen comes up every time the screen goes off
         val f = android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_OFF)
         registerReceiver(object : android.content.BroadcastReceiver() {

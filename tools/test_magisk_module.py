@@ -146,6 +146,26 @@ class SystemModule(Common, unittest.TestCase):
                 r = subprocess.run(["sh", "-n", f.name], capture_output=True, text=True)
                 self.assertEqual(r.returncode, 0, f"{name}: {r.stderr}")
 
+    def test_boot_script_changes_nothing_twice(self):
+        # 2.0.4: a normal boot writes nothing, so nothing restarts VoidOS's Home
+        with zipfile.ZipFile(SYSTEM) as z:
+            sv = z.read("service.sh").decode()
+        self.assertNotIn("@SYS_VERSION@", sv)
+        self.assertNotIn("sleep 4", sv)
+        self.assertIn("/data/local/tmp/voidos_boot.txt", sv)
+        # night mode only switched when it is off, and kept on for the next boot
+        self.assertIn('case "$(cmd uimode night 2>/dev/null)" in', sv)
+        self.assertLess(sv.index('case "$(cmd uimode night'), sv.index("cmd uimode night yes"))
+        self.assertIn("sput secure ui_night_mode 2", sv)
+        # no bare settings writes outside the read-first helper and the guarded branches
+        for line in sv.splitlines():
+            t = line.strip()
+            if t.startswith("settings put global policy_control") or t.startswith("settings put global heads_up"):
+                self.fail(f"unguarded write: {t}")
+        # grants only after an update
+        self.assertIn("$MODDIR/.granted", sv)
+        self.assertIn(f"STAMP=\"{mm.SYS_VERSION} ", sv)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

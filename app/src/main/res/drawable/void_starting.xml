@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 2.0.4: VoidOS's starting window: the still "void" logo the boot animation ends on (panel-sized,
+     nodpi), on the VoidOS background, so the hand-over from the boot animation shows no flat screen -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/void_bg" />
+    <item>
+        <bitmap android:src="@drawable/boot_still_port" android:gravity="center" android:filter="true" />
+    </item>
+</layer-list>

@@ -242,8 +242,8 @@ def build(out: Path):
 
 # ---------------------------------------------------------------- system app
 
-SYS_VERSION = "1.7"
-SYS_VERSION_CODE = 8
+SYS_VERSION = "1.8"
+SYS_VERSION_CODE = 9
 PACKAGE = "com.andysocial.voidos"
 APK_RELEASE = vm.ROOT / "app/build/outputs/apk/release/app-release.apk"
 APK_DEBUG = vm.ROOT / "app/build/outputs/apk/debug/app-debug.apk"
@@ -303,74 +303,8 @@ ui_print "  for Magisk safe mode if you ever need Android's bar back)."
 # boot the immersive policy (only an edge swipe could ever bring a bar back, and there is none).
 SYS_PROP_FILE = "qemu.hw.mainkeys=1\n"
 
-SYS_SERVICE = """#!/system/bin/sh
-# VoidOS system app: runs late in every boot.
-until [ "$(getprop sys.boot_completed)" = "1" ]; do sleep 2; done
-sleep 4
-P=com.andysocial.voidos
-resetprop qemu.hw.mainkeys 1 2>/dev/null
-settings put global policy_control 'immersive.full=*:immersive.preconfirms=*'
-appops set $P SYSTEM_ALERT_WINDOW allow
-pm grant $P android.permission.WRITE_SECURE_SETTINGS 2>/dev/null
-# 1.19: VoidOS's own permissions granted up front, so Android's "Allow VoidOS to..." prompts never show
-for perm in ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION CAMERA RECORD_AUDIO READ_CALENDAR READ_EXTERNAL_STORAGE WRITE_EXTERNAL_STORAGE; do
-  pm grant $P android.permission.$perm 2>/dev/null
-done
-appops set $P WRITE_SETTINGS allow 2>/dev/null
-appops set $P ACCESS_NOTIFICATIONS allow 2>/dev/null
-cmd notification allow_listener $P/$P.VoidListener 2>/dev/null
-cmd notification allow_dnd $P 2>/dev/null
-# VoidOS's volume sliders, power menu and PIN pad (an accessibility service)
-S=$P/$P.VoidKeysService
-CUR=$(settings get secure enabled_accessibility_services)
-case "$CUR" in
-  *VoidKeysService*) ;;
-  null|"") settings put secure enabled_accessibility_services $S ;;
-  *) settings put secure enabled_accessibility_services "$CUR:$S" ;;
-esac
-settings put secure accessibility_enabled 1
-# 2.0.1: the VoidOS keyboard is the keyboard
-IME=$P/.keyboard.VoidKeyboardService
-ime enable $IME 2>/dev/null
-ime set $IME 2>/dev/null
-settings put secure default_input_method $IME
-# 2.0.1: Android's own surfaces in VoidOS's colours: dark everywhere (the theme overlay turns the
-# dark palette into VoidOS navy and teal), no heads-up banners over VoidOS (its notification
-# listener shows them), no "isn't responding" or crash dialogs
-cmd uimode night yes 2>/dev/null
-settings put global heads_up_notifications_enabled 0
-settings put global hide_error_dialogs 1
-settings put secure show_first_crash_dialog_dev_option 0 2>/dev/null
-settings put global show_first_crash_dialog 0 2>/dev/null
-# The theme overlays are static (android:isStatic, in /vendor/overlay), so Android 10 turns them on
-# itself at every boot and they can't be switched off by accident. The enables below are a belt-and-
-# braces no-op for them, and the state goes to a file so it can be checked over adb.
-for O in com.andysocial.voidos.nobar com.andysocial.voidos.theme com.andysocial.voidos.theme.sysui; do
-  cmd overlay enable --user 0 $O 2>/dev/null
-done
-cmd overlay list 2>/dev/null | grep -A0 -i voidos > /data/local/tmp/voidos_overlays.txt 2>/dev/null
-# no "Viewing full screen" or accessibility shortcut dialogs
-settings put secure accessibility_shortcut_dialog_shown 1
-settings put secure immersive_mode_confirmations confirmed
-# 1.3 (VoidOS 1.20.0): a hold on power goes straight to VoidOS's menu (PowerHold.kt), and
-# Android's white dialog is never drawn. VoidOS switches it on itself; this watchdog switches
-# Android's dialog back on whenever VoidOS or its service is missing, so there is always a
-# power menu. A short press still sleeps and wakes the screen.
-voidos_ok() {
-  cmd package list packages -e $P 2>/dev/null | grep -qx "package:$P" || return 1
-  case "$(settings get secure enabled_accessibility_services)" in *VoidKeysService*) ;; *) return 1 ;; esac
-  return 0
-}
-(
-  while true; do
-    if ! voidos_ok && [ "$(settings get global power_button_long_press)" = "5" ]; then
-      settings put global power_button_long_press 1
-      settings delete secure assistant
-    fi
-    sleep 20
-  done
-) &
-"""
+# 2.0.4: the boot script lives in tools/sys_service.sh.in (idempotent, writes boot timings)
+SYS_SERVICE = (Path(__file__).resolve().parent / "sys_service.sh.in").read_text().replace("@SYS_VERSION@", SYS_VERSION)
 
 # 1.3: removing the module in Magisk gives a hold on power back to Android's dialog
 SYS_UNINSTALL = """#!/system/bin/sh

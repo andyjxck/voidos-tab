@@ -129,8 +129,10 @@ object HubRepo {
         }
         busy = true
         val url = serverUrl
-        val token = prefs?.getString(K_TOKEN, null)?.let { decrypt(it) }
+        val sealed = prefs?.getString(K_TOKEN, null)
         io.execute {
+            // 2.0.4: the Keystore decrypt is slow at power-on, so it runs here, not on the main thread
+            val token = sealed?.let { runCatching { decrypt(it) }.getOrNull() }
             val result = runCatching { fetch(url, token, ask = true) }
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 busy = false
