@@ -130,7 +130,7 @@ internal fun WidgetBody(store: Store, wd: FaceWidget, now: Long, onOpen: (Module
             .liquidGlass(shape, GlassLook(smoke = if (lifted) 0.9f else 0.72f, depth = if (lifted) 1.6f else 0.9f, shine = if (lifted) 1.3f else 1f, stain = if (lifted) accent else null, stainAlpha = 0.14f))
             .tap {
                 onOpen(when (wd.kind) {
-                    "sky", "forecast" -> Module.WEATHER
+                    "sky", "forecast" -> Module.CALENDAR
                     "stopwatch", "alarm" -> Module.TOOLS; "battery", "focus" -> Module.SYSTEM
                     "hstatus", "hcrash", "hup" -> Module.APPS
                     "hrev", "hdl" -> { store.setHub(app = com.andysocial.voidos.hub.Hub.ALL, metric = if (wd.kind == "hrev") "REVENUE" else "DOWNLOADS"); Module.METRICS }

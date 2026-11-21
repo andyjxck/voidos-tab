@@ -129,7 +129,10 @@ class Store(private val ctx: Context) {
     var edgeDebug by mutableStateOf(p.getBoolean("edgeDebug", false)); private set
     var edgeInApps by mutableStateOf(true); private set // 2.0.1: fixed, no longer a setting
     /** 2.0: the Dev Apps list, "Name|package|url" a line; empty means the built-in list (hub/DevApps.kt). */
-    var devApps by mutableStateOf(p.getString("devApps", "") ?: ""); private set
+    // 2.0.2: Android Settings is taken off a saved Dev Apps list when the app starts
+    var devApps by mutableStateOf((p.getString("devApps", "") ?: "").let { v ->
+        com.andysocial.voidos.hub.DevApps.purged(v)?.also { p.edit().putString("devApps", it).apply() } ?: v
+    }); private set
     fun saveDevApps(v: String) { devApps = v; p.edit().putString("devApps", v).apply() }
     /** 2.0: the metric the hub view and the left drawer last had chosen, and the app. */
     var hubMetric by mutableStateOf(p.getString("hubMetric", "REVENUE") ?: "REVENUE"); private set
@@ -533,4 +536,4 @@ internal fun normDeg(d: Float): Float {
  * 2.0 removed Music, world clocks and the Organise tools, so their widgets go too. Top level, not a
  * Store field: the widgets load while the Store is being built, before its later fields are set.
  */
-internal val RETIRED_WIDGETS = setOf("sound", "list", "calendar", "world")
+internal val RETIRED_WIDGETS = setOf("sound", "list", "calendar", "world", "sky", "forecast")

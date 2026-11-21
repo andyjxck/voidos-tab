@@ -36,11 +36,23 @@ object DevApps {
         DevApp("GitHub", "com.github.android", "https://github.com"),
         DevApp("Browser", "", "https://www.google.com"),
         DevApp("Magisk", "com.topjohnwu.magisk", ""),
-        DevApp("Android Settings", "com.android.settings", ""),
     )
 
-    /** 2.0.1: always on the list, also on a list saved before they were defaults. */
-    private val pinned = defaults.takeLast(2)
+    /** Always on the list, also on a list saved before it was a default. (2.0.2: Magisk only.) */
+    private val pinned = defaults.filter { it.pkg == MAGISK }
+
+    const val MAGISK = "com.topjohnwu.magisk"
+
+    /** 2.0.2: Android Settings is no longer a Dev App, and is taken off any saved list. */
+    val REMOVED = setOf("com.android.settings")
+
+    /** Pure: [saved] (an encoded list) with the removed apps taken out, or null when nothing changes. */
+    fun purged(saved: String): String? {
+        if (saved.isBlank()) return null
+        val list = decode(saved)
+        val kept = list.filter { it.pkg !in REMOVED && !it.name.equals("Android Settings", true) }
+        return if (kept.size == list.size) null else encode(kept)
+    }
 
     fun encode(list: List<DevApp>): String = list.joinToString("\n") { it.line() }
 
@@ -51,7 +63,8 @@ object DevApps {
     }
 
     fun list(store: Store): List<DevApp> {
-        val saved = store.devApps.takeIf { it.isNotBlank() }?.let { decode(it) } ?: return defaults
+        val saved = store.devApps.takeIf { it.isNotBlank() }?.let { decode(it) }
+            ?.filter { it.pkg !in REMOVED && !it.name.equals("Android Settings", true) } ?: return defaults
         return saved + pinned.filter { p -> saved.none { it.pkg == p.pkg } }
     }
 
@@ -96,7 +109,6 @@ object DevApps {
         a.name.contains("fasthosts", true) -> G.WEB
         a.name.contains("browser", true) -> G.GLOBE
         a.pkg == "com.topjohnwu.magisk" -> G.KEY
-        a.pkg == "com.android.settings" -> G.SYSTEM
         else -> G.WEB
     }
 

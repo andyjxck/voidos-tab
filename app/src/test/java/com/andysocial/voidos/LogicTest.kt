@@ -339,7 +339,7 @@ class LogicTest {
 
     @Test fun widgetsSaveTheirPlace() {
         store.saveWidgets(emptyList())
-        store.addWidget("sky"); store.addWidget("sky")
+        store.addWidget("battery"); store.addWidget("battery")
         assertEquals("no duplicates", 1, store.widgets.size)
         store.moveWidget(store.widgets[0].id, 0.25f, 1.7f)
         val fresh = Store(RuntimeEnvironment.getApplication())
@@ -365,7 +365,7 @@ class LogicTest {
 
     @Test fun widgetsStretchAndTurn() {
         store.saveWidgets(emptyList())
-        store.addWidget("sky")
+        store.addWidget("battery")
         val id = store.widgets[0].id
         store.placeWidget(id, 0.3f, 0.4f, 9f, 0.1f, 450f)
         val w = Store(RuntimeEnvironment.getApplication()).widgets[0]

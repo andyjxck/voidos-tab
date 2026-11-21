@@ -13,7 +13,7 @@ import org.junit.Test
 /** The book's rules: up to two pages open side by side, the watch face filling any free half, back again on close. */
 class BookTest {
     private val notes = Pane.screen(Module.NOTES)
-    private val weather = Pane.screen(Module.WEATHER)
+    private val weather = Pane.screen(Module.CALENDAR)
     private val tools = Pane.screen(Module.TOOLS)
     private val yt = Pane.app("com.google.android.youtube")
     private val spotify = Pane.app("com.spotify.music")

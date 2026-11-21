@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -120,10 +121,11 @@ fun HubSettings() {
                 }
                 Box(Modifier.fillMaxWidth().height(1.dp).background(V.Line.copy(alpha = 0.5f)))
             }
-            if (sites.isNotEmpty()) Gap(h = Grid.m)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Grid.s), verticalAlignment = Alignment.CenterVertically) {
-                VField(siteName, { siteName = it }, Modifier.weight(1f), placeholder = "Name")
-                VField(siteUrl, { siteUrl = it }, Modifier.weight(1.6f), placeholder = "https://")
+            Gap(h = if (sites.isNotEmpty()) Grid.l else Grid.s)
+            // 2.0.2: room above and below the inputs, so they don't sit on the card's bottom edge
+            Row(Modifier.fillMaxWidth().padding(bottom = Grid.s).testTag("sites_add"), horizontalArrangement = Arrangement.spacedBy(Grid.m), verticalAlignment = Alignment.CenterVertically) {
+                VField(siteName, { siteName = it }, Modifier.weight(1f).heightIn(min = 48.dp), placeholder = "Name")
+                VField(siteUrl, { siteUrl = it }, Modifier.weight(1.6f).heightIn(min = 48.dp), placeholder = "https://")
                 VButton("Add", enabled = siteName.isNotBlank() && siteUrl.trim().startsWith("https://")) {
                     HubRepo.setSites(ctx, sites + (siteName.trim() to siteUrl.trim())); siteName = ""; siteUrl = ""
                 }

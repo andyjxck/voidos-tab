@@ -117,6 +117,18 @@ object DemoHub {
                 SiteCheck("site:whiteswan", "White Swan site", true, 240, 74, 300),
             ),
             demo = true,
+            // 2.0.2: the hub calendar, a few weeks either side of now
+            events = listOf(
+                HubEvent("f1", now + 10 * day, "scheduled", "demo:buttonpanic", "1.5 scheduled", "Approved, waiting for you"),
+                HubEvent("f2", now + 12 * day, "payout", "", "Apple payout (est.)", "GBP 112.40", estimated = true),
+                HubEvent("f3", now + 20 * day, "ssl", "site:staffhub", "SSL certificate expires", "tws-rota.co.uk", estimated = true),
+                HubEvent("f4", now + 2 * day, "review", "demo:voided", "2.1 in review", "Submitted"),
+                HubEvent("f5", now - 3 * day, "release", "demo:buttonpanic", "1.4.2 released", "Live on the App Store"),
+                HubEvent("f6", now - 9 * day, "phased", "demo:voidballer", "3.0 phased release", "day 7 of 7"),
+                HubEvent("f7", now - 1 * day, "build", "", "voidos-tab v2.0.1", "GitHub release"),
+                HubEvent("f8", now - 16 * day, "review", "demo:sobriety", "1.2 rejected", "Review status"),
+                HubEvent("f9", now + 110 * day, "renewal", "", "Apple Developer renewal", "GBP 79.00"),
+            ),
         )
     }
 }

@@ -77,7 +77,7 @@ data class Pane(val kind: PaneKind, val key: String) {
             if (s.isNullOrEmpty() || s.length < 3 || s[1] != ':') return null
             val key = s.substring(2)
             return when (s[0]) {
-                's' -> runCatching { Module.valueOf(key) }.getOrNull()?.takeIf { it != Module.FACE }?.let { screen(it) }
+                's' -> runCatching { Module.of(key) }.getOrNull()?.takeIf { it != Module.FACE }?.let { screen(it) }
                 'a' -> app(key)
                 else -> null
             }
@@ -328,7 +328,7 @@ fun BookHome(store: Store, face: @Composable () -> Unit, screen: @Composable (Mo
             if (p != null) held.value = p
             val pane = p ?: held.value?.takeIf { shown > 0.01f }
             if (pane == null || pane.kind == PaneKind.APP) continue
-            val m = runCatching { Module.valueOf(pane.key) }.getOrNull() ?: continue
+            val m = runCatching { Module.of(pane.key) }.getOrNull() ?: continue
             val start = if (isFirst) 0.dp else total - half
             Box(
                 Modifier
@@ -393,7 +393,7 @@ internal fun TimeIsland(store: Store, modifier: Modifier = Modifier) {
 
 @Composable
 private fun PaneBody(p: Pane?, face: @Composable () -> Unit, screen: @Composable (Module) -> Unit) {
-    val m = p?.takeIf { it.kind == PaneKind.SCREEN }?.let { runCatching { Module.valueOf(it.key) }.getOrNull() }
+    val m = p?.takeIf { it.kind == PaneKind.SCREEN }?.let { runCatching { Module.of(it.key) }.getOrNull() }
     if (m == null) face() else Box(Modifier.fillMaxSize().padding(top = 52.dp)) { screen(m) }
 }
 

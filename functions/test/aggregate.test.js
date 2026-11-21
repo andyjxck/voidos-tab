@@ -301,3 +301,85 @@ test('sales parsing copes with a BOM, padded headers and CRLF', () => {
   const rows = appstore.parseSales('\uFEFFProvider\tApple Identifier \tUnits\tDeveloper Proceeds\tCurrency of Proceeds\tProduct Type Identifier\r\nAPPLE\t111\t3\t0.70\tgbp\t1F\r\n');
   assert.deepStrictEqual(rows[0], { appleId: '111', units: 3, proceeds: 0.7, currency: 'GBP', type: '1F', parentId: '' });
 });
+
+// ---- 2.0.2: the hub calendar ----
+const events = require('../lib/events');
+
+test('calendar: versions give release, scheduled, pending, phased and review events', () => {
+  const rows = [
+    { attributes: { versionString: '1.5', appStoreState: 'PENDING_DEVELOPER_RELEASE', releaseType: 'SCHEDULED', earliestReleaseDate: '2026-12-01T08:00:00Z', createdDate: '2026-11-15T10:00:00Z' } },
+    { attributes: { versionString: '1.4.1', appVersionState: 'PENDING_APPLE_RELEASE', releaseType: 'AFTER_APPROVAL', createdDate: '2026-11-12T10:00:00Z' } },
+    { attributes: { versionString: '1.4.2', appVersionState: 'IN_REVIEW', createdDate: '2026-11-19T10:00:00Z' } },
+    { attributes: { versionString: '1.4', appStoreState: 'READY_FOR_SALE', createdDate: '2026-11-01T10:00:00Z' }, phased: { phasedReleaseState: 'ACTIVE', startDate: '2026-11-10', currentDayNumber: 3 } },
+  ];
+  const ev = events.versionEvents('asc:111', rows, { version: '1.4', currentVersionReleaseDate: '2026-11-10T07:00:00Z', releaseDate: '2025-03-01T07:00:00Z' });
+  const by = (k) => ev.filter((e) => e.kind === k);
+  assert.strictEqual(by('release').length, 2);
+  assert.ok(by('release').some((e) => e.title === '1.4 released' && e.at === Date.parse('2026-11-10T07:00:00Z')));
+  assert.ok(by('release').some((e) => e.title === 'First release'));
+  assert.deepStrictEqual(by('scheduled').map((e) => [e.title, e.at]), [['1.5 scheduled', Date.parse('2026-12-01T08:00:00Z')]]);
+  assert.deepStrictEqual(by('pending').map((e) => [e.title, e.at]), [['1.4.1 approved', Date.parse('2026-11-12T10:00:00Z')]]);
+  assert.deepStrictEqual(by('review').map((e) => e.title), ['1.4.2 in review']);
+  assert.deepStrictEqual(by('phased').map((e) => [e.detail, e.at]), [['day 3 of 7', Date.parse('2026-11-10T12:00:00Z')]]);
+  assert.ok(ev.every((e) => e.appId === 'asc:111' && e.id));
+});
+
+test('calendar: the review log adds a line only when the state moves', () => {
+  const app = (state, version = '1.4') => [{ id: 'asc:111', review: { state, version, since: Date.parse('2026-11-18T10:00:00Z') } }];
+  let log = events.logReviews([], app('WAITING_FOR_REVIEW'), NOW);
+  assert.strictEqual(log.length, 1);
+  assert.strictEqual(log[0].at, Date.parse('2026-11-18T10:00:00Z'));
+  log = events.logReviews(log, app('WAITING_FOR_REVIEW'), NOW + 3600000);
+  assert.strictEqual(log.length, 1);
+  log = events.logReviews(log, app('IN_REVIEW'), NOW + 7200000);
+  assert.strictEqual(log.length, 2);
+  assert.strictEqual(log[1].at, NOW + 7200000);
+  const ev = events.reviewLogEvents(log);
+  assert.deepStrictEqual(ev.map((e) => e.title), ['1.4 waiting for review', '1.4 in review']);
+});
+
+test('calendar: the summary carries payout, renewal, SSL, domain and GitHub dates', () => {
+  const out = {
+    payout: { nextDate: '2026-12-03', estimate: 12.5, currency: 'GBP' },
+    costs: [{ key: 'apple', label: 'Apple Developer Program', amount: 79, currency: 'GBP', due: '2027-02-14' }, { key: 'eleven', label: 'ElevenLabs' }],
+    sites: [{ appId: 'site:ws', host: 'whiteswanhenley.co.uk', sslDays: 30, domainDays: 200 }],
+    repos: [{ repo: 'andyjxck/voidos-tab', build: 'success', buildAt: NOW - 3600000, sha: 'abc1234', releases: [{ tag: 'v2.0.1', at: NOW - 86400000 }] }],
+  };
+  const ev = events.buildEvents(out, [], { appstore: {} }, NOW, NOW);
+  const k = (x) => ev.find((e) => e.kind === x);
+  assert.strictEqual(k('payout').at, Date.parse('2026-12-03T12:00:00Z'));
+  assert.strictEqual(k('payout').estimated, true);
+  assert.strictEqual(k('renewal').at, Date.parse('2027-02-14T12:00:00Z'));
+  assert.strictEqual(new Date(k('ssl').at).toISOString().slice(0, 10), '2026-12-20');
+  assert.strictEqual(k('ssl').appId, 'site:ws');
+  assert.ok(k('domain').at > k('ssl').at);
+  assert.strictEqual(ev.filter((e) => e.kind === 'build').length, 2);
+  assert.ok(ev.every((e, i) => i === 0 || ev[i - 1].at >= e.at), 'newest first');
+  // a date set in config is a real date, not an estimate
+  assert.strictEqual(events.buildEvents(out, [], { appstore: { nextPayment: '2026-12-03' } }, NOW, NOW).find((e) => e.kind === 'payout').estimated, false);
+  // nothing dated: no events
+  assert.deepStrictEqual(events.buildEvents({}, [], {}, NOW, NOW), []);
+});
+
+test('calendar: App Store Connect pull returns version events and the summary has them', async () => {
+  const routes = ascRoutes();
+  routes.unshift([/apps\/111\/appStoreVersions/, () => ({ json: {
+    data: [
+      { id: 'v2', attributes: { versionString: '1.4', appVersionState: 'WAITING_FOR_REVIEW', createdDate: '2026-11-18T10:00:00Z' } },
+      { id: 'v1', attributes: { versionString: '1.3', appStoreState: 'READY_FOR_SALE', createdDate: '2026-10-01T10:00:00Z' }, relationships: { appStoreVersionPhasedRelease: { data: { id: 'ph1' } } } },
+    ],
+    included: [{ type: 'appStoreVersionPhasedReleases', id: 'ph1', attributes: { phasedReleaseState: 'COMPLETE', startDate: '2026-10-05' } }],
+  } })]);
+  routes.unshift([/itunes\.apple\.com\/lookup\?id=111/, () => ({ json: { results: [{ artworkUrl512: 'https://is1.mzstatic.com/voided.png', version: '1.3', currentVersionReleaseDate: '2026-10-05T07:00:00Z' }] } })]);
+  const f = fakeFetch(routes);
+  const cfg = buildConfig({ appstore: {} }, { ASC_KEY_ID: 'K', ASC_ISSUER_ID: 'I', ASC_PRIVATE_KEY: P8_PEM });
+  const d = await appstore.source.pull({ cfg, now: NOW, deps: { fetch: f }, apps: [], prev: {} });
+  assert.deepStrictEqual(d.apps.find((a) => a.id === 'asc:111').review.version, '1.4');
+  assert.ok(d.events.some((e) => e.kind === 'release' && e.title === '1.3 released'));
+  assert.ok(d.events.some((e) => e.kind === 'phased'));
+  assert.ok(d.events.some((e) => e.kind === 'review' && e.title === '1.4 waiting for review'));
+  assert.strictEqual(d.reviewLog.length, 2);
+  const s = agg.buildSummary({ sources: { appstore: { label: 'ASC', connected: true, ok: true, at: NOW, error: '', data: d } } }, cfg, NOW);
+  assert.ok(s.events.length >= 3);
+  assert.ok(s.events.every((e) => e.at && e.kind && e.title));
+});

@@ -211,6 +211,53 @@
   "costs": [],
   "repos": [],
   "sites": [],
+  "events": [
+    {
+      "id": "payout:2026-12-03",
+      "at": 1796299200000,
+      "kind": "payout",
+      "appId": "",
+      "title": "Apple payout (est.)",
+      "detail": "GBP 13.29",
+      "estimated": true
+    },
+    {
+      "id": "review:asc:111:1794996000000:1.4 waiting for review",
+      "at": 1794996000000,
+      "kind": "review",
+      "appId": "asc:111",
+      "title": "1.4 waiting for review",
+      "detail": "Submitted",
+      "estimated": false
+    },
+    {
+      "id": "log:asc:111:1.4:WAITING_FOR_REVIEW",
+      "at": 1794996000000,
+      "kind": "review",
+      "appId": "asc:111",
+      "title": "1.4 waiting for review",
+      "detail": "Review status",
+      "estimated": false
+    },
+    {
+      "id": "release:asc:222:1793527200000:2.0 created",
+      "at": 1793527200000,
+      "kind": "release",
+      "appId": "asc:222",
+      "title": "2.0 created",
+      "detail": "Live",
+      "estimated": false
+    },
+    {
+      "id": "log:asc:222:2.0:READY_FOR_SALE",
+      "at": 1793527200000,
+      "kind": "review",
+      "appId": "asc:222",
+      "title": "2.0 live",
+      "detail": "Review status",
+      "estimated": false
+    }
+  ],
   "payout": {
     "nextDate": "2026-12-03",
     "estimate": 13.29,

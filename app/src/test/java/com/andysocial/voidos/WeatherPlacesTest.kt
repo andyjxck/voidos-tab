@@ -15,7 +15,6 @@ import androidx.compose.ui.unit.dp
 import com.andysocial.voidos.ui.LocalPortrait
 import com.andysocial.voidos.ui.PlaceSwipe
 import com.andysocial.voidos.ui.WeatherRepo
-import com.andysocial.voidos.ui.WeatherScreen
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -111,67 +110,5 @@ class WeatherPlacesTest {
         assertEquals("Redditch|52.31|-1.94", s.herePlace()) // a picked place isn't "here"
     }
 
-    // ---- the swipe on the real screen
 
-    // a screen big enough for the 600 x 960 box, so it's the full-screen layout (Robolectric's default screen is smaller)
-    @Config(sdk = [33], qualifiers = "w1000dp-h1000dp")
-    @Test fun swipeUpMovesOnAndRoundAgain() {
-        val s = Store(RuntimeEnvironment.getApplication())
-        s.chooseAutoPlace(false)
-        listOf(london, paris, tokyo).forEachIndexed { i, e ->
-            val (n, la, lo) = e.split('|'); s.addPlace(n, la.toFloat(), lo.toFloat()); save(s, e, 5.0 + i)
-        }
-        s.setPlace("London", 51.5f, -0.12f)
-        rule.setContent {
-            CompositionLocalProvider(LocalPortrait provides true) {
-                Box(Modifier.size(600.dp, 960.dp).testTag("wx")) { WeatherScreen(s) }
-            }
-        }
-        rule.waitForIdle()
-        fun up() {
-            rule.onNodeWithTag("wx").performTouchInput { swipe(Offset(centerX, centerY + 200f), Offset(centerX, centerY - 200f), 250) }
-            rule.waitForIdle()
-        }
-        up(); assertEquals("Paris", s.city)
-        up(); assertEquals("Tokyo", s.city)
-        assertEquals(7.0, WeatherRepo.state.value!!.temp, 0.01) // Tokyo's own forecast
-        // a sideways swipe is the page's, not a place change
-        rule.onNodeWithTag("wx").performTouchInput { swipe(Offset(centerX + 200f, centerY), Offset(centerX - 200f, centerY), 250) }
-        rule.waitForIdle(); assertEquals("Tokyo", s.city)
-        // a short nudge up doesn't count
-        rule.onNodeWithTag("wx").performTouchInput { swipe(Offset(centerX, centerY), Offset(centerX, centerY - 40f), 400) }
-        rule.waitForIdle(); assertEquals("Tokyo", s.city)
-        up() // past the last: back to Here
-        assertTrue(s.autoPlace)
-        up(); assertEquals("London", s.city); assertFalse(s.autoPlace)
-    }
-
-    /**
-     * Half the book: the compact layout scrolls. A swipe up scrolls down to the days and stays on
-     * the same place; once at the bottom, the next swipe up moves on to the next place as before.
-     */
-    @Config(sdk = [33], qualifiers = "w1000dp-h1000dp")
-    @Test fun compactSwipeScrollsThenMovesOn() {
-        val s = Store(RuntimeEnvironment.getApplication())
-        s.chooseAutoPlace(false)
-        listOf(london, paris, tokyo).forEachIndexed { i, e ->
-            val (n, la, lo) = e.split('|'); s.addPlace(n, la.toFloat(), lo.toFloat()); save(s, e, 5.0 + i)
-        }
-        s.setPlace("London", 51.5f, -0.12f)
-        rule.setContent {
-            CompositionLocalProvider(LocalPortrait provides false) {
-                Box(Modifier.size(434.dp, 472.dp).testTag("wx")) { WeatherScreen(s) }
-            }
-        }
-        rule.waitForIdle()
-        rule.onNodeWithTag("weatherCompact").assertExists()
-        fun up() {
-            rule.onNodeWithTag("wx").performTouchInput { swipe(Offset(centerX, bottom - 30f), Offset(centerX, top + 30f), 300) }
-            rule.waitForIdle()
-        }
-        var n = 0
-        while (s.city == "London" && n < 6) { up(); n++ }
-        assertTrue("first swipe should only scroll, took $n", n >= 2)
-        assertEquals("Paris", s.city)
-    }
 }

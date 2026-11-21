@@ -109,15 +109,21 @@ object ShellNow {
 }
 
 enum class Module(val label: String, val glyph: G, val accent: Color) {
-    // 2.0, the Void Hub: Home, the status board, the metric view, Notes by app, Time, Weather, Settings.
+    // 2.0, the Void Hub: Home, the status board, the metric view, Notes by app, Time, Calendar, Settings.
+    // (2.0.2: Calendar took Weather's place; a saved "WEATHER" reads as CALENDAR, see [of].)
     // (TOOLS and APPS keep their old names so saved splits and settings still read.)
     FACE("Home", G.FACE, V.Teal),
     APPS("Status", G.HUB, V.Teal),
     METRICS("Metrics", G.CHART, V.Teal),
     NOTES("Notes", G.NOTES, V.Teal),
     TOOLS("Time", G.TIMER, V.Teal),
-    WEATHER("Weather", G.WEATHER, V.Teal),
-    SYSTEM("Settings", G.SYSTEM, V.Teal),
+    CALENDAR("Calendar", G.CALENDAR, V.Teal),
+    SYSTEM("Settings", G.SYSTEM, V.Teal);
+
+    companion object {
+        /** A saved module name; throws like valueOf for an unknown one. */
+        fun of(name: String): Module = if (name == "WEATHER") CALENDAR else valueOf(name)
+    }
 }
 
 @Composable
@@ -181,7 +187,7 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
     LaunchedEffect(wanted) {
         val k = wanted ?: return@LaunchedEffect
         Idle.openModule.value = null
-        runCatching { Module.valueOf(k) }.getOrNull()?.let { go(it, animate = false) }
+        runCatching { Module.of(k) }.getOrNull()?.let { go(it, animate = false) }
     }
 
     LaunchedEffect(home) { if (home > 0) { go(Module.FACE, animate = false); escape = false; control = false } }
@@ -243,7 +249,7 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
                         Module.FACE -> BookHome(store, face = { FaceScreen(store, onOpen = { go(it) }) }) { m -> BookScreen(store, act, m) }
                         Module.TOOLS -> ToolsScreen(store, Module.TOOLS)
                         Module.METRICS -> com.andysocial.voidos.hub.MetricsScreen(store)
-                        Module.WEATHER -> WeatherScreen(store)
+                        Module.CALENDAR -> com.andysocial.voidos.hub.CalendarScreen(store)
                         Module.NOTES -> NotesScreen(store)
                         Module.SYSTEM -> SystemScreen(store, act)
                         Module.APPS -> com.andysocial.voidos.hub.StatusBoard(store) { go(it) }
@@ -581,7 +587,7 @@ private fun BookScreen(store: Store, act: MainActivity, m: Module) {
         Module.FACE -> Unit
         Module.TOOLS -> ToolsScreen(store, Module.TOOLS)
         Module.METRICS -> com.andysocial.voidos.hub.MetricsScreen(store)
-        Module.WEATHER -> WeatherScreen(store)
+        Module.CALENDAR -> com.andysocial.voidos.hub.CalendarScreen(store)
         Module.NOTES -> NotesScreen(store)
         Module.SYSTEM -> SystemScreen(store, act)
         Module.APPS -> com.andysocial.voidos.hub.StatusBoard(store, onGo = null)
@@ -597,7 +603,7 @@ private fun BookScreen(store: Store, act: MainActivity, m: Module) {
 private fun dropOnBook(ctx: android.content.Context, store: Store, act: MainActivity, scope: kotlinx.coroutines.CoroutineScope, key: String, isApp: Boolean, first: Boolean) {
     val before = Book.state.value
     val side = if (Idle.split.value && before.appFirst != null) (if (isApp) before.appFirst!! else !before.appFirst!!) else first
-    val pane = if (isApp) Pane.app(key) else Pane.screen(runCatching { Module.valueOf(key) }.getOrNull() ?: return)
+    val pane = if (isApp) Pane.app(key) else Pane.screen(runCatching { Module.of(key) }.getOrNull() ?: return)
     Book.drop(ctx, pane, side)
     val after = Book.state.value
     scope.launch {

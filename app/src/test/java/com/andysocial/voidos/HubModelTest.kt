@@ -147,15 +147,15 @@ class HubModelTest {
         val ctx = RuntimeEnvironment.getApplication()
         val s = Store(ctx)
         s.saveWidgets(emptyList())
-        s.addWidget("sky"); s.addWidget("hrev")
+        s.addWidget("battery"); s.addWidget("hrev")
         // a retired kind can't be added
         s.addWidget("world")
-        assertEquals(listOf("sky", "hrev"), s.widgets.map { it.kind })
+        assertEquals(listOf("battery", "hrev"), s.widgets.map { it.kind })
         // and on the next start they're all still there (2.0 alpha lost them: the retired list loaded too late)
-        assertEquals(listOf("sky", "hrev"), Store(ctx).widgets.map { it.kind })
+        assertEquals(listOf("battery", "hrev"), Store(ctx).widgets.map { it.kind })
         // widgets saved by 1.x of a kind 2.0 retired are dropped, the rest kept
         ctx.getSharedPreferences("voidos", 0).edit().putString("widgets",
-            """[{"id":1,"k":"sound","x":0.1,"y":0.1},{"id":2,"k":"sky","x":0.9,"y":0.1}]""").commit()
-        assertEquals(listOf("sky"), Store(ctx).widgets.map { it.kind })
+            """[{"id":1,"k":"sound","x":0.1,"y":0.1},{"id":2,"k":"battery","x":0.9,"y":0.1},{"id":3,"k":"sky","x":0.5,"y":0.9}]""").commit()
+        assertEquals(listOf("battery"), Store(ctx).widgets.map { it.kind })
     }
 }

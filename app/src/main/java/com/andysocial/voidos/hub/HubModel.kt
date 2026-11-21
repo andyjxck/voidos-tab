@@ -173,6 +173,12 @@ data class RepoState(val repo: String, val message: String, val sha: String, val
 data class SiteCheck(val appId: String, val host: String, val up: Boolean, val ms: Long? = null, val sslDays: Int? = null, val domainDays: Int? = null)
 
 /** The whole summary document. */
+/**
+ * 2.0.2, one dated thing on the hub calendar. [kind] is release, scheduled, pending, phased,
+ * review, payout, renewal, ssl, domain, build or cost; [appId] is "" for ones that belong to no app.
+ */
+data class HubEvent(val id: String, val at: Long, val kind: String, val appId: String, val title: String, val detail: String = "", val estimated: Boolean = false)
+
 data class HubSummary(
     val updatedAt: Long,
     val apps: List<HubApp>,
@@ -183,6 +189,8 @@ data class HubSummary(
     val repos: List<RepoState> = emptyList(),
     val sites: List<SiteCheck> = emptyList(),
     val demo: Boolean = false,
+    /** 2.0.2: the hub calendar's dated events, newest first. */
+    val events: List<HubEvent> = emptyList(),
 ) {
     fun app(id: String?): HubApp? = apps.firstOrNull { it.id == id }
     val storeApps: List<HubApp> get() = apps.filter { it.kind == HubKind.APP }
@@ -201,6 +209,7 @@ object Hub {
             apps = s.apps.filter { it.id !in hidden },
             reviews = s.reviews.filter { it.appId !in hidden },
             sites = s.sites.filter { it.appId !in hidden },
+            events = s.events.filter { it.appId !in hidden },
         )
     }
 
@@ -334,6 +343,11 @@ object Hub {
                 SiteCheck(it.optString("appId"), it.optString("host"), it.optBoolean("up", true), it.optLongOrNull("ms"), it.optIntOrNull("sslDays"), it.optIntOrNull("domainDays"))
             },
             demo = o.optBoolean("demo"),
+            events = o.optJSONArray("events").objects().mapNotNull {
+                val at = it.optLong("at")
+                if (at <= 0L || it.optString("title").isBlank()) null
+                else HubEvent(it.optString("id").ifBlank { "${it.optString("kind")}:$at" }, at, it.optString("kind"), it.optString("appId"), it.optString("title"), it.optString("detail"), it.optBoolean("estimated"))
+            },
         )
     }
 

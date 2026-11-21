@@ -1,4 +1,5 @@
 'use strict';
+const { buildEvents } = require('./events');
 /**
  * The aggregator's core, free of Firebase so it can be tested on its own.
  *
@@ -64,7 +65,9 @@ function shortError(e) {
 /** Combine every source's data (fresh or last good) into the summary the tablet reads. */
 function buildSummary(state, cfg, now) {
   const apps = new Map();
-  const out = { updatedAt: now, apps: [], sources: {}, reviews: [], costs: [], repos: [], sites: [] };
+  const out = { updatedAt: now, apps: [], sources: {}, reviews: [], costs: [], repos: [], sites: [], events: [] };
+  const extraEvents = [];
+  let sitesAt = 0;
 
   const order = Object.keys(state.sources);
   for (const key of order) {
@@ -85,8 +88,11 @@ function buildSummary(state, cfg, now) {
     if (d.reviews) out.reviews.push(...d.reviews);
     if (d.costs) out.costs.push(...d.costs);
     if (d.repos) out.repos.push(...d.repos);
-    if (d.sites) out.sites.push(...d.sites);
+    if (d.sites) { out.sites.push(...d.sites); sitesAt = Math.max(sitesAt, s.at || 0); }
+    if (d.events) extraEvents.push(...d.events);
   }
+  // 2.0.2: the hub calendar
+  out.events = buildEvents(out, extraEvents, cfg, now, sitesAt);
 
   // the newest review per app is the one its panel shows; the inbox keeps the newest 50
   out.reviews.sort((a, b) => (b.at || 0) - (a.at || 0));

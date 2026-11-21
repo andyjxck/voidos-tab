@@ -2,6 +2,7 @@ package com.andysocial.voidos.ui
 
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.layout.layout
@@ -57,36 +58,40 @@ import androidx.compose.ui.unit.sp
 /** The small caps header every card wears: a coloured dot, then the label in spaced capitals. */
 @Composable
 fun DotLabel(text: String, dot: Color = V.Teal, modifier: Modifier = Modifier, color: Color = V.Muted) {
+    // 2.0.2: an empty label never leaves a lone dot behind
+    if (text.isBlank()) return
     androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
     // on the smallest widgets the name gets the room, the dot steps aside
     val roomy = maxWidth > 150.dp
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val tm = androidx.compose.ui.text.rememberTextMeasurer()
+    val up = text.uppercase()
+    // 2.0.2: the size is picked in composition from the width the header really has and the
+    // text is drawn by BasicText. (2.0.1 drew a measured layout by hand, and on the tablet the
+    // header could come out as a dot with no name.)
+    val maxW = with(density) { (maxWidth - if (roomy) 6.dp + Grid.s else 0.dp).roundToPx() }.coerceAtLeast(1)
+    fun st(v: Float) = androidx.compose.ui.text.TextStyle(color = color, fontSize = v.sp, fontFamily = SansMedium, letterSpacing = (v / 11f).sp)
+    val (shown, style) = androidx.compose.runtime.remember(up, maxW, color) {
+        var found: Pair<String, androidx.compose.ui.text.TextStyle>? = null
+        for (cand in listOf(up, up.split(' ', '-', ',').first())) {
+            var v = Type.caption.value
+            while (v >= 6.5f) {
+                if (tm.measure(cand, st(v), maxLines = 1, softWrap = false).size.width <= maxW) { found = cand to st(v); break }
+                v -= 0.5f
+            }
+            if (found != null) break
+        }
+        found ?: (up.split(' ', '-', ',').first() to st(6.5f))
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (roomy) { Box(Modifier.size(6.dp).background(dot, CircleShape)); Box(Modifier.size(Grid.s)) }
-        // picks its size from the width it is really given at layout time (not from intrinsics),
-        // down to 6.5sp; a name that still can't fit drops to its first word ("HENLEY")
-        val up = text.uppercase()
-        val tm = androidx.compose.ui.text.rememberTextMeasurer()
-        val held = androidx.compose.runtime.remember { arrayOfNulls<androidx.compose.ui.text.TextLayoutResult>(1) }
-        Box(Modifier.weight(1f, fill = false)
-            .semantics { this.text = androidx.compose.ui.text.AnnotatedString(up) }
-            .layout { _, c ->
-                val maxW = if (c.hasBoundedWidth) c.maxWidth else Int.MAX_VALUE
-                fun st(v: Float) = androidx.compose.ui.text.TextStyle(color = color, fontSize = v.sp, fontFamily = SansMedium, letterSpacing = (v / 11f).sp)
-                var pick: androidx.compose.ui.text.TextLayoutResult? = null
-                for (cand in listOf(up, up.split(' ', '-', ',').first())) {
-                    var v = Type.caption.value
-                    while (v >= 6.5f) {
-                        val r = tm.measure(cand, st(v), maxLines = 1, softWrap = false)
-                        if (r.size.width <= maxW) { pick = r; break }
-                        v -= 0.5f
-                    }
-                    if (pick != null) break
-                }
-                val r = pick ?: tm.measure(up.split(' ', '-', ',').first(), st(6.5f), maxLines = 1, softWrap = false, constraints = androidx.compose.ui.unit.Constraints(maxWidth = maxW.coerceAtLeast(1)), overflow = androidx.compose.ui.text.style.TextOverflow.Clip)
-                held[0] = r
-                layout(r.size.width.coerceAtMost(maxW), r.size.height.coerceIn(c.minHeight, c.maxHeight)) {}
-            }
-            .drawBehind { held[0]?.let { drawText(it) } })
+        // the whole name is what's read out, even when only its first word fits on screen
+        Box(Modifier.weight(1f, fill = false).clearAndSetSemantics { this.text = androidx.compose.ui.text.AnnotatedString(up) }) {
+            androidx.compose.foundation.text.BasicText(
+                shown, style = style, maxLines = 1, softWrap = false,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Clip,
+            )
+        }
     }
     }
 }

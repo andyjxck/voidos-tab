@@ -292,9 +292,9 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     @Test fun faceWidgets() {
         store.saveWidgets(emptyList())
         if (store.notes.isEmpty()) store.saveNote(Note(77L, "Bins out Thursday", 1, 77L))
-        store.addWidget("sky"); store.addWidget("hrev"); store.addWidget("note", store.notes.first().id)
+        store.addWidget("battery"); store.addWidget("hrev"); store.addWidget("note", store.notes.first().id)
         show { Shell(store, act, Module.FACE) }
-        expect("Bins out Thursday", store.city.uppercase()); shot("01b_face_widgets")
+        expect("Bins out Thursday"); shot("01b_face_widgets")
         assertTrue("[$tag] revenue widget", rule.onAllNodesWithText("Revenue today", substring = true, ignoreCase = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         store.saveWidgets(emptyList())
     }
@@ -318,9 +318,9 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     /** Hold to drag, pinch to stretch on one axis, twist to turn: on a widget and on the clock. */
     @Test fun faceMoveStretchTurn() {
         store.saveWidgets(emptyList())
-        store.addWidget("sky")
+        store.addWidget("battery")
         show { Shell(store, act, Module.FACE) }
-        fun box() = rule.onNodeWithTag("widget-sky", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        fun box() = rule.onNodeWithTag("widget-battery", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
         val id = store.widgets.first().id
         fun wd() = store.widgets.first { it.id == id }
         // hold, then drag up and right
@@ -417,7 +417,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         Alarms.list.value.forEach { Alarms.remove(act, it.id) }
     }
 
-    @Test fun sky() { show { Shell(store, act, Module.WEATHER) }; shot("07_sky") }
+    @Test fun calendar() { hubFixture(); show { Shell(store, act, Module.CALENDAR) }; settle(500); shot("07_calendar") }
 
     /**
      * A fixed, worst-case forecast (minus temperatures, the longest words, 100% everywhere)
@@ -464,77 +464,64 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     private fun boundsOf(tagName: String) = rule.onNodeWithTag(tagName, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
 
     /**
-     * Weather in either half of the book, in this orientation, beside the clock and beside Notes:
-     * the compact layout, nothing cut or overlapping, every hour and day on screen or a scroll away,
-     * no hour squeezed narrower than its own words, and the second place still in the place bar.
+     * 2.0.2: the Calendar in either half of the book, beside the clock and beside Notes, from the
+     * test-only hub fixture: month and agenda on screen, nothing cut or overlapping.
      */
-    @Test fun weatherHalfWidth() {
+    @Test fun calendarHalfWidth() {
         com.andysocial.voidos.ui.Book.reset()
         store.saveWidgets(emptyList())
-        seedWeather()
+        hubFixture()
         show { Shell(store, act, Module.FACE) }
         val notes = com.andysocial.voidos.ui.Pane.screen(Module.NOTES)
         for (other in listOf(null, notes)) for (first in listOf(true, false)) {
             com.andysocial.voidos.ui.Idle.touch()
-            openHalf(Module.WEATHER, first, other)
-            pinWeather()
+            openHalf(Module.CALENDAR, first, other)
             val side = if (first) "left" else "right"
-            val name = "46_weather_half_${side}${if (other != null) "_notes" else ""}"
+            val name = "46_calendar_half_${side}${if (other != null) "_notes" else ""}"
             shot(name)
             assertTrue("[$tag] $name: ${issuesOf(name)}", issuesOf(name).isEmpty())
-            val pane = boundsOf(if (first) "bookFirst" else "bookSecond")
-            val body = boundsOf("weatherCompact")
-            assertTrue("[$tag] $name: compact Weather $body outside its half $pane", body.left >= pane.left - 1 && body.right <= pane.right + 1)
-            // both places in the bar, the hero readable
-            expect("Here", "Henley-in-Arden", "°", "Feels", "Sunrise", "Sunset", "Next 12 hours")
-            // all 12 hours under the hours card, no column narrower than 52 dp, each inside the half once scrolled to
-            val inHours = androidx.compose.ui.test.hasAnyAncestor(androidx.compose.ui.test.hasTestTag("weatherHours"))
-            val rain = rule.onAllNodes(androidx.compose.ui.test.hasText("%", substring = true) and inHours, useUnmergedTree = true).fetchSemanticsNodes()
-            assertEquals("[$tag] $name: rain chance under every hour", 12, rain.size)
-            // each hour's column: the distance from one hour to the next along a row
-            val rows = rain.groupBy { (it.positionInRoot.y / 8).toInt() }.values
-            val minCell = rows.flatMap { r -> r.map { it.positionInRoot.x + it.size.width / 2f }.sorted().zipWithNext { a, b -> b - a } }.minOrNull()?.div(rule.density.density) ?: 999f
-            assertTrue("[$tag] $name: an hour squeezed to a ${minCell}dp column", minCell >= 52f)
-            rain.forEach { n ->
-                val l = n.positionInRoot.x; val r = l + n.size.width
-                assertTrue("[$tag] $name: an hour's rain chance at $l..$r sticks out of $pane", l >= pane.left - 1 && r <= pane.right + 1)
-            }
-            // all six days there; scroll down like a finger would until the last one is in view
-            val inDays = androidx.compose.ui.test.hasAnyAncestor(androidx.compose.ui.test.hasTestTag("weatherDays"))
-            listOf("Today", "Fri", "Sat", "Sun", "Mon", "Tue").forEach { d ->
-                rule.onNode(androidx.compose.ui.test.hasText(d) and inDays, useUnmergedTree = true).assertExists()
-            }
-            val tue = rule.onNode(androidx.compose.ui.test.hasText("Tue") and inDays, useUnmergedTree = true)
-            fun tueIn(): Boolean { val n = tue.fetchSemanticsNode(); val top = n.positionInRoot.y; return top >= pane.top - 1 && top + n.size.height <= pane.bottom + 1 }
-            var swipes = 0
-            while (!tueIn() && swipes < 4) {
-                rule.onNodeWithTag("weatherCompact", useUnmergedTree = true).performTouchInput {
-                    swipe(androidx.compose.ui.geometry.Offset(centerX, bottom - 20f), androidx.compose.ui.geometry.Offset(centerX, top + 20f), 500)
-                }
-                settle(900); swipes++
-            }
-            assertTrue("[$tag] $name: last day still not in view after $swipes swipes", tueIn())
-            shot("${name}_scrolled")
-            assertTrue("[$tag] ${name}_scrolled: ${issuesOf("${name}_scrolled")}", issuesOf("${name}_scrolled").isEmpty())
-            // the swipe up only scrolled: still on the same place, still two panes
-            // scrolling down to the days is not a swipe to the next place
-            assertTrue("[$tag] $name: scrolling moved place to ${store.city}", store.city == "Henley-in-Arden")
+            assertTrue("[$tag] $name: month", rule.onAllNodesWithTag("calendar_month", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
             assertTrue("[$tag] $name: book closed", com.andysocial.voidos.ui.Book.state.value.isOpen)
         }
         rule.runOnUiThread { com.andysocial.voidos.ui.Book.reset() }
         settle(600)
     }
 
-    /** Full-screen Weather keeps its own layout (not the compact one) and nothing on it is cut off. */
-    @Test fun weatherFullScreen() {
+    /** 2.0.2: the full-screen Calendar from the test-only fixture: month, Upcoming and Past, and a tap opens the app's panel. */
+    @Test fun calendarFullScreen() {
         com.andysocial.voidos.ui.Book.reset()
-        seedWeather()
-        show { Shell(store, act, Module.WEATHER) }
-        pinWeather()
-        shot("46_weather_full")
-        assertTrue("[$tag] full-screen Weather: ${issuesOf("46_weather_full")}", issuesOf("46_weather_full").isEmpty())
-        assertTrue("[$tag] full screen should not be compact", rule.onAllNodesWithTag("weatherCompact", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
-        expect("Here", "Henley-in-Arden", "Sunrise", "Sunset", "Open-Meteo", "Six days", "Tue")
+        hubFixture()
+        show { Shell(store, act, Module.CALENDAR) }
+        settle(600)
+        shot("46_calendar_full")
+        assertClean("46_calendar_full")
+        expect("CALENDAR".lowercase().replaceFirstChar { it.uppercase() })
+        listOf("calendar_month", "calendar_upcoming", "calendar_past").forEach { t ->
+            assertTrue("[$tag] $t", rule.onAllNodesWithTag(t, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        }
+        assertTrue("[$tag] a release", rule.onAllNodesWithText("released", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        assertTrue("[$tag] the payout", rule.onAllNodesWithText("Apple payout", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        // tapping an app's event opens that app's panel
+        rule.onAllNodesWithTag("event_scheduled", useUnmergedTree = true)[0].performClick()
+        settle(700)
+        assertTrue("[$tag] panel", rule.onAllNodesWithTag("app_panel", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        shot("46_calendar_panel")
+        rule.runOnUiThread { com.andysocial.voidos.hub.StatusNav.open.value = null }
+        settle(400)
+    }
+
+    /** 2.0.2: nothing dated yet: only the quiet empty state, no month, no hint. */
+    @Test fun calendarEmpty() {
+        show { Shell(store, act, Module.CALENDAR) }
+        settle(600)
+        expect("NO DATES")
+        shot("46_calendar_empty"); assertClean("46_calendar_empty")
+        assertTrue("[$tag] no month when empty", rule.onAllNodesWithTag("calendar_month", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        val f = com.andysocial.voidos.hub.DemoHub.summary().copy(events = emptyList(), demo = false)
+        rule.runOnUiThread { com.andysocial.voidos.hub.HubRepo.preview(f, "https://hub.test", true) }
+        settle(600)
+        expect("NO DATES")
+        shot("46_calendar_linked_empty"); assertClean("46_calendar_linked_empty")
     }
 
     /** Every screen that can go in a half of the book, on each half: nothing cut, squashed, overlapping or off screen. */
@@ -547,7 +534,6 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         for (m in Module.values().filter { com.andysocial.voidos.ui.bookable(it) }) for (first in listOf(true, false)) {
             com.andysocial.voidos.ui.Idle.touch()
             openHalf(m, first)
-            if (m == Module.WEATHER) pinWeather()
             val name = "47_half_${m.name.lowercase()}_${if (first) "left" else "right"}"
             shot(name)
             bad += issuesOf(name)
@@ -1032,13 +1018,13 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         shot("41_book_notes_left")
         // Weather dropped on the face's half: Notes stays on the left, both open, and the time
         // and date move up into the island
-        rule.runOnUiThread { com.andysocial.voidos.ui.Book.drop(ctx, com.andysocial.voidos.ui.Pane.screen(Module.WEATHER), toFirst = false) }
+        rule.runOnUiThread { com.andysocial.voidos.ui.Book.drop(ctx, com.andysocial.voidos.ui.Pane.screen(Module.CALENDAR), toFirst = false) }
         settle(900)
         shot("42_book_two_open")
-        val B = com.andysocial.voidos.ui.BookState(com.andysocial.voidos.ui.Pane.screen(Module.NOTES), com.andysocial.voidos.ui.Pane.screen(Module.WEATHER))
-        assertEquals("[$tag] Notes and Weather both open", B, com.andysocial.voidos.ui.Book.state.value)
+        val B = com.andysocial.voidos.ui.BookState(com.andysocial.voidos.ui.Pane.screen(Module.NOTES), com.andysocial.voidos.ui.Pane.screen(Module.CALENDAR))
+        assertEquals("[$tag] Notes and Calendar both open", B, com.andysocial.voidos.ui.Book.state.value)
         assertTrue("[$tag] Notes still open", rule.onAllNodesWithContentDescription("Close Notes", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
-        assertTrue("[$tag] Weather open", rule.onAllNodesWithContentDescription("Close Weather", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        assertTrue("[$tag] Calendar open", rule.onAllNodesWithContentDescription("Close Calendar", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         assertTrue("[$tag] face covered", rule.onAllNodesWithTag("bookFace", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
         val isl = b("timeIsland"); val n3 = b("bookFirst"); val w3 = b("bookSecond")
         // the island sits in the band above the panes' content (52 dp), clear of both
@@ -1055,7 +1041,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         rule.runOnUiThread { assertFalse(com.andysocial.voidos.ui.Book.onHome(ctx, true, now + 60_000)) }
         assertEquals(B, com.andysocial.voidos.ui.Book.state.value)
         // close Weather: the watch face comes back into its half, Notes stays
-        rule.onNodeWithContentDescription("Close Weather", useUnmergedTree = true).performClick()
+        rule.onNodeWithContentDescription("Close Calendar", useUnmergedTree = true).performClick()
         settle(900)
         assertEquals("[$tag] Notes left with the face", com.andysocial.voidos.ui.BookState(first = com.andysocial.voidos.ui.Pane.screen(Module.NOTES)), com.andysocial.voidos.ui.Book.state.value)
         assertTrue("[$tag] face back", rule.onAllNodesWithTag("bookFace", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
@@ -1075,8 +1061,8 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     @Test fun faceGroupMove() {
         com.andysocial.voidos.ui.Book.reset()
         store.saveWidgets(emptyList())
-        store.addWidget("sky"); store.addWidget("hrev")
-        val sky = store.widgets.first { it.kind == "sky" }.id
+        store.addWidget("battery"); store.addWidget("hrev")
+        val sky = store.widgets.first { it.kind == "battery" }.id
         val list = store.widgets.first { it.kind == "hrev" }.id
         store.placeWidget(sky, 0.15f, 0.08f, 1f, 1f, 0f)
         store.placeWidget(list, 0.85f, 0.08f, 1f, 1f, 0f)
@@ -1092,14 +1078,14 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         assertTrue("[$tag] box drawn", rule.onAllNodesWithTag("lasso", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         up(winW * 0.9f, winH * 0.05f)
         settle(400)
-        assertTrue("[$tag] both picked", listOf("sky", "hrev").all { k -> rule.onAllNodesWithTag("picked-$k", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() })
+        assertTrue("[$tag] both picked", listOf("battery", "hrev").all { k -> rule.onAllNodesWithTag("picked-$k", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() })
         shot("47_face_picked")
         // drag the weather widget down: the list comes too
-        val s0 = box("sky"); val l0 = box("hrev")
+        val s0 = box("battery"); val l0 = box("hrev")
         val c = s0.center
         down(c.x, c.y); drag(c.x, c.y, c.x + 10f, c.y + 160f, steps = 8); up(c.x + 10f, c.y + 160f)
         settle(600)
-        val s1 = box("sky"); val l1 = box("hrev")
+        val s1 = box("battery"); val l1 = box("hrev")
         assertTrue("[$tag] weather moved down: $s0 -> $s1", s1.top > s0.top + 60f)
         assertTrue("[$tag] list moved with it: $l0 -> $l1", l1.top > l0.top + 60f)
         assertEquals(Module.FACE, com.andysocial.voidos.ui.ShellNow.module.value)
@@ -1107,7 +1093,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         // a tap on the background puts them down
         down(x0, y0); up(x0, y0)
         settle(600)
-        assertTrue("[$tag] put down", rule.onAllNodesWithTag("picked-sky", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        assertTrue("[$tag] put down", rule.onAllNodesWithTag("picked-battery", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
         store.saveWidgets(emptyList())
     }
 
@@ -1311,7 +1297,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         settle(1200)
         // no drawer came up; the pager moved on from Time to the next screen, Weather
         rule.onAllNodesWithContentDescription("Apps drawer", useUnmergedTree = true).assertCountEquals(0)
-        assertEquals("[$tag] log ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", Module.WEATHER, com.andysocial.voidos.ui.ShellNow.module.value)
+        assertEquals("[$tag] log ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", Module.CALENDAR, com.andysocial.voidos.ui.ShellNow.module.value)
     }
 
     /** Nothing opens from the edges while the lock screen is up. */
@@ -1772,7 +1758,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         store.addWorldClock("New York", "America/New_York"); store.addWorldClock("Tokyo", "Asia/Tokyo"); store.addWorldClock("Sydney", "Australia/Sydney")
         com.andysocial.voidos.Now.playing.value = com.andysocial.voidos.Playing("com.spotify.music", "Spotify", "Mr. Brightside (Jacques Lu Cont Remix)", "The Killers", null, true, 60_000, 240_000, now, 1f)
         // 2.0: the music, list, calendar and world-clock widgets are retired; the hub ones are new
-        val kinds = listOf("sky", "battery", "stopwatch", "alarm", "forecast", "focus", "note", "hstatus", "hrev", "hdl", "hcrash", "hup")
+        val kinds = listOf("battery", "stopwatch", "alarm", "focus", "note", "hstatus", "hrev", "hdl", "hcrash", "hup")
         val stretches = listOf(com.andysocial.voidos.WIDGET_MIN_SCALE, 1f, 1.7f, com.andysocial.voidos.WIDGET_MAX_SCALE)
         val cfg = act.resources.configuration
         val faceW = cfg.screenWidthDp * 0.95f; val faceH = cfg.screenHeightDp * 0.95f

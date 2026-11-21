@@ -11,6 +11,7 @@ const zlib = require('zlib');
 const { request } = require('../http');
 const { ascToken } = require('../ascJwt');
 const { DAY, ymd, lastDays } = require('../dates');
+const { versionEvents, logReviews, reviewLogEvents } = require('../events');
 
 const API = 'https://api.appstoreconnect.apple.com';
 
@@ -37,6 +38,8 @@ const source = {
     const apps = [];
     const metrics = {};
     const reviews = [];
+    const listings = new Map();
+    const versionsOf = new Map();
 
     await Promise.all(raw.map(async (a) => {
       const id = `asc:${a.id}`;
@@ -55,6 +58,7 @@ const source = {
           const r = look && look.results && look.results[0];
           if (r) {
             app.icon = r.artworkUrl512 || r.artworkUrl100 || '';
+            if (!listings.has(id)) listings.set(id, { version: r.version || '', currentVersionReleaseDate: r.currentVersionReleaseDate || '', releaseDate: r.releaseDate || '' });
             if (r.averageUserRating) metrics[id] = { ...(metrics[id] || {}), rating: { today: r.averageUserRating } };
           }
         } catch (_) { /* try the next storefront */ }
@@ -66,10 +70,15 @@ const source = {
           if (t && t.templateUrl) app.icon = t.templateUrl.replace('{w}', '512').replace('{h}', '512').replace('{f}', 'png');
         } catch (_) { /* no build icon: the tablet falls back to initials */ }
       }
-      // review status of the newest version
+      // review status of the newest version, and (2.0.2) the dated versions for the calendar
       try {
-        const v = await get(`/v1/apps/${a.id}/appStoreVersions?limit=1&fields[appStoreVersions]=versionString,appStoreState,appVersionState,createdDate`);
-        const n = v.data && v.data[0];
+        const v = await get(`/v1/apps/${a.id}/appStoreVersions?limit=8&fields[appStoreVersions]=versionString,appStoreState,appVersionState,createdDate,earliestReleaseDate,releaseType,appStoreVersionPhasedRelease&include=appStoreVersionPhasedRelease&fields[appStoreVersionPhasedReleases]=phasedReleaseState,startDate,currentDayNumber`);
+        const phased = new Map((v.included || []).filter((x) => x.type === 'appStoreVersionPhasedReleases').map((x) => [x.id, x.attributes || {}]));
+        const rows = (v.data || []).map((row) => {
+          const rel = row.relationships && row.relationships.appStoreVersionPhasedRelease && row.relationships.appStoreVersionPhasedRelease.data;
+          return { ...row, phased: rel ? phased.get(rel.id) : undefined };
+        }).sort((x, y) => (Date.parse((y.attributes || {}).createdDate || '') || 0) - (Date.parse((x.attributes || {}).createdDate || '') || 0));
+        const n = rows[0];
         if (n) {
           app.review = {
             state: n.attributes.appVersionState || n.attributes.appStoreState || '',
@@ -77,6 +86,7 @@ const source = {
             since: Date.parse(n.attributes.createdDate || '') || 0,
           };
         }
+        versionsOf.set(id, rows);
       } catch (_) { /* leave the review state unknown */ }
       // the newest customer reviews, with any reply already sent
       try {
@@ -109,7 +119,13 @@ const source = {
       }
       payout = sales.payout;
     }
-    return { apps, metrics, reviews, payout };
+    // 2.0.2: the calendar's dated events, and the review-status log carried from refresh to refresh
+    const prevData = (ctx.prev && ctx.prev.appstore && ctx.prev.appstore.data) || {};
+    const reviewLog = logReviews(prevData.reviewLog, apps, ctx.now);
+    const events = [];
+    for (const app of apps) events.push(...versionEvents(app.id, versionsOf.get(app.id), listings.get(app.id)));
+    events.push(...reviewLogEvents(reviewLog));
+    return { apps, metrics, reviews, payout, events, reviewLog };
   },
 };
 

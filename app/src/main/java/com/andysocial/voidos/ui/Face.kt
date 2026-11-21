@@ -430,7 +430,6 @@ private fun WidgetMenu(store: Store, modifier: Modifier, onDone: () -> Unit) {
                     if (has) Glyph(G.CHECK, accent, Modifier.size(18.dp))
                 }
             }
-            row("Weather", G.WEATHER, V.Teal, "sky")
             // 2.0, the hub widgets
             row("Status", G.HUB, V.Teal, "hstatus")
             row("Revenue today", G.MONEY, V.Teal, "hrev")
@@ -440,7 +439,6 @@ private fun WidgetMenu(store: Store, modifier: Modifier, onDone: () -> Unit) {
             row("Battery", G.BATTERY, V.Teal, "battery")
             row("Stopwatch", G.STOPWATCH, V.Teal, "stopwatch")
             row("Next alarm", G.BELL, V.Teal, "alarm")
-            row("Forecast", G.WEATHER, V.Teal, "forecast")
             row("Focus", G.FOCUS_MODE, V.Purple, "focus")
             store.notes.take(8).forEach { n ->
                 val c = V.Lap[n.colour.mod(V.Lap.size)]
