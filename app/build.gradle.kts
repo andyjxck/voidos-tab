@@ -73,7 +73,7 @@ android {
                 it.systemProperty("robolectric.graphicsMode", "NATIVE")
                 it.systemProperty("roborazzi.test.record", "true")
                 it.systemProperty("voidos.shots", rootProject.file("docs/screens").absolutePath)
-                it.maxHeapSize = "3g"
+                it.maxHeapSize = "4g"
                 // each test class in its own JVM: the screens share app-wide objects (timers, store)
                 it.forkEvery = 1
                 it.doFirst { rootProject.file("docs/screens/audit.txt").delete(); file("build/screens-extra/audit.txt").delete() }

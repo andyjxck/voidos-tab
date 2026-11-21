@@ -1,4 +1,0 @@
-[land] 40_book_notes_right: ok
-[land] 41_book_notes_left: ok
-[land] 42_book_two_open: ok
-[land] 01b_face_widgets: ok
