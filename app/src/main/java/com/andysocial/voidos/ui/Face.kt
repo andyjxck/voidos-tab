@@ -403,7 +403,8 @@ private fun TimerPills(running: List<KTimer>, now: Long, px: Float, onOpen: (Mod
 @Composable
 private fun FaceEditButton(editing: Boolean, onClick: () -> Unit) {
     Box(
-        Modifier.padding(4.dp).size(42.dp).clip(OctBtn).background(if (editing) V.Teal else V.Panel.copy(alpha = 0.7f)).tap(onClick),
+        Modifier.padding(4.dp).size(42.dp).clip(OctBtn).background(if (editing) V.Teal else V.Panel.copy(alpha = 0.7f)).tap(onClick)
+            .semantics { contentDescription = if (editing) "Done editing" else "Edit widgets" },
         contentAlignment = Alignment.Center,
     ) { Glyph(if (editing) G.CHECK else G.PLUS, if (editing) V.Bg else V.Muted, Modifier.size(20.dp)) }
 }
@@ -453,7 +454,6 @@ private fun WidgetMenu(store: Store, modifier: Modifier, onDone: () -> Unit) {
             }
         }
         Gap(h = 8.dp)
-        GlassActions(listOf(GlassAction("Done", onClick = onDone)), height = 46.dp)
     }
 }
 

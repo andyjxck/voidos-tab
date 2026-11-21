@@ -124,8 +124,6 @@ fun AlarmsPane() {
                 ) {
                     if (roomy) { Glyph(G.BELL, V.Tick, Modifier.size(64.dp)); Gap(h = 16.dp) }
                     VText("\u2014  NO ALARMS", size = Type.label, font = SansMedium, spacing = 2.sp, color = V.Muted)
-                    Gap(h = 20.dp)
-                    VButton("Add alarm", filled = true) { editing = newAlarm() }
                 }
             }
         } else {

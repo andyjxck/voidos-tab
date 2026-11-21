@@ -323,7 +323,7 @@ fun EdgeDrawers(
                         ) {
                             Box(
                                 Modifier.size(Drawer.TILE_DP.dp)
-                                    .background(if (open == Edge.LEFT) V.White.copy(alpha = if (current) 0.16f else 0.07f) else Color.Transparent, Chamfer(Drawer.ICON_RADIUS_DP.dp)),
+                                    .background(if (open == Edge.LEFT) V.White.copy(alpha = 0.07f) else Color.Transparent, Chamfer(Drawer.ICON_RADIUS_DP.dp)),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 it.icon(Modifier.size(if (open == Edge.RIGHT) Drawer.TILE_DP.dp else 22.dp), if (current || hot) V.White else V.Text)
@@ -333,11 +333,6 @@ fun EdgeDrawers(
                                 it.label, Type.body, Modifier.weight(1f).height(rowDp - 8.dp),
                                 color = if (current || hot) V.White else V.Text, font = SansMedium, min = 10.sp,
                             )
-                            // the screen you're on: a small teal dot, nothing louder
-                            if (current) {
-                                Spacer(Modifier.width(Grid.s))
-                                Box(Modifier.size(6.dp).background(V.Teal, CircleShape))
-                            }
                         }
                     }
                 }

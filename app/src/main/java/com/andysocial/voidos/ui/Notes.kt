@@ -211,8 +211,6 @@ private fun NoteList(
                 Gap(h = Grid.xs)
                 VText("${shown.size}", size = Type.large, font = SansLight, color = V.White, maxLines = 1)
             }
-            RoundIcon(G.PEN, "Sketch") { onNew(true) }
-            Gap(w = Grid.s)
             RoundIcon(G.COMPOSE, "New note", active = true) { onNew(false) }
         }
         if (portrait) { Gap(h = Grid.m); NotesAppRail(store, vertical = false, Modifier.fillMaxWidth()) }

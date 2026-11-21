@@ -462,9 +462,5 @@ internal fun StandbyRows(store: Store) {
     if (Stealth.restartNeeded.value) SettingRow("Restart to remove the bottom bar") {
         VButton("Restart", accent = V.Teal, filled = true) { com.andysocial.voidos.VoidKeysService.restartOrOff(restart = true) }
     }
-    // 2.0.2: the standby clock is gone; this is how long until the screen turns off
-    SettingRow("Screen off after") {}
-    GlassSegments(
-        listOf("0" to "Never", "1" to "1 min", "5" to "5 min", "15" to "15 min"), store.ambientMinutes.toString(), Modifier.widthIn(max = 520.dp),
-    ) { store.setAmbient(it.toInt()) }
+    // 2.0.3: "Screen off after" lives only in Settings > Screen (Android's own timeout)
 }

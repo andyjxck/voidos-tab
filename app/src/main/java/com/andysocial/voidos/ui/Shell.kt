@@ -198,21 +198,7 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
         if (Book.onHome(ctx, module == Module.FACE, System.currentTimeMillis()) && hadApp) Book.closeApp(ctx, store)
     }
 
-    // 2.0.2: no standby clock. After the minutes set in Settings > VoidOS with nothing touched, the
-    // screen just turns off (and the next wake counts as a touch)
-    LaunchedEffect(store.ambientMinutes) {
-        // once per stretch of no touches: it waits for the next touch before it turns the screen off again
-        var offFor = -1L
-        while (isActive) {
-            delay(5_000)
-            val m = store.ambientMinutes
-            val last = Idle.last
-            if (m > 0 && last != offFor && System.currentTimeMillis() - last > m * 60_000L) {
-                offFor = last
-                Tablet.screenOff(ctx)
-            }
-        }
-    }
+    // 2.0.3: the screen-off time is Android's own (Settings > Screen); no second VoidOS timer
 
     BackHandler(enabled = true) {
         when {

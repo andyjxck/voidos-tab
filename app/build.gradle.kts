@@ -12,8 +12,8 @@ android {
         applicationId = "com.andysocial.voidos"
         minSdk = 29
         targetSdk = 29
-        versionCode = 25
-        versionName = "2.0.2"
+        versionCode = 26
+        versionName = "2.0.3"
         // Only the languages we ship, keeps the APK small for a 2 GB tablet
         resourceConfigurations += listOf("en")
     }

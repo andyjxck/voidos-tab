@@ -84,9 +84,8 @@ fun HubPane(store: Store, act: MainActivity) {
     Head("VoidOS")
     SettingRow("Tablet name") {}
     Row(verticalAlignment = Alignment.CenterVertically) {
-        VField(name, { name = it.take(16) }, Modifier.weight(1f), placeholder = "Home", onDone = { store.setHubName(name.ifBlank { "Home" }) })
-        Gap(w = 8.dp)
-        VButton("Save") { store.setHubName(name.ifBlank { "Home" }) }
+        // 2.0.3: saves as you type; no separate Save button
+        VField(name, { name = it.take(16); store.setHubName(name.ifBlank { "Home" }) }, Modifier.weight(1f), placeholder = "Home")
     }
     SettingRow("Tap sound") {
         VToggle(store.tapSound) { store.set("tapSound", it); if (it) com.andysocial.voidos.TapSound.play() }

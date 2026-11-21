@@ -602,8 +602,26 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
 
     @Test fun notesSketch() {
         show { Shell(store, act, Module.NOTES) }
-        tapDesc("Sketch"); expect("Eraser", "Clear")
+        // 2.0.3: one way to start: New note, then Draw in the editor (the separate Sketch button is gone)
+        assertTrue(rule.onAllNodesWithContentDescription("Sketch").fetchSemanticsNodes().isEmpty())
+        tapDesc("New note"); tapDesc("Draw"); expect("Eraser", "Clear")
         assertEquals(1, store.notes.size)
+    }
+
+    @Test fun noDuplicateControls203() {
+        // the edit tick on Home is the only way to close the widget menu
+        show { Shell(store, act, Module.FACE) }
+        if (rule.onAllNodesWithContentDescription("Edit widgets").fetchSemanticsNodes().isNotEmpty()) {
+            tapDesc("Edit widgets")
+            assertTrue(rule.onAllNodesWithText("Done").fetchSemanticsNodes().isEmpty())
+            tapDesc("Done editing")
+        }
+        // with no alarms there is one add control: the + in the header
+        Alarms.list.value.forEach { Alarms.remove(act, it.id) }
+        show { Shell(store, act, Module.TOOLS) }
+        tap("Alarms")
+        assertTrue(rule.onAllNodesWithText("Add alarm").fetchSemanticsNodes().isEmpty())
+        assertEquals(1, rule.onAllNodesWithContentDescription("Add alarm").fetchSemanticsNodes().size)
     }
 
 
