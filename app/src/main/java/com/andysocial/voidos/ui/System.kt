@@ -456,19 +456,15 @@ private fun BtRow(name: String, state: String, col: Color, onClick: () -> Unit) 
 
 // --------------------------------------------------------------- standby
 
-/** 2.0.1: lock mode is always on, so its page is gone; only the standby choices are left, on the VoidOS page. */
+/** 2.0.1: lock mode is always on, so its page is gone. 2.0.2: standby is gone too; only the screen-off time is left, on the VoidOS page. */
 @Composable
 internal fun StandbyRows(store: Store) {
     if (Stealth.restartNeeded.value) SettingRow("Restart to remove the bottom bar") {
         VButton("Restart", accent = V.Teal, filled = true) { com.andysocial.voidos.VoidKeysService.restartOrOff(restart = true) }
     }
-    SettingRow("Standby after") {}
+    // 2.0.2: the standby clock is gone; this is how long until the screen turns off
+    SettingRow("Screen off after") {}
     GlassSegments(
         listOf("0" to "Never", "1" to "1 min", "5" to "5 min", "15" to "15 min"), store.ambientMinutes.toString(), Modifier.widthIn(max = 520.dp),
     ) { store.setAmbient(it.toInt()) }
-    Gap(h = Grid.l)
-    SettingRow("Standby clock") {}
-    GlassSegments(
-        listOf("digital" to "Digital", "analog" to "Analogue"), store.ambientFace, Modifier.widthIn(max = 520.dp),
-    ) { store.chooseAmbientFace(it) }
 }

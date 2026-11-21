@@ -1,6 +1,10 @@
 package com.andysocial.voidos.hub
 
 import com.andysocial.voidos.ui.OctBtn
+import androidx.compose.foundation.border
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.contentDescription
 import com.andysocial.voidos.ui.Pill
 import com.andysocial.voidos.ui.Chamfer
 import com.andysocial.voidos.ui.PageHeader
@@ -59,8 +63,8 @@ import com.andysocial.voidos.ui.tap
 
 /**
  * 2.0's metric view: the app chosen in the right drawer × the metric chosen in the left one.
- * "All apps" shows the metric across everything, with each app's share. Revenue adds the payout
- * card, Reviews the inbox with replying, and the costs sit under All apps › Revenue (phase 4).
+ * "All apps" shows the metric across everything, with each app's share. Revenue adds Apple's
+ * newest finance report, Reviews the inbox with replying, and the costs sit under All apps › Revenue (phase 4).
  */
 @Composable
 fun MetricsScreen(store: Store) {
@@ -69,39 +73,30 @@ fun MetricsScreen(store: Store) {
     val metric = Metric.of(store.hubMetric) ?: Metric.REVENUE
     val appId = store.hubApp.takeIf { it == Hub.ALL || s?.app(it) != null } ?: Hub.ALL
     val appName = if (appId == Hub.ALL) "All apps" else s?.app(appId)?.name ?: "All apps"
-    var picking by remember { mutableStateOf<String?>(null) }
-    Box(Modifier.fillMaxSize()) {
-    // under an open picker the page is only a dimmed backdrop, not something to read or tap
-    Column(Modifier.fillMaxSize().then(if (picking != null) Modifier.clearAndSetSemantics { } else Modifier).testTag("metrics")) {
-        PageHeader(metric.label, portrait, sub = freshness(s))
+    val range = store.hubRange
+    // 2.0.2: the metric and the app are chosen in the edge drawers only (the two selectors that
+    // repeated them are gone); the one control here is the range
+    Column(Modifier.fillMaxSize().testTag("metrics")) {
+        PageHeader(metric.label, portrait, sub = listOf(appName, freshness(s)).filter { it.isNotBlank() }.joinToString("  \u00b7  "))
         Gap(h = Grid.m)
-        // 2.0.1: two quiet selectors instead of two long rows of pills; each opens a grid that always fits
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Grid.s)) {
-            SelectButton(metric.label, Modifier.weight(1f, fill = false), tag = "pick_metric",
-                leading = { Glyph(HubDrawers.glyph(metric), V.Teal, Modifier.size(18.dp)) }) { picking = "metric" }
-            if (s != null && s.apps.isNotEmpty()) {
-                val chosenApp = s.app(appId)
-                SelectButton(if (chosenApp == null) "All apps" else shortName(chosenApp.name), Modifier.weight(1f, fill = false), tag = "pick_app",
-                    leading = { if (chosenApp != null && chosenApp.kind == HubKind.APP) AppIcon(chosenApp, 24.dp) else Glyph(G.APPS, V.Teal, Modifier.size(18.dp)) }) { picking = "app" }
-            }
-        }
-        Gap(h = Grid.l)
         if (s == null || s.apps.isEmpty()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { NotConnected("NO DATA") }; return@Column }
-        if (Hub.total(s, metric) == null && !(metric == Metric.REVENUE && (s.payout != null || s.costs.isNotEmpty())) && !(metric == Metric.REVIEWS && s.reviews.isNotEmpty())) {
+        if (Hub.total(s, metric) == null && !(metric == Metric.REVENUE && (s.finance != null || s.costs.isNotEmpty())) && !(metric == Metric.REVIEWS && s.reviews.isNotEmpty())) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { NotConnected("NO DATA") }
             return@Column
         }
+        RangeBar(range) { store.chooseHubRange(it) }
         Gap(h = 12.dp)
         Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())) {
-            val v = Hub.value(s, appId, metric)
+            val v = Hub.ranged(Hub.value(s, appId, metric), metric, range)
             val wrap: @Composable (@Composable (Modifier) -> Unit, @Composable (Modifier) -> Unit) -> Unit = { a, b ->
                 if (portrait) { a(Modifier.fillMaxWidth()); Gap(h = 12.dp); b(Modifier.fillMaxWidth()) }
                 else Row(Modifier.fillMaxWidth()) { a(Modifier.weight(1f)); Gap(w = 12.dp); b(Modifier.weight(1f)) }
             }
-            wrap({ m -> BigNumber(metric, v, m) }, { m -> if (appId == Hub.ALL) Ranking(s, metric, m) else Trend(metric, v, m) })
+            wrap({ m -> BigNumber(metric, v, range, m) }, { m -> if (appId == Hub.ALL) Ranking(s, metric, range, m) else Trend(metric, v, m) })
             Gap(h = 12.dp)
             when {
-                metric == Metric.REVENUE && appId == Hub.ALL -> wrap({ m -> PayoutCard(s.payout, m) }, { m -> CostsCard(s.costs, m) })
+                metric == Metric.REVENUE && appId == Hub.ALL && s.finance != null -> wrap({ m -> FinanceCard(s.finance, m) }, { m -> CostsCard(s.costs, m) })
+                metric == Metric.REVENUE && appId == Hub.ALL -> CostsCard(s.costs, Modifier.fillMaxWidth())
                 metric == Metric.REVIEWS || metric == Metric.RATING -> ReviewsInbox(s, appId, store, Modifier.fillMaxWidth())
                 metric == Metric.CRASHES -> CrashList(s, appId, Modifier.fillMaxWidth())
                 metric == Metric.UPTIME -> SitesCard(s, Modifier.fillMaxWidth())
@@ -111,22 +106,30 @@ fun MetricsScreen(store: Store) {
             Gap(h = 24.dp)
         }
     }
-    PickSheet(picking == "metric", "Metric", { picking = null }) {
-        Metric.entries.forEach { m ->
-            PickTile(m.label, m == metric, leading = { Glyph(HubDrawers.glyph(m), if (m == metric) V.Teal else V.Muted, Modifier.size(18.dp)) }) { store.setHub(metric = m.name); picking = null }
+}
+
+/** 2.0.2: one row of range choices, the design system's segmented control. */
+@Composable
+private fun RangeBar(range: Int, onPick: (Int) -> Unit) {
+    Row(Modifier.fillMaxWidth().testTag("metrics_range"), horizontalArrangement = Arrangement.spacedBy(Grid.s)) {
+        Hub.RANGES.forEach { d ->
+            val on = d == range
+            Box(
+                Modifier.height(36.dp).width(64.dp).clip(OctBtn)
+                    .background(if (on) V.Teal.copy(alpha = 0.22f) else V.Tick.copy(alpha = 0.12f))
+                    .border(1.dp, if (on) V.Teal else V.Tick.copy(alpha = 0.35f), OctBtn)
+                    .tap { onPick(d) }.testTag("range_$d")
+                    .semantics { contentDescription = "Last ${if (d == 365) "year" else "$d days"}"; selected = on },
+                contentAlignment = Alignment.Center,
+            ) { VText(Hub.rangeLabel(d), size = Type.label, color = if (on) V.White else V.Muted, font = SansMedium, maxLines = 1) }
         }
-    }
-    PickSheet(picking == "app", "App", { picking = null }) {
-        PickTile("All apps", appId == Hub.ALL, leading = { Glyph(G.APPS, V.Teal, Modifier.size(18.dp)) }) { store.setHub(app = Hub.ALL); picking = null }
-        s?.apps?.forEach { a ->
-            PickTile(shortName(a.name), a.id == appId, leading = { if (a.kind == HubKind.APP) AppIcon(a, 26.dp) else Glyph(G.WEB, V.Teal, Modifier.size(18.dp)) }) { store.setHub(app = a.id); picking = null }
-        }
-    }
     }
 }
 
+private fun rangeWords(days: Int) = if (days == 365) "Last year" else "Last $days days"
+
 @Composable
-private fun BigNumber(m: Metric, v: MetricValue?, modifier: Modifier) {
+private fun BigNumber(m: Metric, v: MetricValue?, range: Int, modifier: Modifier) {
     Box(modifier.height(200.dp).pane(Oct)) {
         // the old face's octagon, drawn thin inside the glass
         Canvas(Modifier.fillMaxSize().padding(10.dp)) { octagon(V.Teal.copy(alpha = 0.35f)) }
@@ -135,7 +138,7 @@ private fun BigNumber(m: Metric, v: MetricValue?, modifier: Modifier) {
             if (v == null) VText("\u2014", size = Type.display, color = V.Muted, maxLines = 1)
             else {
                 FitText(Hub.fmt(v.today, m, v.currency), 64.sp(), Modifier.fillMaxWidth().height(76.dp), color = V.White, font = SansLight)
-                VText("Last 7 days: " + Hub.fmt(v.week, m, v.currency), size = Type.body, color = V.Muted, maxLines = 1)
+                VText(rangeWords(range) + ": " + Hub.fmt(v.week, m, v.currency), size = Type.body, color = V.Muted, maxLines = 1)
             }
         }
     }
@@ -146,7 +149,7 @@ private fun Int.sp() = androidx.compose.ui.unit.TextUnit(this.toFloat(), android
 @Composable
 private fun Trend(m: Metric, v: MetricValue?, modifier: Modifier) {
     Column(modifier.height(200.dp).pane(Oct).padding(20.dp)) {
-        Label("Last ${v?.series?.size ?: 0} days")
+        Label(rangeWords(v?.series?.size?.takeIf { it > 0 } ?: 7))
         Gap(h = 10.dp)
         if (v == null || v.series.isEmpty()) VText("\u2014", size = Type.title, color = V.Muted)
         else {
@@ -161,10 +164,10 @@ private fun Trend(m: Metric, v: MetricValue?, modifier: Modifier) {
 }
 
 @Composable
-private fun Ranking(s: HubSummary, m: Metric, modifier: Modifier) {
-    val rank = Hub.ranking(s, m)
+private fun Ranking(s: HubSummary, m: Metric, range: Int, modifier: Modifier) {
+    val rank = Hub.ranking(s, m, range)
     Column(modifier.height(200.dp).pane(Oct).padding(20.dp)) {
-        Label("By app")
+        Label("By app \u00b7 " + Hub.rangeLabel(range))
         Gap(h = 8.dp)
         if (rank.isEmpty()) VText("\u2014", size = Type.title, color = V.Muted)
         val top = rank.maxOfOrNull { it.second }?.takeIf { it > 0 } ?: 1.0
@@ -184,13 +187,17 @@ private fun Ranking(s: HubSummary, m: Metric, modifier: Modifier) {
     }
 }
 
+/**
+ * 2.0.2: what Apple's newest Finance Report says you earned in that fiscal month. Not a payment:
+ * Apple's payment amount and date aren't in any API, so none is shown or worked out.
+ */
 @Composable
-private fun PayoutCard(p: Payout?, modifier: Modifier) {
-    Column(modifier.pane(Oct).padding(20.dp)) {
-        Label("App Store payout")
+private fun FinanceCard(f: FinanceMonth, modifier: Modifier) {
+    Column(modifier.pane(Oct).padding(20.dp).testTag("finance_card")) {
+        Label("Apple finance report")
         Gap(h = 6.dp)
-        if (p == null || p.nextDate.isBlank()) { VText("\u2014", size = Type.body, color = V.Muted, maxLines = 2); return@Column }
-        Figure("Next payment ${p.nextDate}", p.estimate?.let { "about " + Hub.money(it, p.currency) } ?: "–", sub = p.lastAmount?.let { "Last: ${Hub.money(it, p.currency)} on ${p.lastDate}" } ?: "")
+        val month = runCatching { java.time.YearMonth.parse(f.month).format(java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy", java.util.Locale.UK)) }.getOrDefault(f.month)
+        Figure("Proceeds for $month", Hub.money(f.proceeds, f.currency), sub = if (f.partial) "Some currencies not converted" else "")
     }
 }
 

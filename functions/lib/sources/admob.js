@@ -6,14 +6,14 @@
  * https://developers.google.com/admob/api/v1/reference/rest/v1/accounts.networkReport/generate
  */
 const { request, googleRefreshToken } = require('../http');
-const { DAY, lastDays } = require('../dates');
+const { DAY, lastDays, HISTORY_DAYS } = require('../dates');
 
 const API = 'https://admob.googleapis.com/v1';
 const cfgOf = (cfg) => cfg.admob || {};
 
 function ymdParts(s) { const [y, m, d] = s.split('-').map(Number); return { year: y, month: m, day: d }; }
 
-/** Turn the streamed report rows into per-app 7-day series. */
+/** Turn the streamed report rows into per-app daily series over [days]. */
 function parseReport(rows, days, appMap) {
   const out = {};
   for (const item of rows || []) {
@@ -25,7 +25,7 @@ function parseReport(rows, days, appMap) {
     const admobId = r.dimensionValues.APP.value;
     const id = appMap[admobId];
     if (!id) continue;
-    const o = out[id] || (out[id] = { ads: Array(7).fill(0), impressions: Array(7).fill(0) });
+    const o = out[id] || (out[id] = { ads: Array(days.length).fill(0), impressions: Array(days.length).fill(0) });
     o.ads[i] += Number((r.metricValues.ESTIMATED_EARNINGS || {}).microsValue || 0) / 1e6;
     o.impressions[i] += Number((r.metricValues.IMPRESSIONS || {}).integerValue || 0);
   }
@@ -50,10 +50,11 @@ const source = {
       if (asc) appMap[a.appId] = asc.id;
       else if (c.map && c.map[a.appId]) appMap[a.appId] = c.map[a.appId];
     }
-    const days = lastDays(7, ctx.now);
+    // 2.0.2: a year of days in the one report, so the tablet can show any range
+    const days = lastDays(HISTORY_DAYS, ctx.now);
     const body = {
       reportSpec: {
-        dateRange: { startDate: ymdParts(days[0]), endDate: ymdParts(days[6]) },
+        dateRange: { startDate: ymdParts(days[0]), endDate: ymdParts(days[days.length - 1]) },
         dimensions: ['DATE', 'APP'],
         metrics: ['ESTIMATED_EARNINGS', 'IMPRESSIONS'],
         localizationSettings: { currencyCode: cur },
@@ -64,12 +65,14 @@ const source = {
     const metrics = {};
     for (const [id, o] of Object.entries(per)) {
       const sum = (xs) => xs.reduce((a, b) => a + b, 0);
+      const last7 = (xs) => xs.slice(-7);
+      const n = o.ads.length - 1;
       const ecpm = o.ads.map((e, i) => (o.impressions[i] ? (e / o.impressions[i]) * 1000 : 0));
-      const wk = sum(o.impressions) ? (sum(o.ads) / sum(o.impressions)) * 1000 : 0;
+      const wk = sum(last7(o.impressions)) ? (sum(last7(o.ads)) / sum(last7(o.impressions))) * 1000 : 0;
       metrics[id] = {
-        ads: { today: o.ads[6], week: sum(o.ads), series: o.ads, currency: cur },
-        impressions: { today: o.impressions[6], week: sum(o.impressions), series: o.impressions },
-        ecpm: { today: ecpm[6], week: wk, series: ecpm, currency: cur },
+        ads: { today: o.ads[n], week: sum(last7(o.ads)), series: o.ads, currency: cur },
+        impressions: { today: o.impressions[n], week: sum(last7(o.impressions)), series: o.impressions },
+        ecpm: { today: ecpm[n], week: wk, series: ecpm, currency: cur },
       };
     }
     return { metrics };

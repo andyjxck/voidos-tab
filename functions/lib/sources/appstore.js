@@ -2,7 +2,8 @@
 /**
  * App Store Connect: the app list (names, bundle ids, icons) for the drawer and status board, the
  * review status of each app's newest version, customer reviews (and replies), and from the Sales
- * and Trends reports: downloads, proceeds and the next payout estimate.
+ * and Trends reports: downloads and proceeds, up to a year of days; Finance Reports: a fiscal
+ * month's reported proceeds (2.0.2: no payout estimate, and no payment date or amount is made up).
  *
  * Phase 1 needs only the app list. The rest switch on with the same key; sales need the vendor
  * number too (App Store Connect › Payments and Financial Reports, top left).
@@ -10,7 +11,7 @@
 const zlib = require('zlib');
 const { request } = require('../http');
 const { ascToken } = require('../ascJwt');
-const { DAY, ymd, lastDays } = require('../dates');
+const { DAY, ymd, lastDays, HISTORY_DAYS } = require('../dates');
 const { versionEvents, logReviews, reviewLogEvents } = require('../events');
 
 const API = 'https://api.appstoreconnect.apple.com';
@@ -103,79 +104,126 @@ const source = {
       } catch (_) { /* reviews need the Customer Support role or above */ }
     }));
 
-    let payout;
+    let finance;
+    let salesDays;
+    // 2.0.2: the calendar and history need last refresh's data
+    const prevData = (ctx.prev && ctx.prev.appstore && ctx.prev.appstore.data) || {};
     if (!c.vendorNumber) {
       // Sales and Trends need the vendor number in hub/config (appstore.vendorNumber); without it
       // the app list, icons and reviews still flow and the tablet shows no sales numbers
       console.warn('App Store Connect: hub/config appstore.vendorNumber is not set, so sales reports are skipped');
     } else {
       const skus = new Map(raw.map((a) => [a.attributes.sku, a.id]));
-      const sales = await salesByApp(token, c, ctx, skus);
+      const sales = await salesByApp(token, c, ctx, skus, prevData.salesDays);
+      salesDays = sales.salesDays;
       // every app gets its numbers once the reports came back, a zero row included: an app with
       // no sales this week reads 0, not "no data"
       for (const app of apps) {
-        const s = sales.byApp.get(app.appleId) || emptySales(sales.home, sales.posted);
+        const s = sales.byApp.get(app.appleId) || emptySales(sales.home, sales.span);
         metrics[app.id] = { ...(metrics[app.id] || {}), downloads: s.downloads, revenue: s.revenue };
       }
-      payout = sales.payout;
+      finance = await financeMonth(token, c, ctx, sales.home, prevData.finance).catch(() => prevData.finance);
     }
     // 2.0.2: the calendar's dated events, and the review-status log carried from refresh to refresh
-    const prevData = (ctx.prev && ctx.prev.appstore && ctx.prev.appstore.data) || {};
     const reviewLog = logReviews(prevData.reviewLog, apps, ctx.now);
     const events = [];
     for (const app of apps) events.push(...versionEvents(app.id, versionsOf.get(app.id), listings.get(app.id)));
     events.push(...reviewLogEvents(reviewLog));
-    return { apps, metrics, reviews, payout, events, reviewLog };
+    return { apps, metrics, reviews, finance, events, reviewLog, salesDays };
   },
 };
 
 /**
- * The daily SALES SUMMARY reports for the last 7 days (Apple posts each day's the next morning, so
- * "today" is the newest day Apple has: usually yesterday). Proceeds are converted to the home
- * currency with the ECB rates from frankfurter.app.
+ * The daily SALES SUMMARY reports, up to [HISTORY_DAYS] days (Apple keeps a year of daily
+ * reports). Each day's totals per app are kept in [cache] (`salesDays`, carried from refresh to
+ * refresh), so a refresh asks Apple only for the newest days, which may still change or not be
+ * posted yet, and a few older days it doesn't have yet. "today" is the newest day Apple has
+ * posted: usually yesterday. Proceeds are converted to the home currency with the ECB rates.
  */
-async function salesByApp(token, c, ctx, skus = new Map()) {
+const REFETCH_DAYS = 3;
+const BACKFILL_PER_REFRESH = 30;
+
+async function salesByApp(token, c, ctx, skus = new Map(), cache = {}) {
   const home = (c.currency || 'GBP').toUpperCase();
-  // Apple's daily reports are Pacific-time days, posted the next morning: take the 7 days up to
-  // yesterday in Los Angeles. A day not posted yet comes back empty and the newest posted one is "today".
-  const days = lastDays(7, pacificMidnightUtc(ctx.now) - DAY);
-  const byApp = new Map();
+  // Apple's daily reports are Pacific-time days, posted the next morning
+  const days = lastDays(HISTORY_DAYS, pacificMidnightUtc(ctx.now) - DAY);
+  const old = (cache && cache.home === home && cache.days) || {};
+  const want = [];
+  for (let i = days.length - 1; i >= 0; i--) {
+    const d = days[i];
+    const recent = i >= days.length - REFETCH_DAYS;
+    if (recent || !(d in old)) want.push(d);
+  }
+  // the newest days, then the missing older ones, a few at a time
+  const fetchNow = want.slice(0, REFETCH_DAYS + BACKFILL_PER_REFRESH);
   const rates = await fxRates(home, ctx.deps.fetch);
-  const reports = await Promise.all(days.map(async (d) => {
+  const fresh = {};
+  const results = await mapLimit(fetchNow, 6, async (d) => {
     try {
       const q = `filter[frequency]=DAILY&filter[reportType]=SALES&filter[reportSubType]=SUMMARY&filter[vendorNumber]=${encodeURIComponent(c.vendorNumber)}&filter[reportDate]=${d}&filter[version]=1_1`;
       const gz = await request('App Store sales', `${API}/v1/salesReports?${q}`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/a-gzip' }, raw: true, fetchImpl: ctx.deps.fetch });
-      return parseSales(zlib.gunzipSync(gz).toString('utf8'));
+      return [d, dayTotals(parseSales(zlib.gunzipSync(gz).toString('utf8')), skus, rates, home)];
     } catch (e) {
-      if (e.status === 404) return []; // no sales that day
-      if (e.status === 410 || (e.status === 400 && /not (yet )?available|no sales|future|too (recent|early)/i.test(e.message))) return []; // not posted yet
+      if (e.status === 404) return [d, {}]; // no sales that day
+      if (e.status === 410 || (e.status === 400 && /not (yet )?available|no sales|future|too (recent|early)/i.test(e.message))) return [d, null]; // not posted yet
       throw e;
     }
-  }));
-  let posted = -1;
-  reports.forEach((rows, i) => { if (rows.length) posted = i; });
-  reports.forEach((rows, i) => {
-    for (const r of rows) {
-      // in-app purchases name their app by its SKU in Parent Identifier
-      const appId = (r.parentId && skus.get(r.parentId)) || r.appleId;
-      const s = byApp.get(appId) || { downloads: { series: Array(7).fill(0) }, revenue: { series: Array(7).fill(0), currency: home } };
-      if (DOWNLOAD_TYPES.has(r.type)) s.downloads.series[i] += r.units;
-      const rate = r.currency === home ? 1 : rates[r.currency];
-      if (rate) s.revenue.series[i] += r.proceeds * r.units / rate;
-      byApp.set(appId, s);
-    }
   });
-  for (const s of byApp.values()) {
-    for (const k of ['downloads', 'revenue']) {
-      s[k].week = s[k].series.reduce((a, b) => a + b, 0);
-      s[k].today = posted >= 0 ? s[k].series[posted] : 0;
-    }
+  for (const [d, t] of results) fresh[d] = t;
+  // a day not posted yet is left out of the cache, so it's asked for again
+  const kept = {};
+  for (const d of days) {
+    if (d in fresh) { if (fresh[d] !== null) kept[d] = fresh[d]; } else if (d in old) kept[d] = old[d];
   }
-  return { byApp, home, posted, payout: payoutEstimate(byApp, home, ctx.now, c) };
+  let posted = -1;
+  days.forEach((d, i) => { if (kept[d] && (Object.keys(kept[d]).length || i < days.length - REFETCH_DAYS || fresh[d])) posted = i; });
+  // the days Apple has (or had) data for: the series starts at the oldest known day
+  const first = days.findIndex((d) => d in kept);
+  const span = first < 0 ? days.slice(-7) : days.slice(Math.min(first, days.length - 7));
+  const byApp = new Map();
+  const ids = new Set();
+  for (const d of span) for (const id of Object.keys(kept[d] || {})) ids.add(id);
+  for (const id of ids) {
+    const dl = span.map((d) => ((kept[d] || {})[id] || [0, 0])[0]);
+    const rv = span.map((d) => Math.round(((kept[d] || {})[id] || [0, 0])[1] * 100) / 100);
+    byApp.set(id, { downloads: seriesValue(dl, span, days, posted), revenue: { ...seriesValue(rv, span, days, posted), currency: home } });
+  }
+  return { byApp, home, posted, span, salesDays: { home, days: kept } };
 }
 
-function emptySales(home, posted) {
-  const z = () => Array(7).fill(0);
+/** One day's report as { appleId: [downloads, proceeds in home currency] }. */
+function dayTotals(rows, skus, rates, home) {
+  const out = {};
+  for (const r of rows) {
+    // in-app purchases name their app by its SKU in Parent Identifier
+    const appId = (r.parentId && skus.get(r.parentId)) || r.appleId;
+    const t = out[appId] || (out[appId] = [0, 0]);
+    if (DOWNLOAD_TYPES.has(r.type)) t[0] += r.units;
+    const rate = r.currency === home ? 1 : rates[r.currency];
+    if (rate) t[1] += r.proceeds * r.units / rate;
+  }
+  return out;
+}
+
+/** A series over [span] with "today" (the newest posted day) and "week" (the 7 days up to it). */
+function seriesValue(series, span, days, posted) {
+  const end = posted >= 0 ? span.indexOf(days[posted]) : series.length - 1;
+  const e = end < 0 ? series.length - 1 : end;
+  const week = series.slice(Math.max(0, e - 6), e + 1).reduce((a, b) => a + b, 0);
+  return { series, today: posted >= 0 ? series[e] : 0, week: Math.round(week * 100) / 100, end: span[e] || '' };
+}
+
+async function mapLimit(items, n, fn) {
+  const out = new Array(items.length);
+  let i = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+    while (i < items.length) { const k = i++; out[k] = await fn(items[k]); }
+  }));
+  return out;
+}
+
+function emptySales(home, span) {
+  const z = () => Array((span && span.length) || 7).fill(0);
   return { downloads: { series: z(), week: 0, today: 0 }, revenue: { series: z(), week: 0, today: 0, currency: home } };
 }
 
@@ -208,23 +256,64 @@ async function fxRates(home, fetchImpl) {
 }
 
 /**
- * The next payout, roughly: Apple pays a fiscal month's proceeds about 33 days after it ends, once
- * they pass the threshold. This takes calendar months and the last 7 days' run rate, so it's an
- * estimate (the tablet labels it so). A date set in config.appstore.nextPayment wins.
+ * 2.0.2: the newest fiscal month in Apple's Finance Reports (FINANCIAL, region ZZ, all regions
+ * together), as { month: 'YYYY-MM', proceeds, currency, rows }. This is what Apple *reported* you
+ * earned in that fiscal month (the sum of Extended Partner Share, converted to the home currency).
+ * It isn't a payment: Apple's payment amount and date come from Payments in App Store Connect, after
+ * thresholds, tax and bank conversion, and no API gives them, so the hub shows none.
+ * Asks for the last three months, newest first; months already read are not asked for again.
  */
-function payoutEstimate(byApp, home, now, c) {
-  let week = 0;
-  for (const s of byApp.values()) week += s.revenue.week || 0;
-  const d = new Date(now);
-  const prevMonthEnd = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 0);
-  let next = prevMonthEnd + 33 * DAY;
-  if (next < now) next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0) + 33 * DAY;
-  const daysInMonth = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
-  return {
-    nextDate: c.nextPayment || ymd(next),
-    estimate: Math.round((week / 7) * daysInMonth * 100) / 100,
-    currency: home,
-  };
+async function financeMonth(token, c, ctx, home, prev) {
+  const d = new Date(ctx.now);
+  const months = [1, 2, 3].map((k) => {
+    const m = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - k + 1, 1));
+    return `${m.getUTCFullYear()}-${String(m.getUTCMonth() + 1).padStart(2, '0')}`;
+  });
+  const rates = await fxRates(home, ctx.deps.fetch);
+  for (const month of months) {
+    if (prev && prev.month === month && prev.currency === home) return prev;
+    try {
+      const q = `filter[regionCode]=ZZ&filter[reportDate]=${month}&filter[reportType]=FINANCIAL&filter[vendorNumber]=${encodeURIComponent(c.vendorNumber)}`;
+      const gz = await request('App Store finance', `${API}/v1/financeReports?${q}`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/a-gzip' }, raw: true, fetchImpl: ctx.deps.fetch });
+      const f = parseFinance(zlib.gunzipSync(gz).toString('utf8'));
+      if (!f.rows) continue;
+      let total = 0; let missing = false;
+      for (const [cur, amt] of Object.entries(f.byCurrency)) {
+        const rate = cur === home ? 1 : rates[cur];
+        if (!rate) { missing = true; continue; }
+        total += amt / rate;
+      }
+      if (missing && total === 0) return prev && prev.currency === home ? prev : undefined;
+      return { month, proceeds: Math.round(total * 100) / 100, currency: home, rows: f.rows, partial: missing };
+    } catch (e) {
+      if (e.status === 404 || e.status === 410 || e.status === 400) continue; // not posted yet, or nothing that month
+      throw e;
+    }
+  }
+  return prev && prev.currency === home ? prev : undefined;
+}
+
+/** A Finance Report TSV as { rows, byCurrency: { CUR: sum of Extended Partner Share } }; the total lines at the end are skipped. */
+function parseFinance(tsv) {
+  const lines = tsv.replace(/^\uFEFF/, '').split(/\r?\n/).filter((l) => l.trim());
+  const hi = lines.findIndex((l) => /Extended Partner Share/.test(l));
+  if (hi < 0) return { rows: 0, byCurrency: {} };
+  const head = lines[hi].split('\t').map((h) => h.trim());
+  const ext = head.indexOf('Extended Partner Share');
+  const cur = head.indexOf('Partner Share Currency');
+  const start = head.indexOf('Start Date');
+  const byCurrency = {};
+  let rows = 0;
+  for (const l of lines.slice(hi + 1)) {
+    const f = l.split('\t').map((x) => x.trim());
+    if (start >= 0 && !/\d/.test(f[start] || '')) continue; // Total_Rows, Total_Amount, Total_Units ...
+    const amt = Number(f[ext]);
+    const c = (f[cur] || '').toUpperCase();
+    if (!c || Number.isNaN(amt)) continue;
+    byCurrency[c] = (byCurrency[c] || 0) + amt;
+    rows += 1;
+  }
+  return { rows, byCurrency };
 }
 
 /** Post a reply to a customer review (or replace the one there). Needs the Customer Support role or above. */
@@ -241,4 +330,4 @@ async function reply(cfg, { reviewId, text }, deps = {}) {
   return request('App Store Connect', `${API}/v1/customerReviewResponses`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body, fetchImpl: deps.fetch });
 }
 
-module.exports = { source, reply, parseSales, payoutEstimate, pacificMidnightUtc, DOWNLOAD_TYPES };
+module.exports = { source, reply, parseSales, parseFinance, financeMonth, salesByApp, pacificMidnightUtc, DOWNLOAD_TYPES, HISTORY_DAYS };

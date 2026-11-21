@@ -290,6 +290,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
     }
 
     @Test fun faceWidgets() {
+        com.andysocial.voidos.ui.Book.reset()
         store.saveWidgets(emptyList())
         if (store.notes.isEmpty()) store.saveNote(Note(77L, "Bins out Thursday", 1, 77L))
         store.addWidget("battery"); store.addWidget("hrev"); store.addWidget("note", store.notes.first().id)
@@ -500,7 +501,7 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
             assertTrue("[$tag] $t", rule.onAllNodesWithTag(t, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         }
         assertTrue("[$tag] a release", rule.onAllNodesWithText("released", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
-        assertTrue("[$tag] the payout", rule.onAllNodesWithText("Apple payout", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        assertTrue("[$tag] the payout", rule.onAllNodesWithText("Apple payment", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         // tapping an app's event opens that app's panel
         rule.onAllNodesWithTag("event_scheduled", useUnmergedTree = true)[0].performClick()
         settle(700)
@@ -597,29 +598,6 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
             // upright the note fills the screen and there's a way back to the list
             tap("Notes"); expect("Shopping"); shot("08c_notes_list")
         } else expect("Shopping")
-    }
-
-    /** Standby: digital or analogue face, and a glowing ring round the edge while charging. */
-    @Test fun standbyClock() {
-        store.chooseAmbientFace("digital")
-        var bat by mutableStateOf(com.andysocial.voidos.ui.Battery(64, false))
-        show { com.andysocial.voidos.ui.AmbientClock(store, bat) }
-        settle(300)
-        fun has(d: String) = rule.onAllNodesWithContentDescription(d, substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
-        assertTrue("[$tag] no ring off charge", !has("Charging ring"))
-        assertTrue("[$tag] digital shows no hands", !has("Analogue clock"))
-        shot("60_standby_digital")
-        bat = com.andysocial.voidos.ui.Battery(64, true)
-        settle(300)
-        assertTrue("[$tag] ring while charging", has("Charging ring"))
-        expect("Charging")
-        shot("61_standby_digital_charging")
-        rule.runOnUiThread { store.chooseAmbientFace("analog") }
-        settle(300)
-        assertTrue("[$tag] analogue face", has("Analogue clock"))
-        assertEquals("analog", store.ambientFace)
-        shot("62_standby_analogue_charging")
-        store.chooseAmbientFace("digital")
     }
 
     @Test fun notesSketch() {
@@ -1261,14 +1239,13 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         assertEquals("[$tag] dropped into the split", "com.spotify.music", dropped)
     }
 
-    /** The page dots are a second way in: a tap opens the tab wheel, no swipe needed. */
-    @Test fun dotsOpenWheel() {
+    /** 2.0.2: the page dots only mark the page; a tap no longer opens the drawer (the edge does that). */
+    @Test fun dotsAreOnlyAMarker() {
         show { Shell(store, act, Module.FACE) }
         settle(300)
         rule.onNodeWithContentDescription("Screens").performClick()
         settle(800)
-        listOf("Revenue", "Crashes", "Uptime").forEach { assertTrue("[$tag] $it row; edge log: ${com.andysocial.voidos.ui.EdgeSwipe.last.value}", inDrawer(it, left = true)) }
-        shot("17e_drawer_from_dots")
+        assertFalse("[$tag] tapping the dots opens nothing", inDrawer("Revenue", left = true))
     }
 
     /** The debug overlay shows the router's last decision on screen. */
@@ -1599,12 +1576,6 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         tap("Hub")
         expect("Server", "Sources", "Sites")
         shot("27e_hub_settings_empty"); assertClean("27e_hub_settings_empty")
-        // standby: no alert light, off charge or on it (on charge it's only the plain charging ring)
-        var bat by mutableStateOf(com.andysocial.voidos.ui.Battery(64, false))
-        show { com.andysocial.voidos.ui.AmbientClock(store, bat) }
-        settle(300)
-        assertFalse("[$tag] standby ring neutral with nothing linked", ringShown())
-        shot("60e_standby_unlinked")
     }
 
     /** Linked to the server, but no app in it yet: "No apps linked yet", and the ring still neutral. */
@@ -1619,9 +1590,6 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         settle(600)
         expect("NO DATA")
         shot("14f_metrics_no_apps"); assertClean("14f_metrics_no_apps")
-        show { com.andysocial.voidos.ui.AmbientClock(store, com.andysocial.voidos.ui.Battery(64, false)) }
-        settle(300)
-        assertFalse("[$tag] standby ring neutral with no apps", ringShown())
     }
 
     /**
@@ -1714,9 +1682,15 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         rule.runOnUiThread { com.andysocial.voidos.hub.HubRepo.hide(first.id, false) }
         show { Shell(store, act, Module.METRICS) }
         settle(800)
-        rule.onNodeWithTag("pick_metric", useUnmergedTree = true).performClick()
-        settle(500)
-        shot("14p_metric_picker"); assertClean("14p_metric_picker")
+        // 2.0.2: no metric or app selectors on the page (the drawers choose); one range control
+        assertTrue("[$tag] no metric picker", rule.onAllNodesWithTag("pick_metric", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        assertTrue("[$tag] no app picker", rule.onAllNodesWithTag("pick_app", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        rule.onNodeWithTag("range_90", useUnmergedTree = true).performClick()
+        settle(400)
+        assertEquals(90, store.hubRange)
+        expect("Last 90 days")
+        shot("14p_metrics_range_90"); assertClean("14p_metrics_range_90")
+        rule.runOnUiThread { store.chooseHubRange(7) }
     }
 
     /** Notes by app: a chip per hub app, and a note filed under its app. */
@@ -1734,18 +1708,6 @@ abstract class ScreensTest(private val tag: String, private val keepShots: Boole
         expect("Round 50 boss")
         shot("08e_notes_one_app"); assertClean("08e_notes_one_app")
         store.deleteNote(901L); store.deleteNote(902L)
-    }
-
-    /** The status board's ring and the standby alert light on real (not demo-flagged) data. */
-    @Test fun standbyAlertLight() {
-        hubFixture(live = true)
-        val s = com.andysocial.voidos.hub.HubRepo.summary!!
-        show { com.andysocial.voidos.ui.AmbientClock(store, com.andysocial.voidos.ui.Battery(64, false)) }
-        settle(300)
-        val expectRing = com.andysocial.voidos.hub.ringAlert(s, false) != null
-        assertEquals("[$tag] alert light follows the hub (${s.overall})", expectRing, ringShown())
-        shot("63_standby_alert")
-        assertClean("63_standby_alert")
     }
 
     @Test fun widgetsFitAtEverySize() {

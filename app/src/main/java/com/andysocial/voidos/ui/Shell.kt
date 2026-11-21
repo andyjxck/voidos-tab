@@ -198,13 +198,18 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
         if (Book.onHome(ctx, module == Module.FACE, System.currentTimeMillis()) && hadApp) Book.closeApp(ctx, store)
     }
 
-    // ambient clock after N idle minutes
+    // 2.0.2: no standby clock. After the minutes set in Settings > VoidOS with nothing touched, the
+    // screen just turns off (and the next wake counts as a touch)
     LaunchedEffect(store.ambientMinutes) {
+        // once per stretch of no touches: it waits for the next touch before it turns the screen off again
+        var offFor = -1L
         while (isActive) {
             delay(5_000)
             val m = store.ambientMinutes
-            if (m > 0 && !Idle.ambient.value && System.currentTimeMillis() - Idle.last > m * 60_000L) {
-                Idle.ambient.value = true
+            val last = Idle.last
+            if (m > 0 && last != offFor && System.currentTimeMillis() - last > m * 60_000L) {
+                offFor = last
+                Tablet.screenOff(ctx)
             }
         }
     }
@@ -299,7 +304,6 @@ fun Shell(store: Store, act: MainActivity, start: Module = Module.FACE) {
     ControlCentre(control, store, act, onClose = { control = false }, onSettings = { go(Module.SYSTEM, animate = false) })
     AppSwitcher(store)
     com.andysocial.voidos.hub.DevAppsSheet(store)
-    if (ambient) AmbientClock(store)
     if (escape) EscapeOverlay(store, act, onClose = { escape = false })
 }
 
@@ -324,9 +328,10 @@ private fun edgeOff(escape: Boolean, control: Boolean, ambient: Boolean, locked:
 @Composable
 private fun PageDots(n: Int, pos: Float) {
     // round dots only, no pill: the one you're on is a small lit bead of glass that glides between them
-    // tapping the dots opens the tab wheel, pinned: a way round that needs no edge swipe
+    // 2.0.2: only a marker of where you are; tapping it no longer opens the metrics drawer, which
+    // the left edge already opens (two ways on screen to one drawer)
     Canvas(
-        Modifier.fillMaxWidth().clickable(interactionSource = null, indication = null) { EdgeSwipe.request.value = true }
+        Modifier.fillMaxWidth()
             .padding(top = 4.dp, bottom = 12.dp).height(10.dp)
             .semantics { contentDescription = "Screens" }
     ) {

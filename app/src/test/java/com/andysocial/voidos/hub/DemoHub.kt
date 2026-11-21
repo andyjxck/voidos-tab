@@ -101,7 +101,7 @@ object DemoHub {
                 SourceState("crashlytics", "Crashlytics", true, true, now - 6 * 60_000L),
                 SourceState("sites", "Uptime checks", true, true, now - 6 * 60_000L),
             ),
-            payout = Payout("2026-12-03", 112.40, "GBP", 96.15, "2026-11-05"),
+            finance = FinanceMonth("2026-10", 23.00, "GBP"),
             reviews = apps.mapNotNull { it.latestReview } + StoreReview("demo-r4", "demo:buttonpanic", 2, "Too hard", "Calm mode is not calm.", "nope", "GBR", now - 26 * 3_600_000L),
             costs = listOf(
                 CostLine("gcp", "Google Cloud & Firebase", 3.12, "GBP", "this month so far"),
@@ -120,7 +120,7 @@ object DemoHub {
             // 2.0.2: the hub calendar, a few weeks either side of now
             events = listOf(
                 HubEvent("f1", now + 10 * day, "scheduled", "demo:buttonpanic", "1.5 scheduled", "Approved, waiting for you"),
-                HubEvent("f2", now + 12 * day, "payout", "", "Apple payout (est.)", "GBP 112.40", estimated = true),
+                HubEvent("f2", now + 12 * day, "payout", "", "Apple payment"),
                 HubEvent("f3", now + 20 * day, "ssl", "site:staffhub", "SSL certificate expires", "tws-rota.co.uk", estimated = true),
                 HubEvent("f4", now + 2 * day, "review", "demo:voided", "2.1 in review", "Submitted"),
                 HubEvent("f5", now - 3 * day, "release", "demo:buttonpanic", "1.4.2 released", "Live on the App Store"),

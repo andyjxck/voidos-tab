@@ -7,7 +7,7 @@
  *   at        ms since epoch (a date-only event sits at 12:00 UTC on its day)
  *   kind      release | scheduled | pending | phased | review | payout | renewal | ssl | domain | build | cost
  *   appId     the hub app it belongs to ('' when it belongs to none: the payout, the renewal)
- *   estimated true when the date is worked out, not reported (the payout estimate, SSL and domain)
+ *   estimated true when the date is worked out, not reported (SSL and domain)
  */
 const DAY = 86400000;
 const KEEP_PAST_MS = 400 * DAY;
@@ -117,21 +117,20 @@ function ev(appId, kind, at, title, detail, estimated = false, id = '') {
 
 /**
  * Every event for the summary: the sources' own events plus the dates the summary already holds
- * (the payout, costs with a due date, SSL and domain expiry, GitHub builds). Sorted by date, the
+ * (the payment date you set, costs with a due date, SSL and domain expiry, GitHub builds). Sorted by date, the
  * newest first, deduplicated, and kept to roughly a year either side of now.
  *
- * @param out       the summary being built (payout, costs, sites, repos)
+ * @param out       the summary being built (costs, sites, repos)
  * @param extra     events the sources returned
- * @param cfg       hub config (appstore.nextPayment marks the payout as a real date)
+ * @param cfg       hub config (appstore.nextPayment: a payment date you set)
  * @param sitesAt   when the sites were last checked (the SSL and domain days count from then)
  */
 function buildEvents(out, extra, cfg, now, sitesAt) {
   const list = [...(extra || [])];
-  if (out.payout && out.payout.nextDate) {
-    const real = !!(cfg && cfg.appstore && cfg.appstore.nextPayment);
-    const amt = out.payout.estimate ? `${out.payout.currency || ''} ${Number(out.payout.estimate).toFixed(2)}`.trim() : '';
-    list.push(ev('', 'payout', dateMs(out.payout.nextDate), real ? 'Apple payout' : 'Apple payout (est.)', amt, !real, `payout:${out.payout.nextDate}`));
-  }
+  // 2.0.2: a payment date only when you set it in hub/config (appstore.nextPayment): no API gives
+  // Apple's payment dates, so none is worked out
+  const pay = cfg && cfg.appstore && cfg.appstore.nextPayment;
+  if (pay) list.push(ev('', 'payout', dateMs(pay), 'Apple payment', '', false, `payout:${pay}`));
   for (const c of out.costs || []) {
     if (!c.due) continue;
     const kind = c.key === 'apple' ? 'renewal' : 'cost';

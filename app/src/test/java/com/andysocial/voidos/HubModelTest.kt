@@ -131,10 +131,11 @@ class HubModelTest {
         assertEquals("Waiting for review", v.review!!.label)
         assertEquals("https://is1.mzstatic.com/voided.png", v.icon)
         assertEquals(7.0, v.metrics[Metric.DOWNLOADS]!!.today!!, 1e-9)
-        assertEquals(7, v.metrics[Metric.DOWNLOADS]!!.series.size)
+        assertEquals(7, v.metrics[Metric.DOWNLOADS]!!.series.takeLast(7).size)
         assertEquals("Thanks Kev!", v.latestReview!!.reply)
         assertTrue(s.reviews.any { it.id == "r2" && it.appId == "asc:111" })
-        assertTrue(s.payout!!.nextDate.isNotBlank())
+        // 2.0.2: no payout estimate in the summary; the sample has no finance report
+        assertNull(s.finance)
         val asc = s.sources.first { it.key == "appstore" }
         assertTrue(asc.connected && asc.ok)
         assertFalse(s.sources.first { it.key == "admob" }.connected)

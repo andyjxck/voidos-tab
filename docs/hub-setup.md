@@ -3,7 +3,7 @@
 The tablet never holds a store or API key. A small server (two Firebase Cloud Functions in
 `functions/`) pulls every number, writes one summary to Firestore, and the tablet reads that one
 summary with its own device token. The app holds no made-up numbers: until the server is set up,
-every hub screen says **Nothing linked yet** and the standby ring stays plain.
+every hub screen shows a quiet NO DATA.
 
 Each source is optional. A source with no key shows **Not connected** in Settings › Hub › Sources,
 and a metric it would feed names it (for example "No crashes yet · Link Crashlytics in
@@ -55,7 +55,7 @@ way and the next refresh picks it up.
 
 The other settings are not secret, and live in the Firestore document **hub/config** (step 4).
 
-### App Store Connect (phase 1: apps, names, icons; phase 2: downloads, sales, payouts, review status, reviews)
+### App Store Connect (phase 1: apps, names, icons; phase 2: downloads, sales, finance reports, review status, reviews)
 
 1. App Store Connect › **Users and Access › Integrations › App Store Connect API › Team Keys**.
    Generate a key. The **Admin** role covers everything the hub reads and the review replies; a
@@ -69,12 +69,15 @@ The other settings are not secret, and live in the Firestore document **hub/conf
    firebase functions:secrets:set ASC_ISSUER_ID
    firebase functions:secrets:set ASC_PRIVATE_KEY --data-file AuthKey_XXXXXXXXXX.p8
    ```
-4. For downloads, sales and the payout estimate, add your **vendor number** to hub/config as
+4. For downloads, sales and finance reports, add your **vendor number** to hub/config as
    `appstore.vendorNumber`. It is at the top left of **Payments and Financial Reports**.
 
 Apple posts each day's sales report the next morning, so "today" on the tablet is the newest day
-Apple has published, usually yesterday. The payout date and amount are an estimate from the last
-seven days; set `appstore.nextPayment` (YYYY-MM-DD) in hub/config to show Apple's real date.
+Apple has published, usually yesterday. The hub keeps up to a year of daily figures (it reads a month of older days each refresh until it
+has them), so Metrics can show 7 days, 30 days, 90 days or a year. Revenue also shows the proceeds
+Apple's newest **Finance Report** gives for a fiscal month. That isn't a payment: no API gives
+Apple's payment amounts or dates, so the hub never estimates one. To see a payment date on the
+Calendar, set `appstore.nextPayment` (YYYY-MM-DD) in hub/config from App Store Connect's Payments page.
 
 ### AdMob (phase 2: earnings, impressions, eCPM)
 

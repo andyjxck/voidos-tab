@@ -160,8 +160,11 @@ data class HubApp(
 /** One data source's last pull, for "Not connected" and "couldn't reach X" lines. */
 data class SourceState(val key: String, val label: String, val connected: Boolean, val ok: Boolean, val at: Long = 0L, val error: String = "")
 
-/** App Store payouts (phase 2). */
-data class Payout(val nextDate: String = "", val estimate: Double? = null, val currency: String = "GBP", val lastAmount: Double? = null, val lastDate: String = "")
+/**
+ * 2.0.2: Apple's newest Finance Report: the proceeds Apple *reported* for one fiscal month
+ * ([month] is "YYYY-MM"). It is not a payment: no API gives Apple's payment amounts or dates.
+ */
+data class FinanceMonth(val month: String, val proceeds: Double, val currency: String = "GBP", val partial: Boolean = false)
 
 /** One running cost (phase 4): cloud spend, ElevenLabs balance, Apple renewal. */
 data class CostLine(val key: String, val label: String, val amount: Double? = null, val currency: String = "GBP", val note: String = "", val due: String = "", val warn: Boolean = false)
@@ -183,7 +186,7 @@ data class HubSummary(
     val updatedAt: Long,
     val apps: List<HubApp>,
     val sources: List<SourceState> = emptyList(),
-    val payout: Payout? = null,
+    val finance: FinanceMonth? = null,
     val reviews: List<StoreReview> = emptyList(),
     val costs: List<CostLine> = emptyList(),
     val repos: List<RepoState> = emptyList(),
@@ -245,6 +248,29 @@ object Hub {
         }
         return MetricValue(comb(vals.mapNotNull { it.today }), comb(vals.mapNotNull { it.week }), series, vals.first().currency)
     }
+
+    /** 2.0.2: the ranges the Metrics page offers, in days. */
+    val RANGES = listOf(7, 30, 90, 365)
+
+    fun rangeLabel(days: Int): String = when (days) { 7 -> "7D"; 30 -> "30D"; 90 -> "90D"; 365 -> "1Y"; else -> "${days}D" }
+
+    /**
+     * 2.0.2: [v] over the last [days]: the series cut to that many days and [MetricValue.week]
+     * as the range's figure (added up, or for ratings, uptime and eCPM the average of the days
+     * with data). With a 7-day range this is the server's own week figure.
+     */
+    fun ranged(v: MetricValue?, m: Metric, days: Int): MetricValue? {
+        if (v == null) return null
+        if (days == 7 && v.week != null) return v.copy(series = v.series.takeLast(7))
+        val cut = v.series.takeLast(days)
+        if (cut.isEmpty()) return v.copy(series = cut)
+        val fig = if (m.sum) cut.sum() else cut.filter { it > 0.0 }.takeIf { it.isNotEmpty() }?.average()
+        return v.copy(week = fig, series = cut)
+    }
+
+    /** Each app's figure for the range, biggest first. */
+    fun ranking(s: HubSummary, m: Metric, days: Int): List<Pair<HubApp, Double>> =
+        s.apps.mapNotNull { a -> ranged(a.metrics[m], m, days)?.week?.let { a to it } }.sortedByDescending { it.second }
 
     /** What the metric view shows for one app, or for "All apps". */
     fun value(s: HubSummary, appId: String, m: Metric): MetricValue? =
@@ -324,14 +350,14 @@ object Hub {
                 SourceState(k, s.optString("label", k), s.optBoolean("connected", true), s.optBoolean("ok", false), s.optLong("at"), s.optString("error", ""))
             }.sortedBy { it.label }.toList()
         } ?: emptyList()
-        val payout = o.optJSONObject("payout")?.let {
-            Payout(it.optString("nextDate"), it.optDoubleOrNull("estimate"), it.optString("currency", "GBP"), it.optDoubleOrNull("lastAmount"), it.optString("lastDate"))
+        val finance = o.optJSONObject("finance")?.takeIf { it.optString("month").isNotBlank() && it.has("proceeds") }?.let {
+            FinanceMonth(it.optString("month"), it.optDouble("proceeds"), it.optString("currency", "GBP"), it.optBoolean("partial"))
         }
         return HubSummary(
             updatedAt = o.optLong("updatedAt"),
             apps = apps,
             sources = sources,
-            payout = payout,
+            finance = finance,
             reviews = o.optJSONArray("reviews").objects().map { parseReview(it, "") },
             costs = o.optJSONArray("costs").objects().map {
                 CostLine(it.optString("key"), it.optString("label"), it.optDoubleOrNull("amount"), it.optString("currency", "GBP"), it.optString("note"), it.optString("due"), it.optBoolean("warn"))

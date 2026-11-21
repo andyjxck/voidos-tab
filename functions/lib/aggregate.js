@@ -84,7 +84,7 @@ function buildSummary(state, cfg, now) {
       if (!had) continue; // a metric for an app no source listed: skip it, don't invent a name
       for (const [k, v] of Object.entries(ms)) if (METRIC_KEYS.includes(k) && v) had.metrics[k] = clean(v);
     }
-    if (d.payout) out.payout = d.payout;
+    if (d.finance) out.finance = d.finance;
     if (d.reviews) out.reviews.push(...d.reviews);
     if (d.costs) out.costs.push(...d.costs);
     if (d.repos) out.repos.push(...d.repos);

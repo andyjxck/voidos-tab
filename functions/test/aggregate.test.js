@@ -123,6 +123,7 @@ function ascRoutes() {
     ]) })],
     [/salesReports.*reportDate\]=2026-11-18/, () => ({ raw: salesTsv([{ 'Apple Identifier': '111', Units: '4', 'Developer Proceeds': '0', 'Product Type Identifier': '1F', 'Currency of Proceeds': 'GBP' }]) })],
     [/salesReports/, () => ({ status: 404, json: { errors: [{ detail: 'no report' }] } })],
+    [/financeReports/, () => ({ status: 404, json: { errors: [{ detail: 'no report' }] } })],
     [/frankfurter/, () => ({ json: { base: 'GBP', rates: { USD: 1.25 } } })],
   ];
 }
@@ -146,7 +147,11 @@ test('App Store Connect: apps, icons, review state, reviews and sales', async ()
   assert.strictEqual(d.metrics['asc:111'].rating.today, 4.6);
   assert.strictEqual(d.reviews.find((r) => r.id === 'r1').reply, 'Thanks Kev!');
   assert.strictEqual(d.reviews.find((r) => r.id === 'r2').reply, '');
-  assert.ok(d.payout && d.payout.nextDate && d.payout.currency === 'GBP');
+  // 2.0.2: no payout estimate; with no finance report, no reported month either
+  assert.strictEqual(d.payout, undefined);
+  assert.strictEqual(d.finance, undefined);
+  // a year of days is kept, and the 7-day figures still come from the newest 7
+  assert.ok(d.salesDays && d.salesDays.home === 'GBP' && Object.keys(d.salesDays.days).length >= 2);
   // every App Store Connect call carried the token; none went anywhere else with it
   for (const c of f.calls) {
     const auth = c.init.headers && c.init.headers.Authorization;
@@ -193,7 +198,11 @@ test('Firebase Analytics: daily active users and the week\'s unique users', asyn
   }]]);
   const cfg = buildConfig({ firebase: { properties: [{ propertyId: '123', bundleId: 'com.andysocial.voided' }] } }, {});
   const d = await firebase.source.pull({ cfg, now: NOW, deps: { fetch: f, googleToken: async () => 't' }, apps: [{ id: 'asc:111', bundleId: 'com.andysocial.voided' }] });
-  assert.deepStrictEqual(d.metrics['asc:111'].users, { today: 42, week: 61, series: [0, 0, 0, 0, 30, 0, 42] });
+  const u = d.metrics['asc:111'].users;
+  assert.strictEqual(u.today, 42);
+  assert.strictEqual(u.week, 61);
+  assert.strictEqual(u.series.length, 365); // 2.0.2: a year of days
+  assert.deepStrictEqual(u.series.slice(-7), [0, 0, 0, 0, 30, 0, 42]);
 });
 
 test('sites: uptime from the kept checks, SSL and domain days', async () => {
@@ -338,25 +347,25 @@ test('calendar: the review log adds a line only when the state moves', () => {
   assert.deepStrictEqual(ev.map((e) => e.title), ['1.4 waiting for review', '1.4 in review']);
 });
 
-test('calendar: the summary carries payout, renewal, SSL, domain and GitHub dates', () => {
+test('calendar: the summary carries the payment date you set, renewal, SSL, domain and GitHub dates', () => {
   const out = {
-    payout: { nextDate: '2026-12-03', estimate: 12.5, currency: 'GBP' },
     costs: [{ key: 'apple', label: 'Apple Developer Program', amount: 79, currency: 'GBP', due: '2027-02-14' }, { key: 'eleven', label: 'ElevenLabs' }],
     sites: [{ appId: 'site:ws', host: 'whiteswanhenley.co.uk', sslDays: 30, domainDays: 200 }],
     repos: [{ repo: 'andyjxck/voidos-tab', build: 'success', buildAt: NOW - 3600000, sha: 'abc1234', releases: [{ tag: 'v2.0.1', at: NOW - 86400000 }] }],
   };
-  const ev = events.buildEvents(out, [], { appstore: {} }, NOW, NOW);
+  // no payment date set: no payment event, and none is worked out
+  assert.ok(!events.buildEvents(out, [], { appstore: {} }, NOW, NOW).some((e) => e.kind === 'payout'));
+  const ev = events.buildEvents(out, [], { appstore: { nextPayment: '2026-12-03' } }, NOW, NOW);
   const k = (x) => ev.find((e) => e.kind === x);
   assert.strictEqual(k('payout').at, Date.parse('2026-12-03T12:00:00Z'));
-  assert.strictEqual(k('payout').estimated, true);
+  assert.strictEqual(k('payout').estimated, false);
+  assert.strictEqual(k('payout').detail, '');
   assert.strictEqual(k('renewal').at, Date.parse('2027-02-14T12:00:00Z'));
   assert.strictEqual(new Date(k('ssl').at).toISOString().slice(0, 10), '2026-12-20');
   assert.strictEqual(k('ssl').appId, 'site:ws');
   assert.ok(k('domain').at > k('ssl').at);
   assert.strictEqual(ev.filter((e) => e.kind === 'build').length, 2);
   assert.ok(ev.every((e, i) => i === 0 || ev[i - 1].at >= e.at), 'newest first');
-  // a date set in config is a real date, not an estimate
-  assert.strictEqual(events.buildEvents(out, [], { appstore: { nextPayment: '2026-12-03' } }, NOW, NOW).find((e) => e.kind === 'payout').estimated, false);
   // nothing dated: no events
   assert.deepStrictEqual(events.buildEvents({}, [], {}, NOW, NOW), []);
 });
@@ -382,4 +391,59 @@ test('calendar: App Store Connect pull returns version events and the summary ha
   const s = agg.buildSummary({ sources: { appstore: { label: 'ASC', connected: true, ok: true, at: NOW, error: '', data: d } } }, cfg, NOW);
   assert.ok(s.events.length >= 3);
   assert.ok(s.events.every((e) => e.at && e.kind && e.title));
+});
+
+// ---- 2.0.2: finance reports and a year of sales ----
+function financeTsv(rows) {
+  const head = ['Start Date', 'End Date', 'UPC', 'ISRC/ISBN', 'Vendor Identifier', 'Quantity', 'Partner Share', 'Extended Partner Share', 'Partner Share Currency', 'Sales or Return', 'Apple Identifier', 'Title', 'Country Of Sale'];
+  const lines = rows.map((r) => head.map((h) => (r[h] != null ? r[h] : '')).join('\t'));
+  return [head.join('\t'), ...lines, '', 'Total_Rows\t' + rows.length, 'Total_Amount\t999', 'Total_Units\t99'].join('\n');
+}
+
+test('finance: the reported month sums Extended Partner Share, skips the totals, and is not a payment', async () => {
+  const p = appstore.parseFinance(financeTsv([
+    { 'Start Date': '09/28/2026', 'Extended Partner Share': '14.00', 'Partner Share Currency': 'GBP' },
+    { 'Start Date': '09/28/2026', 'Extended Partner Share': '10.00', 'Partner Share Currency': 'USD' },
+    { 'Start Date': '09/28/2026', 'Extended Partner Share': '-1.50', 'Partner Share Currency': 'GBP' },
+  ]));
+  assert.deepStrictEqual(p, { rows: 3, byCurrency: { GBP: 12.5, USD: 10 } });
+  // October isn't posted yet (404), so the newest is September's
+  const routes = ascRoutes().filter((r) => !/financeReports/.test(String(r[0])));
+  routes.unshift([/financeReports.*reportDate\]=2026-11/, () => ({ status: 404, json: { errors: [{ detail: 'none' }] } })]);
+  routes.unshift([/financeReports.*reportDate\]=2026-10/, () => ({ raw: zlib.gzipSync(financeTsv([
+    { 'Start Date': '09/28/2026', 'Extended Partner Share': '18.00', 'Partner Share Currency': 'GBP' },
+    { 'Start Date': '09/28/2026', 'Extended Partner Share': '6.25', 'Partner Share Currency': 'USD' },
+  ])) })]);
+  const f = fakeFetch(routes);
+  const cfg = buildConfig({ appstore: { vendorNumber: '85000000' } }, { ASC_KEY_ID: 'K', ASC_ISSUER_ID: 'I', ASC_PRIVATE_KEY: P8_PEM });
+  const d = await appstore.source.pull({ cfg, now: NOW, deps: { fetch: f }, apps: [], prev: {} });
+  // £18 + $6.25 at 1.25 = £23.00
+  assert.deepStrictEqual(d.finance, { month: '2026-10', proceeds: 23, currency: 'GBP', rows: 2, partial: false });
+  assert.ok(f.calls.some((c) => /regionCode\]=ZZ/.test(c.url) && /reportType\]=FINANCIAL/.test(c.url)));
+  assert.strictEqual(d.payout, undefined);
+  const s = agg.buildSummary({ sources: { appstore: { label: 'ASC', connected: true, ok: true, at: NOW, error: '', data: d } } }, cfg, NOW);
+  assert.strictEqual(s.finance.proceeds, 23);
+  assert.strictEqual(s.payout, undefined);
+  // the month already read isn't asked for again
+  const f2 = fakeFetch(routes);
+  const d2 = await appstore.source.pull({ cfg, now: NOW, deps: { fetch: f2 }, apps: [], prev: { appstore: { data: d } } });
+  assert.strictEqual(d2.finance.proceeds, 23);
+  assert.ok(!f2.calls.some((c) => /financeReports.*2026-10/.test(c.url)));
+});
+
+test('sales history: a refresh asks only for the newest and missing days, and keeps the rest', async () => {
+  const routes = ascRoutes();
+  const f = fakeFetch(routes);
+  const cfg = buildConfig({ appstore: { vendorNumber: '85000000' } }, { ASC_KEY_ID: 'K', ASC_ISSUER_ID: 'I', ASC_PRIVATE_KEY: P8_PEM });
+  const asked = (fx) => fx.calls.filter((c) => /salesReports/.test(c.url)).length;
+  const d1 = await appstore.source.pull({ cfg, now: NOW, deps: { fetch: f }, apps: [], prev: {} });
+  assert.ok(asked(f) <= 33, `first refresh asked ${asked(f)}`);
+  // pretend the whole year is already cached
+  const days = {};
+  for (const day of require('../lib/dates').lastDays(365, appstore.pacificMidnightUtc(NOW) - 86400000)) days[day] = d1.salesDays.days[day] || { 111: [1, 0.5] };
+  const f2 = fakeFetch(routes);
+  const d2 = await appstore.source.pull({ cfg, now: NOW, deps: { fetch: f2 }, apps: [], prev: { appstore: { data: { salesDays: { home: 'GBP', days } } } } });
+  assert.strictEqual(asked(f2), 3);
+  assert.strictEqual(d2.metrics['asc:111'].downloads.series.length, 365);
+  assert.strictEqual(d2.metrics['asc:111'].downloads.today, 7);
 });

@@ -136,6 +136,9 @@ class Store(private val ctx: Context) {
     fun saveDevApps(v: String) { devApps = v; p.edit().putString("devApps", v).apply() }
     /** 2.0: the metric the hub view and the left drawer last had chosen, and the app. */
     var hubMetric by mutableStateOf(p.getString("hubMetric", "REVENUE") ?: "REVENUE"); private set
+    /** 2.0.2: the Metrics page's range in days (7, 30, 90 or 365). */
+    var hubRange by mutableStateOf(p.getInt("hubRange", 7).let { if (it in com.andysocial.voidos.hub.Hub.RANGES) it else 7 }); private set
+    fun chooseHubRange(days: Int) { if (days in com.andysocial.voidos.hub.Hub.RANGES) { hubRange = days; p.edit().putInt("hubRange", days).apply() } }
     var hubApp by mutableStateOf(p.getString("hubApp", "__all") ?: "__all"); private set
     fun setHub(app: String? = null, metric: String? = null) {
         val e = p.edit()

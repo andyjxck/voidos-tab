@@ -2,6 +2,8 @@
 /** Date helpers in UTC (the store reports are UTC days). */
 
 const DAY = 86400000;
+/** 2.0.2: how many days of daily figures the hub keeps, so the tablet can show any range up to a year. */
+const HISTORY_DAYS = 365;
 
 function ymd(ms) { return new Date(ms).toISOString().slice(0, 10); }
 
@@ -19,4 +21,4 @@ function daysUntil(then, now) {
   return Math.floor((t - now) / DAY);
 }
 
-module.exports = { DAY, ymd, lastDays, daysUntil };
+module.exports = { DAY, HISTORY_DAYS, ymd, lastDays, daysUntil };
